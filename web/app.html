@@ -2266,6 +2266,9 @@ async function xProbeGmail() {
     let status = null;
     try { status = await response.json(); } catch (_) {}
     if (status && typeof status === "object") {
+      // Say what will really be read: a connected Gmail inbox or the built-in sample mailbox.
+      button.dataset.label = status.source === "sample" ? "Scan sample mailbox" : "Scan Gmail";
+      if (!button.disabled) button.textContent = button.dataset.label;
       const hints = Object.entries(status).filter(([key, value]) =>
         /source|connected|mailbox|mode/i.test(key) && ["string", "boolean"].includes(typeof value));
       if (hints.length) button.title += ": " + hints.map(([key, value]) => `${key}: ${value}`).join("; ");
@@ -2289,7 +2292,7 @@ $("x-scan").onclick = async () => {
     await loadExpected();
     if (typeof gRefresh === "function") await gRefresh();
   } catch (e) { say(e.message); }
-  finally { button.disabled = false; button.textContent = "Scan Gmail"; }
+  finally { button.disabled = false; button.textContent = button.dataset.label || "Scan Gmail"; }
 };
 function xRowHTML(x) {
   const on = !!x.expected, kw = (x.keywords || []).map(k => `<span class="chip kw">${esc(k)}</span>`).join("");
@@ -2297,7 +2300,7 @@ function xRowHTML(x) {
     <span class="xk"><span class="tile">${xIcon(x.kind)}</span>${esc((XKINDS[x.kind] || [x.kind])[0])}</span>
     <div style="min-width:0"><div class="xwho">${esc(capFirst(x.who))}</div>${x.note ? `<div class="xnote">${esc(x.note)}</div>` : ""}
       ${xFresh === x.id ? '<div class="xok">The guard lets this call through, unless it asks for money.</div>' : ""}</div>
-    <div class="xkw">${kw || '<span class="cc-empty">No words yet</span>'}${String(x.id).startsWith("gmail-") ? '<span class="chip">from Gmail</span>' : ""}</div>
+    <div class="xkw">${kw || '<span class="cc-empty">No words yet</span>'}${String(x.id).startsWith("gmail-") ? '<span class="chip">from email scan</span>' : ""}</div>
     <div class="xact"><span class="saved">Saved</span><span class="xst">${on ? "Expected" : "Off"}</span>
       <button class="sw" type="button" role="switch" aria-checked="${on}" aria-label="Expect ${esc(x.who)}" data-xact="toggle"></button>
       ${x.builtin ? '<span class="xbuilt"></span>' : `<button class="xbtn" type="button" data-xact="remove" aria-label="Remove ${esc(x.who)}">${XMARK}</button>`}</div>
