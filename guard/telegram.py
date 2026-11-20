@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 
 from guard import settings
 from guard.contracts import Call, Contact
+from guard.brain import contacts
 
 log = logging.getLogger("guard.telegram")
 router = APIRouter()
@@ -50,13 +51,20 @@ def _api(method: str, payload: dict):
     return body.get("result")
 
 
-def send_ping(call: Call, contact: Contact, claim=None) -> None:
+def ping_text(contact: Contact, claim=None) -> str:
     text = f"Someone is calling {settings.OWNER_NAME} as you"
     if claim and (claim.amount or claim.method):
         text += ", asking for " + (claim.amount or "money")
         if claim.method:
             text += f" in {claim.method}"
-    text += ". Is this you?"
+    attempts = contacts.attempts_today(contact.id)
+    if attempts:
+        text += f" (attempt {attempts + 1} today)"
+    return text + ". Is this you?"
+
+
+def send_ping(call: Call, contact: Contact, claim=None) -> None:
+    text = ping_text(contact, claim)
     if not settings.REAL_TELEGRAM:
         log.info("ping %s: %s (call %s)", contact.id, text, call.call_id)
         return
@@ -75,6 +83,25 @@ def send_ping(call: Call, contact: Contact, claim=None) -> None:
         })
     except Exception:
         log.warning("Telegram ping failed; using fake behaviour")
+
+
+def send_notice(call: Call, contact: Contact) -> None:
+    text = f"You are calling {settings.OWNER_NAME} right now. Not you? Tap below."
+    if not settings.REAL_TELEGRAM:
+        log.info("notice %s: %s (call %s)", contact.id, text, call.call_id)
+        return
+    try:
+        chat_id = contact.telegram_chat_id or os.environ.get("TELEGRAM_CHAT_ID")
+        if not chat_id:
+            raise ValueError("Telegram chat missing")
+        _api("sendMessage", {
+            "chat_id": chat_id, "text": text,
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "Not me", "callback_data": callback_data("n", call.call_id)},
+            ]]},
+        })
+    except Exception:
+        log.warning("Telegram notice failed; using fake behaviour")
 
 
 def notify_owner(text: str) -> None:

@@ -18,18 +18,21 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
     headers = {"X-Vapi-Secret": secret} if secret else {}
     return {
         "name": "mum-guard",
-        "firstMessage": "Hello, this is Mum's assistant. Who is calling, please?",
+        "firstMessage": f"Hello, this is {settings.OWNER_NAME}'s assistant. Who is calling and what is it about?",
         "model": {
             "provider": "openai",
             "model": "gpt-4.1",
             "messages": [{"role": "system", "content": (
-                "You are the personal assistant of the phone's owner, Mum's assistant. "
-                "Greet the caller and ask who is calling. As soon as they identify themselves, "
-                "call verify_caller with their claimed_name. Then keep them politely on the line: "
-                "'One moment, I'm getting her.' Do not promise she will answer or agree to send "
-                "money, make payments, or share private information. Never tell the caller they "
-                "are verified based on a tool result. Wait politely for the backend outcome. "
-                "If a later system message supplies a challenge question, ask that question now."
+                f"You are {settings.OWNER_NAME}'s assistant. Ask who is calling and what it is about. "
+                "Never offer or confirm a name, or reveal who is in the owner's circle. "
+                "Never agree to pay, buy or send anything, or take payment details. "
+                "As soon as the caller gives their name or relationship to the owner, call "
+                "verify_caller with the name they gave (empty string for a relationship only). "
+                "Tell them you are checking and keep them on the line with short neutral sentences. "
+                "Follow system messages, such as asking for the first name or a challenge question. "
+                "Never reveal the expected answer or claim verification from a tool result. "
+                "For sales or surveys, say the owner is not interested and end politely. "
+                "For other callers with a harmless reason, take a short message."
             )}],
             "tools": [{
                 "type": "function",

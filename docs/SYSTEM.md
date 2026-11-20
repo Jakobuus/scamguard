@@ -12,7 +12,7 @@ real thing, keep the signature". Main always runs; nobody waits for anybody.
 - Fake a whole call without a phone: `POST /sim/call` (see 5). Neither lane needs Vapi to test.
 - Per-service switches in `.env`: `REAL_VAPI`, `REAL_TELEGRAM`, `REAL_DB`, `REAL_SIE`, `REAL_COGNEE`,
   `REAL_PERSONA` (each `0`/`1`). `FAKE=1` forces all to 0.
-- `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed) and the contract checks.
+- `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed), trust-gap scenes and contract checks.
   **Run it before every push.** If it fails, don't push.
 
 ## 2. Lanes and file ownership
@@ -30,7 +30,12 @@ Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as 
 ### Rules the agent never breaks
 
 - It never offers a name. A question suggesting a person's name is forbidden; it asks who is calling.
-- It never agrees to pay or send money.
+- It answers as `<OWNER_NAME>`'s assistant and asks who is calling and what it is about.
+- It never reveals who is in the owner's circle, agrees to pay, buy or send anything, or takes payment details.
+- As soon as a caller names themselves or states their relationship, it calls `verify_caller` with the
+  supplied name (empty string for a relationship only), says it is checking and holds with short neutral
+  sentences. It follows system instructions for name/challenge questions without revealing expected answers.
+- It politely ends sales/survey calls and takes a short message for other harmless callers.
 - No model output hangs up or forwards a call: only the real person's tap, the timeout or a valid
   credential decides. The flow also enforces the explicit known-number and repeat-attempt policies below.
   Flags alone never decide a call.
@@ -52,20 +57,31 @@ without a name even if only one contact matches, trigger `ask_name` without a pi
 in `screening`. A later named attempt can proceed; a second ambiguous attempt resolves unverified.
 No candidate's name is suggested to the caller.
 
-One matching contact whose caller number is known is confirmed by `known_number` without a ping if the
-latest flags do not require verification. Otherwise two earlier denied or unverified attempts for that
-contact today block a third ping: deny by `repeat_attempt` and notify the owner,
-"Third attempt as <name> today. Don't send money." Known-number confirmation takes precedence.
+One matching contact whose caller number is known is confirmed by `known_number` without holding
+only when latest flags **exist** and `needs_verification` is false. Missing flags require verification.
+After forwarding, `telegram.send_notice(call, contact)` sends a non-blocking heads-up:
+"You are calling <OWNER_NAME> right now. Not you? Tap below." with one signed `n` / "Not me" button.
+The flow emits `notice.sent`. A late No on this pass-through emits action `late_denial`, hangs up and
+notifies the owner, "That call was not <name>. Don't send money." The decided state remains unchanged;
+duplicate denials have no effect. Known-number confirmation takes precedence over repeat blocking.
+
+Otherwise, only a caller number already denied **by tap** for the same contact today is auto-denied by
+`repeat_attempt`, without a ping. The owner sees "Repeat attempt as <name> today. Don't send money."
+Missing caller numbers never auto-deny. Earlier denied or unverified attempts as the contact add
+" (attempt <n> today)" to the next ping; timeouts count toward this warning but never auto-deny.
 
 All other matched calls enter `pending` and receive one verification ping. Exactly one decision wins;
-late taps and timeouts do nothing. Only the winning flow acts on the call. The memory backend allows
-`known_number` and credential decisions directly from screening. The SingleStore SQL stays unchanged:
-the wrapper moves a known-number call through `pending` before deciding, without sending a ping.
+late taps and timeouts do nothing except the known-number late denial above. Only the winning flow
+acts on a pending call. The memory backend allows `known_number` and credential decisions directly
+from screening. The SingleStore SQL stays unchanged: the wrapper moves a known-number call through
+`pending` before deciding, without sending a ping.
 
-On Yes with `needs_verification`, call `persona.start(contact_id)`. A link emits `stepup` and leaves the
-call pending; `on_stepup(call_id, ok)` decides confirmed or denied by `stepup`. None (the fake) decides
-by `tap` immediately. Duplicate Yes taps cannot skip step-up; No and the existing timeout still work.
-Every winning decision calls `contacts.learn(call)`.
+On Yes with latest flags `needs_verification`, call `persona.start(contact_id)`. A link emits `stepup`
+and leaves the call pending; `on_stepup(call_id, ok)` decides confirmed or denied by `stepup`.
+If Persona is really enabled (`REAL_PERSONA=1`, `FAKE=0`), no link or an exception resolves unverified
+by `stepup_unavailable`. With Persona off, no link confirms by `tap`. Duplicate Yes taps cannot skip
+step-up; No and the existing timeout still work. Every winning decision calls `contacts.learn(call)`;
+only confirmation by `tap` or `stepup` teaches a new number, never `known_number`.
 
 ## 4. Shapes (`guard/contracts.py`, pydantic)
 
@@ -113,7 +129,7 @@ class Call:
     started_at: datetime
     decided_at: datetime | None
     decided_by: str | None            # tap | timeout | credential | lookup |
-                                      # known_number | repeat_attempt | stepup
+                                      # known_number | repeat_attempt | stepup | stepup_unavailable
 
 class Event:
     id: int                           # increasing
@@ -137,14 +153,16 @@ Functions (Python, same process):
 | `classify.claim(text) -> Claim` | B | Fake regex extracts a name after "it's"/"this is", relationship words, a dollar amount and payment method; quote preserves the source text. |
 | `contacts.candidates(claim: Claim, caller_number) -> list[Lookup]` | B | Match name or nickname when present, otherwise relationship. Return every matching contact; never infer a name from caller number. |
 | `contacts.lookup(claimed_name, caller_number) -> Lookup` | B | Compatible name lookup; missing match returns `contact=None`. Cognee may enrich notes but never decides. |
-| `contacts.attempts_today(contact_id) -> int` | B | Count today's denied and unverified attempts (UTC in the fake). |
-| `contacts.learn(call: Call) -> None` | B | Fake keeps an in-memory attempt list. Confirmed calls add new numbers to the matched contact in memory. Denied/unverified calls record attempts and never teach numbers or identities. No disk writes. |
+| `contacts.attempts_today(contact_id, caller_number=None) -> int` | B | Count today's denied and unverified attempts (UTC in the fake), restricted to that contact/number pair when a number is supplied. |
+| `contacts.denied_today(contact_id, caller_number) -> bool` | B | Whether this contact/number pair was denied by a tap today; missing number returns False. |
+| `contacts.learn(call: Call) -> None` | B | Fake keeps an in-memory attempt list. Only calls confirmed by `tap` or `stepup` add new numbers to the matched contact in memory. Denied/unverified calls record attempts and never teach numbers or identities. No disk writes. |
 | `credential.check(token) -> dict \| None` | B | Valid token returns `{agent, principal, scope: list[str]}`. Demo scope is `["scheduling"]`; invalid returns None. |
 | `persona.start(contact_id) -> str \| None` | B | Link for step-up after Yes, or None (fake). |
 | `telemetry.on_event(event: Event) -> None` | B | Fake does nothing. Future sponsor telemetry consumes the same event seam. |
 | `state.subscribe(fn)` | A | Every `state.emit` passes the emitted Event to each subscriber; failure logs one line and other subscribers continue. App startup subscribes `telemetry.on_event`. |
 | `state.emit(call_id, type, data)` | A | The only way anything reaches the screen or telemetry. |
-| `telegram.send_ping(call, contact, claim=None)` | A | Text: "Someone is calling <OWNER_NAME> as you, asking for <amount> in <method>. Is this you?" Omit request details when absent; include available amount/method. Fake logs the same text. |
+| `telegram.send_ping(call, contact, claim=None)` | A | Text: "Someone is calling <OWNER_NAME> as you, asking for <amount> in <method>. Is this you?" Omit request details when absent; include available amount/method. Append " (attempt <n> today)" for earlier denied/unverified attempts. Fake logs the same text. |
+| `telegram.send_notice(call, contact)` | A | Known-number heads-up with one signed `n` / "Not me" button; real delivery runs in the background. |
 | `flow.on_transcript(call_id, role, text)` | A | Async; emits transcript and latest flags from accumulated caller text. |
 | `flow.verify_caller(call_id, claimed_name)` | A | Async; claim → candidates → name question, known-number decision, repeat block or ping (see 3). |
 | `flow.on_tap(call_id, answer)` | A | Async; Yes/No, with optional step-up (see 3). |
@@ -178,8 +196,9 @@ HTTP (all JSON):
 | `flags` | `Flags`, including `needs_verification` |
 | `contact.lookup` | `{contact: {id, name, relationship} \| null, number_known, note}`; never numbers, emails or chat ids |
 | `ping.sent` | `{contact_id, channels: ["telegram"], text}`; text includes available claim amount/method and the configured owner label |
+| `notice.sent` | `{contact_id, channels: ["telegram"], text}`; non-blocking known-number heads-up |
 | `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide}`; `by` is one of the documented `decided_by` values |
-| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope", text}` or `{kind: "stepup", link}` |
+| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial", text}` or `{kind: "stepup", link}` |
 | `owner.notified` | `{text}`; includes a warning not to send money and the third-attempt warning when blocked |
 | `credential.verified` | `{agent, principal, scope}`; only emitted after the scope check passes |
 | `call.ended` | `{}` |

@@ -40,14 +40,24 @@ def lookup(claimed_name: str | None, caller_number: str | None) -> Lookup:
     return found[0] if found else Lookup(note=f"Nobody called {claimed_name or 'that'} in the circle.")
 
 
-def attempts_today(contact_id: str) -> int:
+def attempts_today(contact_id: str, caller_number: str | None = None) -> int:
     today = datetime.now(timezone.utc).date()
-    return sum(when.date() == today and call.contact_id == contact_id for when, call in _attempts)
+    return sum(when.date() == today and call.contact_id == contact_id
+               and (caller_number is None or call.caller_number == caller_number)
+               for when, call in _attempts)
+
+
+def denied_today(contact_id: str, caller_number: str | None) -> bool:
+    today = datetime.now(timezone.utc).date()
+    return caller_number is not None and any(
+        when.date() == today and call.contact_id == contact_id
+        and call.caller_number == caller_number and call.state == "denied"
+        and call.decided_by == "tap" for when, call in _attempts)
 
 
 def learn(call: Call) -> None:
     contact = get(call.contact_id) if call.contact_id else None
-    if call.state == "confirmed" and contact and call.caller_number:
+    if call.state == "confirmed" and call.decided_by in ("tap", "stepup") and contact and call.caller_number:
         if call.caller_number not in contact.known_numbers:
             contact.known_numbers.append(call.caller_number)
     elif call.state in ("denied", "unverified"):

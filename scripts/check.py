@@ -1,4 +1,5 @@
 """Plays the scenes through /sim/call in-process. Exit non-zero on any failure."""
+import json
 import os
 import subprocess
 import sys
@@ -13,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from guard.app import app  # noqa: E402
-from guard import settings, flow, persona, state
+from guard import settings, flow, persona, state, telegram
 from guard.brain import classify, contacts  # noqa: E402
 
 SCAM = ["Mum, it's me, I'm in trouble.", "Wire $2000 right now, don't tell dad."]
@@ -68,7 +69,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert "Mum" in ping and "$2000" in ping and "wire" in ping.lower()
     run(c, "real, tap yes", {"claimed_name": "Jake", "caller_number": "+15550100002",
         "lines": ["Hi, it's Jakob."], "tap": "yes", "tap_after_s": 0.5}, "confirmed", BASE)
-    run(c, "scam, no answer", scam, "unverified", BASE + ["owner.notified"])
+    run(c, "scam, no answer", {**scam, "caller_number": "+15550888888"}, "unverified", BASE + ["owner.notified"])
     run(c, "credential", {"claimed_name": "Broccoli", "lines": ["I'm calling to book a slot."],
         "credential": "demo-credential"}, "agent_verified",
         ["call.started", "transcript", "credential.verified", "decision", "action"])
@@ -86,14 +87,124 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         ["decision", "action"])
     assert any(e["data"].get("kind") == "out_of_scope" for e in scope_events)
     assert not any(e["type"] == "credential.verified" for e in scope_events)
-    # Repeated denied/unverified claims cannot keep pinging the real contact.
-    repeat_id, repeat_events = run(c, "third attempt", scam, "denied", ["decision", "owner.notified"])
+    # Only the same number previously denied by a tap is blocked.
+    repeat_id, repeat_events = run(c, "repeat denied number", scam, "denied", ["decision", "owner.notified"])
     assert c.get(f"/calls/{repeat_id}").json()["decided_by"] == "repeat_attempt"
     assert not any(e["type"] == "ping.sent" for e in repeat_events)
-    assert any("Third attempt" in e["data"].get("text", "") for e in repeat_events)
+    assert any("Repeat attempt" in e["data"].get("text", "") for e in repeat_events)
     assert contacts.attempts_today("jakob") == 3
     assert "+15550999999" not in contacts.get("jakob").known_numbers
     assert "+15550100002" in contacts.get("jakob").known_numbers
+
+    async def exercise_trust_gaps():
+        from guard.contracts import Call
+        from datetime import datetime, timedelta, timezone
+
+        def events(cid):
+            return [e for e in state.events_since(0) if e.call_id == cid]
+
+        async def matched(number, text="This is Jakob, please wire $2000"):
+            cid = flow.start_call(number)
+            if text is not None:
+                await flow.on_transcript(cid, "caller", text)
+            await flow.verify_caller(cid, "Jakob")
+            return cid
+
+        with patch.object(contacts, "_attempts", []):
+            cid = await matched("+15550100001", None)
+            assert state.get_call(cid).state == "pending", "missing flags must require verification"
+            await flow.on_tap(cid, "yes")
+            cid = await matched("+15550100001", "Hello, can we talk later?")
+            assert state.get_call(cid).decided_by == "known_number"
+            notice = next(e for e in events(cid) if e.type == "notice.sent")
+            assert notice.data["text"] == "You are calling Mum right now. Not you? Tap below."
+            assert not await flow.on_tap(cid, "yes")
+            assert await flow.on_tap(cid, "no")
+            assert state.get_call(cid).state == "confirmed"
+            assert state.get_call(cid).decided_by == "known_number"
+            assert any(e.data.get("kind") == "late_denial" for e in events(cid))
+            assert any(e.data.get("kind") == "hangup" for e in events(cid))
+            assert any(e.type == "owner.notified" and e.data["text"] ==
+                       "That call was not Jakob. Don't send money." for e in events(cid))
+            assert not await flow.on_tap(cid, "no")
+
+        sent = []
+        def capture(method, payload):
+            sent.append((method, payload))
+        with patch.object(settings, "REAL_TELEGRAM", True), patch.object(telegram, "_api", capture), patch.dict(os.environ, {"APP_SECRET": "notice-test-secret", "TELEGRAM_CHAT_ID": "123"}):
+            telegram.send_notice(state.get_call(cid), contacts.get("jakob"))
+        button, = sent[0][1]["reply_markup"]["inline_keyboard"][0]
+        assert button["text"] == "Not me"
+        with patch.dict(os.environ, {"APP_SECRET": "notice-test-secret"}):
+            assert telegram.verify_callback(button["callback_data"]) == ("n", cid)
+
+        with patch.object(contacts, "_attempts", []):
+            for number, count in (("+15550770001", 1), ("+15550770001", 2), ("+15550770001", 3), ("+15550770002", 4)):
+                cid = await matched(number)
+                assert state.get_call(cid).state == "pending"
+                text = next(e.data["text"] for e in events(cid) if e.type == "ping.sent")
+                if count > 1:
+                    assert f" (attempt {count} today)" in text
+                if count < 4:
+                    await flow._resolve(cid, "unverified", "timeout")
+                else:
+                    await flow.on_tap(cid, "no")
+            sent.clear()
+            with patch.object(settings, "REAL_TELEGRAM", True), patch.object(telegram, "_api", capture), patch.dict(os.environ, {"APP_SECRET": "notice-test-secret", "TELEGRAM_CHAT_ID": "123"}):
+                telegram.send_ping(state.get_call(cid), contacts.get("jakob"))
+            assert " (attempt 5 today)" in sent[0][1]["text"]
+            denied = state.get_call(cid)
+            blocked = await matched("+15550770002")
+            assert state.get_call(blocked).decided_by == "repeat_attempt"
+            assert not any(e.type == "ping.sent" for e in events(blocked))
+            other_contact = flow.start_call("+15550770002")
+            await flow.on_transcript(other_contact, "caller", "This is Lena, please wire $2000")
+            await flow.verify_caller(other_contact, "Lena")
+            assert state.get_call(other_contact).state == "pending"
+            await flow.on_tap(other_contact, "yes")
+            real = await matched("+15550770003")
+            assert state.get_call(real).state == "pending"
+            assert contacts.attempts_today("jakob", "+15550770001") == 3
+            assert contacts.attempts_today("jakob", "+15550770003") == 0
+            assert await flow.on_tap(real, "yes")
+            contacts._attempts[:] = [(datetime.now(timezone.utc) - timedelta(days=1), denied)]
+            fresh = await matched("+15550770002")
+            assert state.get_call(fresh).state == "pending"
+            await flow.on_tap(fresh, "yes")
+
+        with patch.object(contacts, "_attempts", []):
+            for fake, real_persona, failure, expected, by in (
+                (False, True, None, "unverified", "stepup_unavailable"),
+                (False, True, RuntimeError("offline"), "unverified", "stepup_unavailable"),
+                (False, False, None, "confirmed", "tap"),
+                (True, True, None, "confirmed", "tap"),
+            ):
+                cid = await matched(None)
+                with patch.object(settings, "FAKE", fake), patch.object(settings, "REAL_PERSONA", real_persona), patch.object(persona, "start", return_value=None, side_effect=failure):
+                    assert await flow.on_tap(cid, "yes")
+                assert state.get_call(cid).state == expected
+                assert state.get_call(cid).decided_by == by
+                assert not await flow.on_tap(cid, "yes")
+            cid = await matched(None, "Hello")
+            await flow.on_transcript(cid, "caller", "This is Jakob, please wire $2000")
+            with patch.object(settings, "FAKE", False), patch.object(settings, "REAL_PERSONA", True), patch.object(persona, "start", return_value=None):
+                assert await flow.on_tap(cid, "yes")
+            assert state.get_call(cid).decided_by == "stepup_unavailable"
+
+        contact = contacts.get("jakob")
+        with patch.object(contact, "known_numbers", []):
+            for by, number in (("known_number", "+15550660001"), ("other", "+15550660002"), ("tap", "+15550660003"), ("stepup", "+15550660004")):
+                contacts.learn(Call(call_id=number, state="confirmed", contact_id="jakob", caller_number=number, started_at=datetime.now(timezone.utc), decided_by=by))
+            assert contact.known_numbers == ["+15550660003", "+15550660004"]
+
+    c.portal.call(exercise_trust_gaps)
+    preview = json.loads(subprocess.check_output(
+        [sys.executable, "scripts/vapi_setup.py", "--dry-run"], text=True,
+        env={**os.environ, "OWNER_NAME": "Alex"},
+    ))
+    assert "Alex's assistant" in preview["firstMessage"]
+    assert "Alex" in preview["model"]["messages"][0]["content"]
+    print("OK trust gaps: notice, late denial, repeat numbers, Persona failure, safe learning, setup preview")
 
     async def exercise_seams():
         from guard.contracts import Claim
