@@ -1,0 +1,29 @@
+{
+  "_note": "Demo family facts for Cognee. No phone numbers, code words or chat ids here: those stay in contacts.local.json.",
+  "people": [
+    {
+      "name": "Jakob",
+      "nicknames": ["Jake"],
+      "relationship": "son",
+      "facts": [
+        "Jakob studies and lives in another city and usually calls on Sunday evenings.",
+        "Jakob has never asked his mother for money over the phone.",
+        "Jakob would never ask for gift cards, wire transfers or crypto."
+      ]
+    },
+    {
+      "name": "Lena",
+      "nicknames": [],
+      "relationship": "daughter",
+      "facts": [
+        "Lena lives nearby and helps with groceries and doctor appointments.",
+        "Lena usually texts before she calls."
+      ]
+    }
+  ],
+  "household": [
+    "The family agreed that nobody asks for money by phone without a code word.",
+    "Mum orders household items online; deliveries usually come to the front door without any fee.",
+    "Mum's bank never calls to ask for a code, a password or a transfer."
+  ]
+}

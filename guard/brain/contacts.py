@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from guard.brain import memory
 from guard.contracts import Call, Claim, Contact, Lookup
 
 _PATH = Path(__file__).resolve().parent.parent.parent / "data" / "contacts.json"
@@ -18,6 +19,7 @@ def _all() -> list[Contact]:
             for entry in json.loads(local.read_text()):
                 entries[entry["id"]] = {**entries.get(entry["id"], {}), **entry}
         _contacts = [Contact(**c) for c in entries.values()]
+        memory.warm(_contacts)  # Cognee prefetch in the background; no-op in fake mode
     return _contacts
 
 
@@ -48,8 +50,10 @@ def candidates(claim: Claim, caller_number: str | None) -> list[Lookup]:
         if matches:
             known = caller_number in contact.known_numbers
             where = "Calling from a known number." if known else "Calling from an unknown number."
+            remembered = memory.note(contact.id)  # enriches the note only; never changes the match
+            note = f"{contact.name} ({contact.relationship}). {where}"
             found.append(Lookup(contact=contact, number_known=known,
-                                note=f"{contact.name} ({contact.relationship}). {where}"))
+                                note=f"{note} Memory: {remembered}" if remembered else note))
     return found
 
 
@@ -80,6 +84,21 @@ def learn(call: Call) -> None:
             contact.known_numbers.append(call.caller_number)
     elif call.state in ("denied", "unverified"):
         _attempts.append((datetime.now(timezone.utc), call.model_copy(deep=True)))
+    _remember(call, contact)
+
+
+def _remember(call: Call, contact: Contact | None) -> None:
+    """Tell Cognee only what a verified outcome proves. No numbers, no transcript, no code words."""
+    if not contact or not call.decided_by:
+        return
+    day = (call.decided_at or datetime.now(timezone.utc)).date().isoformat()
+    asked = " and asked for money" if call.flags and call.flags.money else ""
+    if call.state == "confirmed" and call.decided_by in ("tap", "stepup"):
+        memory.remember(f"On {day} {contact.name} really did call from a new number{asked}; "
+                        f"{contact.name} confirmed it was them.")
+    elif call.state == "denied" and call.decided_by in ("tap", "stepup", "repeat_attempt"):
+        memory.remember(f"On {day} someone pretended to be {contact.name}{asked}. "
+                        f"{contact.name} said it was not them.")
 
 
 def reset_demo() -> None:
