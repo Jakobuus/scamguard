@@ -57,7 +57,7 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
                 "and then call verify_caller with their reply. "
                 "If you did not clearly understand who is calling, ask them once to repeat their name slowly before you call verify_caller. "
                 "Call verify_caller only once per call. After it, say one short sentence that you are trying to reach "
-                "the owner and that the caller may say the family code word if they cannot use their phone, then stay "
+                "the owner and that the caller may say the code word if they cannot use their phone, then stay "
                 "quiet until the caller speaks or a system message arrives. Never repeat that you are checking or holding. "
                 "Follow system messages, such as asking for the first name or a challenge question. "
                 "If the caller says any word that could be a code word (a single name-like word such as an answer), "

@@ -1255,7 +1255,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         return json.loads(out)
 
     old = scenes_for("Mum", "Jakob", "son")
-    GREET, HOLD = "Hello, this is Mum's assistant. Who is calling, and what is it about?", "One moment, I am trying to reach her."
+    GREET, HOLD = "Hello, this is Mum's assistant. Who is calling, and what is it about?", "One moment, I am trying to reach Mum."
     OLD_SCAM = ["Mum, it's Jakob. I'm in trouble.", "I need $2,000 in gift cards right now.", "Don't tell dad."]
     assert old["scam_no"] == {"label": "Scam, tap No", "claimed_name": "Jakob", "caller_number": "+15550999999", "lines": OLD_SCAM,
                               "agent_lines": {"0": GREET, "3": HOLD}, "tap": "no", "tap_after_s": 4}
