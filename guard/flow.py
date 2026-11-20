@@ -107,7 +107,7 @@ def live() -> dict:
     """Latest partial lines of the most recent active call. Memory only, no database."""
     calls = list(_live_calls)
     call_id = calls[-1] if calls else None
-    out = {"call_id": call_id, "caller": None, "agent": None}
+    out = {"call_id": call_id, "caller": None, "agent": None, "listen_url": vapi.listen_url(call_id)}
     parts = _partials.get(call_id, {}) if call_id else {}
     now = time.time()
     for role in ("caller", "agent"):
@@ -127,6 +127,7 @@ def track_live(event) -> None:
     if event.type == "call.ended":
         _live_calls.pop(event.call_id, None)
         _partials.pop(event.call_id, None)
+        vapi.forget_listen(event.call_id)
 
 
 def mark_live(call_id) -> None:

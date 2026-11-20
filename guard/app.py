@@ -74,3 +74,13 @@ def cred_page(cred_id: str):
 @app.get("/")
 def index():
     return FileResponse(WEB / "index.html")
+
+
+@app.get("/listen.js")
+def listen_js():
+    return FileResponse(WEB / "listen.js", media_type="application/javascript")
+
+
+@app.get("/listen-test")
+def listen_test():
+    return FileResponse(WEB / "listen-test.html")

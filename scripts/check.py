@@ -1417,7 +1417,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     with patch.object(contacts, "_all", return_value=[contacts.get("jakob").model_copy(
             update={"challenge_answer": "Bruno"})]):
         cid = flow.start_call("+15550123123")
-        assert c.get("/live").json() == {"call_id": cid, "caller": None, "agent": None}
+        assert c.get("/live").json() == {"call_id": cid, "caller": None, "agent": None, "listen_url": None}
         hook = lambda body: c.post("/vapi/webhook", json={"message": {**body, "call": {"id": cid}}})
         hook({"type": "transcript", "transcriptType": "partial", "role": "user", "transcript": "the word is Bru"})
         live = c.get("/live").json()
@@ -1438,6 +1438,22 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert all("Bru" not in json.dumps(e["data"]) for e in evs)
         hook({"type": "status-update", "status": "ended"})
         assert c.get("/live").json()["call_id"] != cid
+    # Listening: the call's listenUrl shows in /live while it runs and is gone after it ends.
+    lid = "vapi-listen-check"
+    lurl = "wss://phone-call-websocket.example.vapi.ai/abc/listen"
+    lhook = lambda body: c.post("/vapi/webhook", json={"message": {**body, "call": {
+        "id": lid, "customer": {"number": "+15550124444"}, "monitor": {"listenUrl": lurl}}}})
+    lhook({"type": "status-update", "status": "in-progress"})
+    assert c.get("/live").json()["listen_url"] == lurl
+    c.post("/vapi/webhook", json={"message": {"type": "status-update", "status": "in-progress", "call": {
+        "id": "vapi-listen-bad", "monitor": {"listenUrl": "wss://evil.example/listen"}}}})
+    assert c.get("/live").json()["listen_url"] is None, "only vapi.ai listen URLs"
+    state.emit("vapi-listen-bad", "call.ended", {})
+    assert c.get("/live").json()["listen_url"] == lurl
+    lhook({"type": "end-of-call-report"})
+    assert c.get("/live").json()["listen_url"] is None and c.get("/live").json()["call_id"] != lid
+    assert c.get("/listen-test").status_code == 200 and "KinCheckListen" in c.get("/listen.js").text
+    ok("listen: /live carries the vapi.ai listenUrl during the call, null after; player and test page served")
     sim_id = c.post("/sim/call", json={"lines": ["Hello there friend"], "word_s": 0.02,
         "agent_lines": {"0": "Who is calling?", "1": "One moment."}}).json()["call_id"]
     grew = set()
@@ -1706,7 +1722,8 @@ assert all(c.name in _t["keyterm"] for c in contacts._all())
 _words = {c.challenge_answer.casefold() for c in contacts._all() if c.challenge_answer}
 assert not _words & {k.casefold() for k in _t["keyterm"]}, "code word leaked into transcriber"
 assert _p["backgroundSpeechDenoisingPlan"]["smartDenoisingPlan"]["enabled"] is True
-ok("vapi payload: transcriber boosts owner and contact names, no code words, denoising on")
+assert _p["monitorPlan"]["listenEnabled"] is True
+ok("vapi payload: transcriber boosts owner and contact names, no code words, denoising on, listening on")
 _spec = _iu.spec_from_file_location("vapi_scam_caller", Path(__file__).with_name("vapi_scam_caller.py"))
 scam = _iu.module_from_spec(_spec)
 _spec.loader.exec_module(scam)
