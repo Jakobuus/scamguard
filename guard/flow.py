@@ -327,7 +327,9 @@ async def verify_caller(call_id, claimed_name, reason=None) -> None:
     shown = {"id": lk.contact.id, "name": lk.contact.name, "relationship": lk.contact.relationship} if lk.contact else None
     state.emit(call_id, "contact.lookup", {"contact": shown, "number_known": lk.number_known, "note": lk.note,
                "resolved_by": lk.resolved_by, "memory_facts": lk.memory_facts})
-    if lk.contact and lk.number_known and call.flags is not None and not call.flags.needs_verification:
+    # A match worked out from memory only chooses whom to ask; it never passes on a known number.
+    if (lk.contact and lk.number_known and not lk.resolved_by and call.flags is not None
+            and not call.flags.needs_verification):
         state.update_call(call_id, contact_id=lk.contact.id)
         if await _resolve(call_id, "confirmed", "known_number"):
             if settings.REAL_TELEGRAM:
