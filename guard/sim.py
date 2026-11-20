@@ -8,12 +8,17 @@ from pydantic import BaseModel
 
 from guard import flow, settings
 
+
+def _sim_key(secret: str) -> str:
+    return hmac.new(secret.encode(), b"sim-key", "sha256").hexdigest()[:20]
+
+
 def _authorize(req: Request) -> None:
     if settings.FAKE:
         return
     secret = os.environ.get("APP_SECRET", "")
-    keys = (req.query_params.get("key", ""), req.headers.get("X-Sim-Key", ""))
-    if not secret or not any(hmac.compare_digest(key.encode(), secret.encode()) for key in keys):
+    key = req.headers.get("X-Sim-Key", "")
+    if not secret or not hmac.compare_digest(key.encode(), _sim_key(secret).encode()):
         raise HTTPException(403, "Invalid sim key")
 
 
@@ -61,3 +66,11 @@ async def sim_tap(b: SimTap):
     if b.call_id not in _sim_calls:
         raise HTTPException(404, "not a simulated call")
     return {"ok": await flow.on_tap(b.call_id, b.answer)}
+
+
+if __name__ == "__main__":
+    secret = os.environ.get("APP_SECRET", "")
+    if not secret:
+        raise SystemExit("APP_SECRET is required")
+    base = os.environ.get("PUBLIC_BASE_URL") or "http://localhost:8000"
+    print(f"{base.rstrip('/')}/#k={_sim_key(secret)}")

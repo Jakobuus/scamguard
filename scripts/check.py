@@ -1,8 +1,10 @@
 """Plays the scenes through /sim/call in-process. Exit non-zero on any failure."""
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ["FAKE"] = "1"
 os.environ["TIMEOUT_S"] = "2"
@@ -11,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from guard.app import app  # noqa: E402
+from guard import settings  # noqa: E402
 
 SCAM = ["Mum, it's me, I'm in trouble.", "Wire $2000 right now, don't tell dad."]
 BASE = ["call.started", "transcript", "flags", "contact.lookup", "ping.sent", "decision", "action"]
@@ -34,6 +37,28 @@ def run(c, name, body, final, types):
 
 with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert c.get("/health").json()["fake"] is True
+    # This fixed vector catches using the raw secret or a different derivation.
+    sim_key = "b0493850cfe3ca766171"
+    with patch.dict(os.environ, {"APP_SECRET": "test-app-secret"}), patch.object(settings, "FAKE", False):
+        for route in ("/sim/call", "/sim/tap"):
+            for kwargs in ({}, {"params": {"key": sim_key}},
+                           {"params": {"key": "test-app-secret"}},
+                           {"headers": {"X-Sim-Key": "test-app-secret"}},
+                           {"headers": {"X-Sim-Key": "wrong"}}):
+                assert c.post(route, json={"tap": "invalid"}, **kwargs).status_code == 403
+            # Auth succeeds; the deliberately invalid body then fails validation.
+            assert c.post(route, json={"tap": "invalid"},
+                          headers={"X-Sim-Key": sim_key}).status_code == 422
+        with patch.dict(os.environ, {"APP_SECRET": ""}):
+            assert c.post("/sim/call", json={}, headers={"X-Sim-Key": sim_key}).status_code == 403
+    for base, expected_base in (("https://demo.example/", "https://demo.example"),
+                                ("", "http://localhost:8000")):
+        output = subprocess.check_output(
+            [sys.executable, "-m", "guard.sim"], text=True,
+            env={**os.environ, "APP_SECRET": "test-app-secret", "PUBLIC_BASE_URL": base},
+        )
+        assert output == f"{expected_base}/#k={sim_key}\n"
+    print("OK sim auth: derived header only; local page link")
     scam = {"claimed_name": "Jakob", "caller_number": "+15550999999", "lines": SCAM}
     run(c, "scam, tap no", {**scam, "tap": "no", "tap_after_s": 0.5}, "denied",
         BASE + ["owner.notified", "call.ended"])

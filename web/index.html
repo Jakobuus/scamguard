@@ -28,6 +28,11 @@
   <button onclick="scene('scam_none')">Scam, no answer</button>
 </div>
 <script>
+const fragment = new URLSearchParams(window.location.hash.slice(1));
+if (fragment.has("k")) {
+  sessionStorage.setItem("sim-key", fragment.get("k"));
+  history.replaceState(null, "", window.location.pathname + window.location.search);
+}
 const FLAGS = {authority_or_kinship:"Kinship / authority", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
 const SCAM = ["Mum, it's me, I'm in trouble.", "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
 const SCENES = {
@@ -74,8 +79,8 @@ async function poll() {
   $("timer").textContent = s.toFixed(1) + " s";
 }
 function scene(k) {
-  const key = new URLSearchParams(window.location.search).get("key");
-  fetch("/sim/call" + (key !== null ? "?key=" + encodeURIComponent(key) : ""), {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(SCENES[k])});
+  const key = sessionStorage.getItem("sim-key");
+  fetch("/sim/call", {method:"POST", headers:{"Content-Type":"application/json", ...(key ? {"X-Sim-Key":key} : {})}, body:JSON.stringify(SCENES[k])});
 }
 setFlags({});
 setInterval(poll, 500);
