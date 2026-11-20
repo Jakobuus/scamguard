@@ -58,14 +58,14 @@
 
   /* 4. Audit trail */
   #trail{grid-column:1;grid-row:3;min-height:0;display:flex;flex-direction:column}
-  #steps{list-style:none;margin:0;padding:0;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;
-         justify-content:flex-end;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 70px);
-         mask-image:linear-gradient(to bottom,transparent 0,#000 70px)}
+  #steps{list-style:none;margin:0;padding:0;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
   #steps li{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:12px;align-items:baseline;
             padding:3px 8px;border-radius:10px;flex:none;font-size:20px}
   #steps li.new{animation:enter .3s ease,flash 2.2s ease}
   @keyframes enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   @keyframes flash{from{background:#fff}to{background:transparent}}
+  #steps li.warn .say{color:var(--c-denied);font-weight:700;white-space:normal}
+  #steps li.neutral .say{color:var(--muted);white-space:normal}
   .off{color:var(--muted);text-align:right;font-weight:600}
   .say{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tag{font-size:15px;font-weight:600;padding:2px 10px;border-radius:999px;background:#D7DDE3;color:#3D4A56}
@@ -195,7 +195,7 @@ if (fragment.has("k")) {
 }
 let OWNER = "Mum";
 const FLAGS = {authority_or_kinship:"Identity claim", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
-const SCAM = ["Mum, it's me, I'm in trouble.", "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
+const SCAM = ["Mum, it's Jakob. I'm in trouble.", "I need two thousand dollars in gift cards right now.", "Don't tell dad."];
 // The assistant's side of the scripted scenes: key i is said before caller line i, key = number of lines after the last.
 const GREET = "Hello, this is Mum's assistant. Who is calling, and what is it about?";
 const HOLD = "One moment, I am trying to reach her.";
@@ -283,6 +283,16 @@ function describe(e) {
     case "owner.notified": return ["owner", `Told ${OWNER}: “${d.text}”`];
     case "credential.verified": return ["credential", `Verified agent ${d.agent} acting for ${d.principal}`];
     case "call.ended": return ["call", "Call ended"];
+    case "script.match": {
+      const pct = Number.isFinite(+d.score) ? ` (${Math.round(d.score * 100)}%)` : "";
+      return d.benign ? ["classifier", `Looks like: ${d.title}`, "neutral"]
+                      : ["classifier", `Matches a known scam script: ${d.title}${pct}`, "warn"];
+    }
+    case "claim": {
+      const who = d.claimed_name ? d.claimed_name + (d.relationship ? ` (${d.relationship})` : "") : d.relationship;
+      if (!who) return null;
+      return ["classifier", `Caller claims to be ${who}${d.asks_for ? `, asks for ${d.asks_for}` : ""}`];
+    }
     case "context.expected":
       if (d.why) return ["context", `Expected ${d.kind || "call"}: ${d.why}${d.source ? ` (from ${d.source})` : ""}`];
   }
@@ -293,16 +303,19 @@ function describe(e) {
 }
 function addStep(e) {
   if (e.type === "transcript") return; // the conversation panel shows every line
-  const [tag, text] = describe(e);
+  const row = describe(e);
+  if (!row) return;
+  const [tag, text, tone] = row;
   const li = document.createElement("li");
-  li.className = "new";
+  li.className = "new" + (tone ? " " + tone : "");
   const off = Math.max(0, (ms(e.ts) - S.t0) / 1000);
   li.innerHTML = `<span class="off">+${off.toFixed(1)} s</span><span class="say"></span><span class="tag ${esc(tag)}">${esc(TAG[tag] || tag)}</span>`;
   li.querySelector(".say").textContent = text;
   li.querySelector(".say").title = text;
   const steps = $("steps");
   steps.appendChild(li);
-  while (steps.children.length > 40) steps.firstChild.remove();
+  // Only whole rows: drop the oldest until the newest fits, so no row is cut off or faded.
+  while (steps.children.length > 1 && (steps.children.length > 40 || steps.scrollHeight > steps.clientHeight)) steps.firstChild.remove();
 }
 
 // ---------- the call's state, from events ----------
@@ -581,7 +594,11 @@ async function pollLive() {
 
 function render() { renderOutcome(); renderClaim(); renderPhone(); tick(); }
 
+const seenIds = new Set(); // safety net: an event is shown once, however often it arrives
 function handle(e) {
+  if (seenIds.has(e.id)) return;
+  if (seenIds.size > 5000) seenIds.clear();
+  seenIds.add(e.id);
   skew = Math.min(skew, Date.now() - ms(e.ts));
   if (e.type === "call.started") reset(e);
   if (!S || e.call_id !== S.id) return;
@@ -589,17 +606,20 @@ function handle(e) {
   addStep(e);
 }
 let quietPolls = 0;
+let polling = false;
 async function poll() {
+  if (polling) return; // a slow /events must not overlap the next tick: both would append the same batch
+  polling = true;
   try {
-    const evs = await (await fetch("/events?since=" + since)).json();
+    const evs = (await (await fetch("/events?since=" + since)).json()).filter(e => e.id > since);
     for (const e of evs) { handle(e); since = e.id; }
     if (evs.length) { render(); quietPolls = 0; }
     else if (since > 0 && ++quietPolls % 10 === 0) {
       // The server was restarted if even our last event is gone: start over from the beginning.
       const last = await (await fetch("/events?since=" + (since - 1))).json();
-      if (!last.length) since = 0;
+      if (!last.length) { since = 0; seenIds.clear(); }
     }
-  } catch (_) {}
+  } catch (_) {} finally { polling = false; }
 }
 function simHeaders() {
   const key = sessionStorage.getItem("sim-key");
