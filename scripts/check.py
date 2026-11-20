@@ -918,5 +918,24 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     asyncio.run(two())
     assert len(seen) == 1, seen
     ok("scam match: classifier must agree, no stand-in with FAKE off, harmless family line no scam, one at a time")
+    # The person being called is never the claimed person: an extracted "Mum" counts as no name.
+    from guard.contracts import Claim
+    assert flow._caller_name("Mum", "Mum, I'm in trouble.") is None
+    assert flow._caller_name("mommy!", "") is None and flow._caller_name(settings.OWNER_NAME, "") is None
+    assert flow._caller_name("Mum,", "Mum, it's Jakob. I'm in trouble.") == "Jakob"
+    assert flow._caller_name("Lena", "") == "Lena" and flow._caller_name(None, "it's Jakob") is None
+    stage_scam = {"claimed_name": "Jakob", "tap": "no", "tap_after_s": 0.5, "lines": [
+        "Mum, it's Jakob. I'm in trouble.", "I need two thousand dollars in gift cards right now.", "Don't tell dad."]}
+    for label, number, extract in (("keyword claim", "+15550666601", classify.claim),
+                                   ("extractor says Mum", "+15550666602",
+                                    lambda t: Claim(claimed_name="Mum", method="gift cards", quote=t))):
+        flow._pings.clear()
+        with patch.object(classify, "claim", extract):
+            _, ev = run(c, "stage scam scene, " + label, {**stage_scam, "caller_number": number}, "denied",
+                        BASE + ["claim", "call.ended"])
+        assert next(e["data"] for e in ev if e["type"] == "claim")["claimed_name"] == "Jakob"
+        assert any(e["type"] == "ping.sent" for e in ev)
+        assert any(e["type"] == "decision" and e["data"]["by"] == "tap" and e["data"]["state"] == "denied" for e in ev)
+    ok("addressee is never the claimed name; stage scam scene asks Jakob and ends on his No")
 _timer.cancel()
 print("ALL OK")

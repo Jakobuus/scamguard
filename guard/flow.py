@@ -200,12 +200,28 @@ async def _expected_call(call_id, found) -> bool:
     return True
 
 
+_ADDRESS = {"mum", "mom", "mummy", "mommy", "mama", "mother", "dad", "daddy", "papa", "father",
+            "grandma", "grandpa", "granny", "nana"}
+
+
+def _caller_name(name, text):
+    """The person being called is never the claimed person: drop "Mum", the owner's name and the like.
+    When the extractor took the addressee, fall back to the keyword name ("it's Jakob")."""
+    def own(n):
+        n = re.sub(r"[\W_]+$", "", (n or "").strip()).casefold()
+        return n in _ADDRESS or n == settings.OWNER_NAME.casefold()
+    if not name or not own(name):
+        return name
+    fallback = classify._fake_claim(text).claimed_name
+    return None if not fallback or own(fallback) else fallback
+
+
 async def verify_caller(call_id, claimed_name) -> None:
     call = state.get_call(call_id)
     if call is None or call.state != "screening":
         return
     claim = classify.claim(_caller_text.get(call_id, ""))
-    claim.claimed_name = claim.claimed_name or claimed_name
+    claim.claimed_name = _caller_name(claim.claimed_name, _caller_text.get(call_id, "")) or claimed_name
     state.emit(call_id, "claim", {**claim.model_dump(), "asks_for": telegram.asks_for(claim)})
     state.update_call(call_id, claimed_name=claim.claimed_name)
     found = contacts.candidates(claim, call.caller_number)
