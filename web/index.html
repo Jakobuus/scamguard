@@ -1,0 +1,82 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Call guard</title>
+<style>
+  body{margin:0;background:#0b0f14;color:#e8edf2;font:28px/1.35 system-ui,sans-serif;padding:32px 48px}
+  #top{display:flex;align-items:center;gap:32px}
+  #badge{font-size:64px;font-weight:800;padding:12px 40px;border-radius:20px;text-transform:uppercase;background:#333}
+  .idle{background:#333}.screening{background:#2f5d8a}.pending{background:#d9a400;color:#111}
+  .denied{background:#d62f3f}.confirmed{background:#1fa85a}.unverified{background:#e07a1f;color:#111}
+  .agent_verified{background:#2a8fd6}
+  #timer{font-size:64px;font-variant-numeric:tabular-nums;color:#9fb0c0}
+  #flags{display:flex;gap:16px;margin:28px 0}
+  .chip{padding:10px 26px;border-radius:40px;background:#1a222b;color:#5b6b7a;border:2px solid #25303b}
+  .chip.on{background:#d62f3f;color:#fff;border-color:#ff6b78}
+  #note,#owner{font-size:32px;margin:12px 0}#owner{color:#ffd166;font-weight:700}
+  #lines{border-left:4px solid #25303b;padding-left:24px;min-height:140px}
+  .agent{color:#7fd1ff}
+  #btns{position:fixed;bottom:24px;left:48px;display:flex;gap:16px}
+  button{font:inherit;font-size:22px;padding:14px 26px;border-radius:12px;border:0;background:#25303b;color:#fff;cursor:pointer}
+</style></head><body>
+<div id="top"><div id="badge" class="idle">idle</div><div id="timer">0.0 s</div></div>
+<div id="flags"></div>
+<div id="note"></div>
+<div id="lines"></div>
+<div id="owner"></div>
+<div id="btns">
+  <button onclick="scene('scam_no')">Scam, tap No</button>
+  <button onclick="scene('real_yes')">Real, tap Yes</button>
+  <button onclick="scene('scam_none')">Scam, no answer</button>
+</div>
+<script>
+const FLAGS = {authority_or_kinship:"Kinship / authority", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
+const SCAM = ["Mum, it's me, I'm in trouble.", "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
+const SCENES = {
+  scam_no: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:"no", tap_after_s:4},
+  real_yes: {claimed_name:"Jakob", caller_number:"+15550100001", lines:["Hi mum, it's Jakob.", "Can you pick me up at five?"], tap:"yes", tap_after_s:4},
+  scam_none: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:null, tap_after_s:0},
+};
+let since = 0, cur = null, startMs = 0, secs = null;
+const $ = id => document.getElementById(id);
+
+function reset(id) {
+  cur = id; startMs = Date.now(); secs = null;
+  $("note").textContent = ""; $("lines").innerHTML = ""; $("owner").textContent = "";
+  setBadge("screening"); setFlags({});
+}
+function setBadge(s) { $("badge").className = s; $("badge").textContent = s.replace("_", " "); }
+function setFlags(f) {
+  $("flags").innerHTML = Object.entries(FLAGS)
+    .map(([k, label]) => `<div class="chip ${f[k] ? "on" : ""}">${label}</div>`).join("");
+}
+function handle(e) {
+  if (e.type === "call.started") reset(e.call_id);
+  if (e.call_id !== cur) return;
+  const d = e.data;
+  if (e.type === "transcript") {
+    const p = document.createElement("div");
+    p.className = d.role; p.textContent = (d.role === "caller" ? "Caller: " : "Agent: ") + d.text;
+    $("lines").appendChild(p);
+  } else if (e.type === "flags") setFlags(d);
+  else if (e.type === "contact.lookup") $("note").textContent = d.note;
+  else if (e.type === "credential.verified") $("note").textContent = `${d.agent} for ${d.principal}`;
+  else if (e.type === "ping.sent") setBadge("pending");
+  else if (e.type === "decision") { setBadge(d.state); secs = d.seconds_to_decide; }
+  else if (e.type === "action" && d.kind === "challenge") {
+    const p = document.createElement("div"); p.className = "agent"; p.textContent = "Agent: " + d.text; $("lines").appendChild(p);
+  } else if (e.type === "owner.notified") $("owner").textContent = d.text;
+}
+async function poll() {
+  try {
+    const evs = await (await fetch("/events?since=" + since)).json();
+    for (const e of evs) { handle(e); since = e.id; }
+  } catch (_) {}
+  const s = secs !== null ? secs : cur ? (Date.now() - startMs) / 1000 : 0;
+  $("timer").textContent = s.toFixed(1) + " s";
+}
+function scene(k) {
+  fetch("/sim/call", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(SCENES[k])});
+}
+setFlags({});
+setInterval(poll, 500);
+setInterval(() => { if (cur && secs === null) $("timer").textContent = ((Date.now() - startMs) / 1000).toFixed(1) + " s"; }, 100);
+</script></body></html>

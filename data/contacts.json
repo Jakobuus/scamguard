@@ -1,0 +1,13 @@
+[
+  {
+    "id": "jakob",
+    "name": "Jakob",
+    "nicknames": ["Jake"],
+    "relationship": "son",
+    "known_numbers": ["+15550100001"],
+    "telegram_chat_id": null,
+    "email": null,
+    "challenge_question": "What was the name of our first dog?",
+    "challenge_answer": "Bruno"
+  }
+]
