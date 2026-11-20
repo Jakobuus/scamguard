@@ -212,13 +212,16 @@ def _build_stats() -> dict:
     tactics = {k: 0 for k, _ in TACTICS}
     answered: dict[str, int] = {}
     money = 0.0
+    paid_seen = set()
     for c in calls:
-        counts[c["outcome"]] += 1
+        if c["decision"]:  # undecided calls stay out of the outcome counts
+            counts[c["outcome"]] += 1
         for k in c["tactics"]:
             tactics[k] += 1
         if c["outcome"] in ("blocked", "unverified"):
             amount = _parse_amount(c["amount"])
-            if amount:
+            if amount and (c["caller_number"], amount) not in paid_seen:  # once per caller and amount
+                paid_seen.add((c["caller_number"], amount))
                 money += amount
         d = c["decision"] or {}
         by = d.get("by")
@@ -241,7 +244,8 @@ def _build_stats() -> dict:
             "claimed_name": c["claimed_name"], "contact_id": c["contact_id"], "amount": c["amount"],
             "method": c["method"], "asks_for": c["asks_for"],
             "tactics": [k for k, _ in TACTICS if k in c["tactics"]],
-            "outcome": c["outcome"], "outcome_label": _OUTCOME_LABEL[c["outcome"]],
+            "outcome": c["outcome"],
+            "outcome_label": _OUTCOME_LABEL[c["outcome"]] if c["decision"] else "In progress",
             "decided_by": d.get("by"), "channel": d.get("channel"),
             "seconds_to_decide": d.get("seconds_to_decide"), "scam_type": c["scam_type"]})
     return {
@@ -298,6 +302,16 @@ def _facts(people: list[dict]) -> tuple[str, list[tuple[str | None, str]]]:
     return source, out
 
 
+def _origin(text: str) -> str:
+    # HACK: keyword rules on the sample text decide where a fact would have come from.
+    t = text.casefold()
+    if re.search(r"\b(really did call|said it was not them|confirmed it was|pretended to be|on \d{4}-)", t):
+        return "Learned from a verified call"
+    if re.search(r"\b(is .{0,30}(son|daughter|mother|father|brother|sister|friend)|lives|usually|never|agreed|always|orders|studies)\b", t):
+        return "Entered by you"
+    return "Sample data"
+
+
 def graph() -> dict:
     return _cached("graph", _build_graph, _empty_graph)
 
@@ -319,7 +333,10 @@ def _build_graph() -> dict:
             nodes.append({"id": f"num:{c.id}:{i}", "type": "number", "label": _mask(num),
                           "detail": f"A number the guard knows belongs to {c.name}."})
             edges.append({"from": f"num:{c.id}:{i}", "to": nid})
-        chans = ((acct.get("contacts") or {}).get(c.id) or {}).get("channels") or []
+        chans = ((acct.get("contacts") or {}).get(c.id) or {}).get("channels")
+        if chans is None:  # same defaults the contacts API shows
+            chans = ([{"kind": "email", "enabled": True}] if c.email else []) + (
+                [{"kind": "call", "enabled": True}] if c.known_numbers else [])
         for pos, ch in enumerate(x for x in chans if x.get("enabled")):
             kind = ch.get("kind", "")
             nodes.append({"id": f"ch:{c.id}:{kind}", "type": "channel", "kind": kind,
@@ -347,18 +364,34 @@ def _build_graph() -> dict:
     source, facts = _facts(people)
     ids = {c.id for c in people}
     for i, (cid, text) in enumerate(facts[:8]):
-        nodes.append({"id": f"fact:{i}", "type": "fact", "label": _short(text), "detail": _short(text, 200)})
+        nodes.append({"id": f"fact:{i}", "type": "fact", "label": _short(text), "detail": _short(text, 200),
+                      "origin": _origin(text)})
         edges.append({"from": f"fact:{i}", "to": f"contact:{cid}" if cid in ids else "owner"})
-    attempts = [c for c in _calls() if c["claimed_name"] or _parse_amount(c["amount"])][-10:]
-    for c in reversed(attempts):
+    merged: dict[tuple, dict] = {}
+    for c in _calls():  # oldest first, so the last write per key is the newest
+        if not (c["claimed_name"] or _parse_amount(c["amount"])):
+            continue
+        key = (c["contact_id"], c["caller_number"], c["asks_for"] or c["amount"] or "")
+        m = merged.pop(key, None)
+        merged[key] = {**c, "n": (m["n"] if m else 0) + 1}
+    for c in reversed(list(merged.values())[-10:]):
         blocked = c["outcome"] in ("blocked", "unverified")
-        label = c["asks_for"] or c["amount"] or c["scam_type"] or f"Call as {c['claimed_name']}"
-        who = f"claiming to be {c['claimed_name']}" if c["claimed_name"] else "pretending to be a service"
-        detail = f"Someone {who}" + (f" asked for {c['asks_for']}." if c["asks_for"] else " called.")
-        if c["scam_type"]:
-            detail += f" Looks like a known scam: {c['scam_type']}."
-        detail += " The guard stopped it." if blocked else f" Outcome: {_OUTCOME_LABEL[c['outcome']].lower()}."
+        real = c["outcome"] == "confirmed"
+        if real:
+            label = f"Real call from {c['claimed_name'] or 'a contact'}"
+            detail = f"{c['claimed_name'] or 'The contact'} confirmed it was them, so the call went through."
+        else:
+            label = c["asks_for"] or c["amount"] or c["scam_type"] or f"Call as {c['claimed_name']}"
+            who = f"claiming to be {c['claimed_name']}" if c["claimed_name"] else "pretending to be a service"
+            detail = f"Someone {who}" + (f" asked for {c['asks_for']}." if c["asks_for"] else " called.")
+            if c["scam_type"]:
+                detail += f" Looks like a known scam: {c['scam_type']}."
+            detail += " The guard stopped it." if blocked else f" Outcome: {_OUTCOME_LABEL[c['outcome']].lower()}."
+        if c["n"] > 1:
+            detail += f" Tried {c['n']} times."
         nid = f"attempt:{c['call_id']}"
-        nodes.append({"id": nid, "type": "attempt", "label": _short(label), "detail": detail, "blocked": blocked})
+        nodes.append({"id": nid, "type": "attempt", "label": _short(label), "detail": detail, "blocked": blocked and not real})
         edges.append({"from": nid, "to": f"contact:{c['contact_id']}" if c["contact_id"] in ids else "owner"})
-    return {"source": source, "nodes": nodes, "edges": edges}
+    return {"source": source, "nodes": nodes, "edges": edges,
+            "memory_note": ("Live memory." if source == "cognee" else
+                            "Sample memory. With the memory layer connected, only what a verified answer proved is remembered.")}
