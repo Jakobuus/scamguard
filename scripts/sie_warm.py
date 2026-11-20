@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import httpx  # noqa: E402
 from guard.brain import classify  # noqa: E402
 
 
@@ -24,7 +25,7 @@ def warm(model: str, body: dict, timeout: float) -> bool:
     status = "failed"
     while time.monotonic() < deadline:
         try:
-            response = classify._post(model, body, min(timeout, deadline - time.monotonic()))
+            response = classify._post(model, body, max(timeout, min(30.0, deadline - time.monotonic())))
             if response.is_success:
                 classify._COOLDOWN.pop(model, None)
                 status = "ready"
@@ -38,6 +39,8 @@ def warm(model: str, body: dict, timeout: float) -> bool:
                 status = "still provisioning (retry budget exhausted)"
                 break
             time.sleep(delay)
+        except httpx.TimeoutException:
+            continue  # cold model: the request hangs until capacity is up; retry
         except Exception as exc:
             # Only the exception type is safe to print, never its message.
             status = f"failed ({type(exc).__name__})"

@@ -57,9 +57,9 @@ def _fake_claim(text: str) -> Claim:
 DECISION_MODEL = "fastino/GLiNER2.5-Decide"
 EXTRACTION_MODEL = "urchade/gliner_multi-v2.1"
 LABELS = {
-    "first name the caller claims": "claimed_name",
-    "relationship to the person called": "relationship",
-    "amount of money": "amount",
+    "first name": "claimed_name",
+    "grandson, son, daughter or other family member": "relationship",
+    "money amount": "amount",
     "payment method": "method",
 }
 QUESTIONS = [
