@@ -145,8 +145,7 @@ def _guard_number() -> str:
 
 def _persona_template() -> str:
     """Non-empty when the hosted Persona check is configured (a ready link, a template version, or a template)."""
-    return (os.environ.get("PERSONA_INQUIRY_URL", "").strip() or os.environ.get("PERSONA_TEMPLATE_VERSION_ID", "").strip()
-            or os.environ.get("PERSONA_TEMPLATE_ID", "").strip())
+    return settings.persona_template()
 
 
 # ---------- pages and auth ----------
