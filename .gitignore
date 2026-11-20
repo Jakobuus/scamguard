@@ -11,6 +11,7 @@ __pycache__
 
 data/contacts.local.json
 data/account.local.json
+data/expected.local.json
 clips/*.mp3
 clips/*.m4a
 clips/*.wav
