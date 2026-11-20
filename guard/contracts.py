@@ -21,6 +21,8 @@ class Lookup(BaseModel):
     contact: Contact | None = None
     number_known: bool = False
     note: str = ""
+    resolved_by: Literal["memory"] | None = None  # set when memory, not a name, picked the contact
+    memory_facts: list[str] = []  # up to 3 short prefetched facts about the contact
 
 
 class Expectation(BaseModel):

@@ -1387,5 +1387,32 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert not dict((n, p) for n, p, _ in telemetry.evals(bad, "bad"))["eval_never_agreed_to_pay"]
     telemetry._sink = telemetry._raw_sink = None
     ok("amplitude: agent events, tool trace order, four evals pass, no code word or card number")
+    # Memory: resolve "your teammate from the hackathon" to Erick from prefetched facts, never block, never guess.
+    from guard.brain import memory
+    memory.warm(contacts._all())
+    hit = contacts.candidates(Claim(relationship="teammate from the hackathon",
+                                    quote="Hi, it's your teammate from the hackathon"), None)
+    assert len(hit) == 1 and hit[0].contact.id == "erick" and hit[0].resolved_by == "memory", hit
+    assert 1 <= len(hit[0].memory_facts) <= 3 and all(len(f) <= 90 for f in hit[0].memory_facts)
+    two = {"a": ["friend"], "b": ["friend"]}
+    with patch.object(memory, "_people", {"a": "Ann", "b": "Bo"}), patch.object(memory, "_aliases", two), \
+            patch.object(memory, "_facts", {"a": [], "b": []}):
+        assert memory.resolve("it's your friend") is None, "two friends: memory picks nobody"
+    named = contacts.candidates(Claim(claimed_name="Lena", relationship="teammate", quote="your teammate from the hackathon"), None)
+    assert [l.contact.id for l in named] == ["lena"] and named[0].resolved_by is None, "a name beats memory"
+    before = len(memory.facts("erick"))
+    unverified = Call(call_id="m1", state="unverified", contact_id="erick", started_at=datetime.now(timezone.utc), decided_by="timeout")
+    contacts.learn(unverified)
+    assert len(memory.facts("erick")) == before, "an unverified outcome stores nothing"
+    contacts.learn(unverified.model_copy(update={"state": "confirmed", "decided_by": "tap", "caller_number": "+15550770099"}))
+    assert len(memory.facts("erick")) == before + 1 and "confirmed" in memory.facts("erick")[0]
+    contacts._attempts.clear()
+    slow = lambda *a, **k: time.sleep(5)
+    with patch.object(memory, "_client", slow), patch.object(memory, "_search", slow):
+        t0 = time.time()
+        contacts.lookup("Erick", None)
+        contacts.candidates(Claim(quote="your teammate from the hackathon"), None)
+        assert time.time() - t0 < 0.05, "a slow memory backend never delays lookup"
+    ok("memory: teammate resolves to Erick with facts, two friends resolve to nobody, a name beats memory, only verified outcomes are learned, lookup never waits")
 _timer.cancel()
 print("ALL OK")

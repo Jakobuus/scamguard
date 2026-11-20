@@ -16,6 +16,7 @@ import os
 import re
 import sys
 import threading
+import time
 from pathlib import Path
 
 from guard import settings
@@ -26,6 +27,12 @@ _log = logging.getLogger(__name__)
 _notes: dict[str, str] = {}
 _prefetched = False
 _lock = threading.Lock()
+REFRESH_S = 180
+_facts: dict[str, list[str]] = {}  # contact id -> facts from the seed / Cognee chunks
+_aliases: dict[str, list[str]] = {}  # contact id -> phrases for how the owner knows them
+_learned: dict[str, list[dict]] = {}  # contact id -> [{"text", "pending"}] learned from calls
+_people: dict[str, str] = {}  # contact id -> name
+_contacts_ref: list = []
 
 
 def real() -> bool:
@@ -68,7 +75,10 @@ def _ask(http, query: str, search_type: str) -> list[str]:
     # and a family tenant holds one dataset. The server searches everything we own.
     r = http.post("/api/v1/search", json={"query": query, "search_type": search_type})
     r.raise_for_status()
-    return _texts(r.json())
+    body = r.json()
+    if isinstance(body, list):  # one entry per dataset: ignore other datasets on the tenant
+        body = [b for b in body if not isinstance(b, dict) or b.get("dataset_name", DATASET) == DATASET]
+    return _texts(body)
 
 
 def _search(query: str, timeout: float = 2.5) -> str:
@@ -81,11 +91,13 @@ def _search(query: str, timeout: float = 2.5) -> str:
 
 
 def _prefetch(contacts) -> None:
+    _refresh(contacts)
     for c in contacts:
         try:
+            # HACK: a graph answer takes 4-10 s, so the old 2.5 s timeout always failed; this runs in the background.
             answer = _search(f"In one short sentence: what should the family's call assistant know "
                              f"about {c.name}, the owner's {c.relationship}? Where are they and what "
-                             f"do they usually call about?")
+                             f"do they usually call about?", timeout=30)
             _notes[c.id] = scrub(answer, [c.challenge_answer])
         except Exception:
             _log.warning("Cognee search failed")
@@ -93,19 +105,105 @@ def _prefetch(contacts) -> None:
 
 
 def warm(contacts) -> None:
-    """Start one background prefetch of every contact's memory line (first lookup triggers it)."""
-    global _prefetched
+    """Start one background prefetch of every contact's memory (first lookup triggers it).
+    Fake mode loads the seed file locally instead. Nothing here runs during a call."""
+    global _prefetched, _contacts_ref
+    _contacts_ref = list(contacts)
     if not real():
+        _load(seed_texts(), _contacts_ref)
         return
     with _lock:
         if _prefetched:
             return
         _prefetched = True
-    threading.Thread(target=_prefetch, args=(list(contacts),), daemon=True, name="cognee").start()
+    threading.Thread(target=_loop, args=(list(contacts),), daemon=True, name="cognee").start()
+
+
+def _loop(contacts) -> None:
+    while True:
+        _prefetch(contacts)
+        time.sleep(REFRESH_S)
 
 
 def note(contact_id: str) -> str:
     return _notes.get(contact_id, "")
+
+
+# ---- prefetched facts and local resolution: everything below reads memory only, never the network ----
+
+_STOP = set("""the and its you your yours from with for this that here there hello hey calling call called calls phone
+name who what just have has had been not yes owner usually before never about today""".split())
+
+
+def _tokens(text) -> set[str]:
+    words = re.findall(r"[a-z]+", (text or "").casefold().replace("'", "").replace("\u2019", ""))
+    return {w[:-1] if len(w) > 4 and w.endswith("s") else w for w in words if len(w) > 2 and w not in _STOP}
+
+
+def _chunk_texts(timeout: float) -> list[str]:
+    g = _graph_raw(timeout)
+    return [(n.get("properties") or {}).get("text") or "" for n in g["nodes"] if n["type"] == "DocumentChunk"]
+
+
+def _load(texts: list[str], contacts) -> None:
+    """Sort fact sentences by the contact they name; read 'X is the owner's teammate' as an alias."""
+    global _facts, _aliases, _people
+    facts = {c.id: [] for c in contacts}
+    aliases = {c.id: [c.relationship.casefold()] for c in contacts}
+    for text in texts:
+        for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+            for c in contacts:
+                if not re.search(rf"\b{re.escape(c.name)}\b", sentence, re.I):
+                    continue
+                m = re.search(r"\bis (?:the owner|\w+)['\u2019]s ([^.]+)", sentence)
+                if m:
+                    aliases[c.id].append(m.group(1).strip().casefold())
+                elif not sentence.lower().startswith("also called") and sentence not in facts[c.id]:
+                    facts[c.id].append(scrub(sentence, limit=200))
+    with _lock:
+        _facts, _aliases, _people = facts, aliases, {c.id: c.name for c in contacts}
+
+
+def _refresh(contacts) -> None:
+    """Re-read every contact's facts from Cognee (one graph call). Keeps the old data on failure."""
+    try:
+        texts = _chunk_texts(10)
+        if texts:
+            _load(texts, contacts)
+    except Exception:
+        _log.warning("Cognee refresh failed")
+
+
+def facts(contact_id: str) -> list[str]:
+    """Learned facts first (newest first), then the seed / Cognee facts."""
+    learned = [i["text"] for i in reversed(_learned.get(contact_id, []))]
+    return learned + [f for f in _facts.get(contact_id, []) if f not in learned]
+
+
+def learned(contact_id: str) -> list[dict]:
+    """Facts learned from calls: [{"text", "pending"}]; pending until Cognee has them."""
+    return [dict(i) for i in _learned.get(contact_id, [])]
+
+
+def screen_facts(contact_id: str, n: int = 3) -> list[str]:
+    return [scrub(f, limit=90) for f in facts(contact_id)[:n]]
+
+
+def resolve(text: str | None, relationship: str | None = None) -> dict | None:
+    """Which contact does 'your teammate from the hackathon' mean? Local token match; None unless one clear best."""
+    query = _tokens(text) | _tokens(relationship)
+    scored = []
+    for cid, name in dict(_people).items():
+        own = _tokens(name)
+        a = set().union(set(), *[_tokens(x) for x in _aliases.get(cid, [])]) - own
+        f = set().union(set(), *[_tokens(x) for x in facts(cid)]) - own - a
+        hit_a, hit_f = query & a, query & f
+        scored.append((2 * len(hit_a) + len(hit_f), cid, sorted(hit_a | hit_f)))
+    scored.sort(reverse=True)
+    if not scored or scored[0][0] < 2 or (len(scored) > 1 and scored[1][0] == scored[0][0]):
+        return None
+    return {"contact_id": scored[0][1], "matched": " ".join(scored[0][2]),
+            "source": "cognee" if real() else "seed"}
 
 
 def _add(texts: list[str], cognify: bool = True, timeout: float = 10) -> None:
@@ -118,7 +216,11 @@ def _add(texts: list[str], cognify: bool = True, timeout: float = 10) -> None:
             r.raise_for_status()
 
 
-def remember(text: str) -> None:
+def remember(text: str, contact_id: str | None = None) -> None:
+    """Store a fact. It shows locally at once (pending until Cognee has it); the write runs in the background."""
+    if contact_id:
+        with _lock:
+            _learned.setdefault(contact_id, []).append({"text": text, "pending": real()})
     if not real():
         return
 
@@ -127,6 +229,18 @@ def remember(text: str) -> None:
             _add([text])
         except Exception:
             _log.warning("Cognee add failed")
+            return
+        for _ in range(40):  # poll until the fact is searchable, then refresh everything
+            time.sleep(6)
+            try:
+                if any(text in t for t in _chunk_texts(10)):
+                    for item in _learned.get(contact_id, []):
+                        if item["text"] == text:
+                            item["pending"] = False
+                    _refresh(_contacts_ref)
+                    return
+            except Exception:
+                pass
 
     threading.Thread(target=run, daemon=True, name="cognee-learn").start()
 
@@ -136,12 +250,43 @@ def seed_texts() -> list[str]:
     owner = settings.OWNER_NAME
     texts = []
     for person in data["people"]:
-        line = f"{person['name']} is {owner}'s {person['relationship']}."
+        line = f"{person['name']} is the owner's {person['relationship']}."
         if person.get("nicknames"):
             line += f" Also called {', '.join(person['nicknames'])}."
         texts.append(" ".join([line, *person.get("facts", [])]))
     texts.extend(data.get("household", []))
     return [scrub(t, limit=2000) for t in texts]
+
+
+def _graph_raw(timeout: float) -> dict:
+    with _client(timeout) as http:
+        ds = next((d["id"] for d in http.get("/api/v1/datasets/").json() if d["name"] == DATASET), None)
+        if not ds:
+            return {"nodes": [], "edges": []}
+        r = http.get(f"/api/v1/datasets/{ds}/graph")
+        r.raise_for_status()
+        return r.json()
+
+
+def graph(limit: int = 60) -> dict | None:
+    """Knowledge graph of the family dataset for the dashboard: entities and the relations between them."""
+    if not real():
+        return None
+    try:
+        g = _graph_raw(2.5)
+        kind = {n["id"]: n["label"] for n in g["nodes"] if n["type"] == "EntityType"}
+        ents = {n["id"]: n for n in g["nodes"] if n["type"] == "Entity"}
+        types = {e["source"]: kind.get(e["target"], "") for e in g["edges"] if e["label"] == "is_a"}
+        nodes = [{"id": i, "type": types.get(i, "entity"), "label": n["label"],
+                  "detail": scrub((n.get("properties") or {}).get("description") or "")}
+                 for i, n in list(ents.items())[:limit]]
+        keep = {n["id"] for n in nodes}
+        edges = [{"source": e["source"], "target": e["target"], "label": e["label"].replace("_", " ")}
+                 for e in g["edges"] if e["source"] in keep and e["target"] in keep]
+        return {"nodes": nodes, "edges": edges, "source": "cognee"}
+    except Exception:
+        _log.warning("Cognee graph failed")
+        return None
 
 
 def _detail(e: Exception) -> str:
