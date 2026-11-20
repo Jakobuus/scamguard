@@ -30,7 +30,7 @@ Stack: Python 3.12+, FastAPI, `uv`, one static HTML page. No frontend framework.
 | Lane | Owns | Delivers |
 |---|---|---|
 | **A Call path and demo** | `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/channels.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`, `guard/brain/context.py`, `guard/brain/classify.py`, `web/`, `scripts/`, `README.md` | Call handling, flags, claim extraction, expected calls, verification taps, the audience screen and the demo checks |
-| **B Brains** | `guard/brain/contacts.py`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/` | Contact matching and learning, drill score, account identity verification, scoped credentials and telemetry |
+| **B Brains** | `guard/brain/contacts.py`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/` | Contact matching and learning, drill score, account set-up identity checks (unfinished), scoped credentials and telemetry |
 
 Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as `OWNER_NAME` live in
 `guard/settings.py`; its default is `Mum`.
@@ -94,8 +94,8 @@ Only the winning flow acts on a pending call. The memory backend allows `known_n
 decisions directly from screening. For known-number decisions, the SingleStore wrapper moves a call
 through `pending` before deciding, without sending a ping.
 
-Identity verification happens once when an account is created, outside the call flow. Every winning
-decision calls `contacts.learn(call)`; only confirmation by `tap` teaches a new number during calls,
+Persona identity verification belongs to account set-up, which is not wired into the app; calls do not use it.
+Every winning decision calls `contacts.learn(call)`; only confirmation by `tap` teaches a new number during calls,
 never `known_number` or `code_word`.
 
 ### Expected calls

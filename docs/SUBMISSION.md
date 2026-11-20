@@ -8,25 +8,27 @@ A call guard that asks the real person to verify a caller, instead of judging th
 
 ## Write-up
 
-A caller says, "Mum, it's me," and asks for money. A familiar voice gives Mum little help deciding whether the person is really her son. We built a call guard that checks the claim through another channel.
+A caller says, "Mum, it's me," and asks for gift cards. A familiar voice cannot prove who is calling. Our phone agent holds the caller and asks the person they name: "Is this you?"
 
-The phone agent answers, asks who is calling and holds the call. When the caller names someone in Mum's circle, the guard asks that person on Telegram: "Someone is calling Mum as you, asking for gift cards. Is this you?" No ends the call and warns Mum. Yes puts it through with the default settings. If nobody answers, the caller can give the family code word. The agent never offers a name or agrees to pay.
+The question goes out on every enabled channel at once: WhatsApp through the Beeper Desktop API, Telegram and email through Resend. In the demo, Jakob types "No" in WhatsApp. One atomic update accepts the answer that arrives before the others. No ends the call and warns Mum on Telegram. Yes puts the call through. Later answers are told it is already decided. After a timeout, the caller can give the family code word; a late No still ends the call.
 
-The demo screen shows the conversation, identity claim, risk flags, question, decision and audit trail as events arrive. Scripted scenes run without keys. Optional service integrations connect the phone agent, messaging, classification and database. A stored expected delivery can pass without a question; a delivery asking for a fee cannot use that shortcut.
+Superlinked embeds the caller's words; SingleStore vector search matches known scam scripts. With a money request also detected, a strong match names the scam type on screen and in subsequent warnings. The match cannot decide the call.
 
-The approach verifies the person, not the voice. The model extracts a claim, while code applies the verification rules and records one winning decision per allowed state transition before acting on the call.
+Personal data in events and live words is masked before storage or display. Names and amounts stay readable. An expected delivery can pass; a delivery asking for a card number cannot use that shortcut. The screen shows the conversation, channels, decision and audit trail.
 
 ## Sponsor technology
 
-- **Vapi:** optional live phone agent sends transcripts and receives call-control actions.
-- **SingleStore:** optional database stores call state and audit events; conditional updates choose one winning decision per allowed transition.
-- **Superlinked inference engine:** optional models flag risk in caller transcripts and extract names, amounts and payment methods, with keyword fallback.
-- **Telegram:** optional bot asks the real person Yes/No, accepts signed replies and sends warnings.
-- **ElevenLabs:** optional clip generation clones a sample voice and synthesizes scam lines for demo playback.
-- **Cognee:** optional memory supplies family notes and stores facts from verified call outcomes; it never decides a call.
-- **Amplitude:** optional analytics sends call events with one session per call.
-- **Senso:** optional retrieval matches caller words to stored expected-call records; retrieved text cannot create an expectation.
-- **OpenAI:** the Vapi setup configures GPT-4.1 for the phone conversation and verification tool calls.
+- **Vapi:** answers calls, sends transcripts and receives call-control actions (switchable).
+- **SingleStore:** searches known scam scripts by vector similarity; stores call state and audit events; one conditional update chooses the winning answer (switchable).
+- **Superlinked inference engine:** flags risk and extracts the claim; embeds words for scam-script search; detects personal data in final transcripts when enabled (switchable).
+- **Beeper / WhatsApp:** sends the verification question through the Desktop API and reads typed Yes/No replies (switchable).
+- **Resend:** emails the question with signed answer links and a confirmation page (switchable).
+- **Telegram:** asks with Yes/No buttons, handles signed replies and sends Mum's warnings and the real person's heads-up notices (switchable).
+- **ElevenLabs:** generates cloned-voice scam clips and stock-voice delivery clips for playback (switchable).
+- **Cognee:** supplies family notes and stores facts from verified outcomes (switchable).
+- **Amplitude:** sends call events as one session per call, replacing transcript text with character counts (switchable).
+- **Senso:** retrieves stored expected-call records; matching rules check the record and block money requests (switchable).
+- **OpenAI:** GPT-4.1 handles the Vapi assistant's conversation and verification tool calls.
 
 ## Team and links
 
