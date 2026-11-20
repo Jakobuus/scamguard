@@ -50,23 +50,34 @@ def scrub(text: str, secrets: list[str] = (), limit: int = 180) -> str:
     return " ".join(out.split())[:limit]
 
 
+def _texts(node) -> list[str]:
+    """Collect answer strings from whatever shape Cognee returns (list, dict or str)."""
+    if isinstance(node, str):
+        return [node] if node.strip() else []
+    if isinstance(node, list):
+        return [t for item in node for t in _texts(item)]
+    if isinstance(node, dict):
+        for key in ("search_result", "text", "answer", "result"):
+            if key in node:
+                return _texts(node[key])
+    return []
+
+
+def _ask(http, query: str, search_type: str) -> list[str]:
+    # No `datasets` field: Cognee fails the whole request on a name it can't resolve,
+    # and a family tenant holds one dataset. The server searches everything we own.
+    r = http.post("/api/v1/search", json={"query": query, "search_type": search_type})
+    r.raise_for_status()
+    return _texts(r.json())
+
+
 def _search(query: str, timeout: float = 2.5) -> str:
     with _client(timeout) as http:
-        # No `datasets` field: Cognee fails the whole request on a name it can't resolve,
-        # and a family tenant holds one dataset. The server searches everything we own.
-        r = http.post("/api/v1/search", json={"query": query, "search_type": "GRAPH_COMPLETION"})
-        r.raise_for_status()
-        body = r.json()
-    if isinstance(body, list) and body:
-        first = body[0]
-        if isinstance(first, dict):
-            first = first.get("search_result") or first.get("text") or first.get("answer") or ""
-        if isinstance(first, list):
-            first = first[0] if first else ""
-        return str(first)
-    if isinstance(body, dict):
-        return str(body.get("answer") or body.get("result") or "")
-    return str(body or "")
+        answer = " ".join(_ask(http, query, "GRAPH_COMPLETION"))
+        if answer and "could not find" not in answer.lower():
+            return answer
+        # The graph answer was empty: fall back to the stored facts that match.
+        return " ".join(_ask(http, query, "CHUNKS")[:3])
 
 
 def _prefetch(contacts) -> None:
