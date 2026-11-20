@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from guard.app import app  # noqa: E402
-from guard import settings, flow, persona, state, telegram
+from guard import channels, settings, flow, persona, state, telegram
 from guard.brain import classify, contacts  # noqa: E402
 
 _last = ["start (nothing finished yet)"]
@@ -65,7 +65,151 @@ def run(c, name, body, final, types):
 
 with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert c.get("/health").json()["fake"] is True
+    assert c.get("/health").json()["services"]["beeper"] == "fake"
+    assert c.get("/health").json()["services"]["email"] == "fake"
     assert c.get("/health").json()["owner_name"] == settings.OWNER_NAME
+    # Missing fan-out or a channel bypassing the atomic decision must fail these checks.
+    async def channel_question():
+        flow.reset_demo()
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", "This is Lena, please wire $2000")
+        await flow.verify_caller(cid, "Lena")
+        return cid
+
+    with patch.dict(os.environ, {"REAL_BEEPER": "1", "REAL_EMAIL": "1",
+                               "BEEPER_ACCESS_TOKEN": "test", "BEEPER_CHAT_ID": "test-chat",
+                               "RESEND_API_KEY": "test", "PING_EMAIL_TO": "test@example.invalid",
+                               "PUBLIC_BASE_URL": "https://guard.example", "APP_SECRET": "channel-test"}):
+        cid = c.portal.call(channel_question)
+        ping = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "ping.sent")
+        assert ping["channels"] == ["telegram", "whatsapp", "email"]
+        assert c.portal.call(flow.on_tap, cid, "yes", "email")
+        assert not c.portal.call(flow.on_tap, cid, "no", "whatsapp")
+        decision = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "decision")
+        assert decision["state"] == "confirmed" and decision["channel"] == "email"
+        cid = c.portal.call(channel_question)
+        signed = telegram.callback_data("n", cid)
+        page = c.get("/answer", params={"d": signed})
+        assert page.status_code == 200 and 'method="post"' in page.text
+        assert state.get_call(cid).state == "pending"
+        assert "Call ended" in c.post("/answer", data={"d": signed}).text
+        assert state.get_call(cid).state == "denied"
+        assert "already decided" in c.post("/answer", data={"d": signed}).text
+        assert "no longer valid" in c.get("/answer", params={"d": signed + "bad"}).text
+        assert "no longer valid" in c.post("/answer", data={"d": signed + "bad"}).text
+    flow.reset_demo()
+    ok("channels: fan-out, first answer wins, scanner-safe email confirmation")
+    async def channel_transports():
+        import asyncio
+        import httpx
+        from datetime import datetime, timedelta, timezone
+        from urllib.parse import parse_qs, urlparse
+        import re
+        import html
+
+        for word in ("NO", "n", "nope please", "nein"):
+            assert channels.reply_answer(word) == "no"
+        for word in ("Yes please", "y", "JA"):
+            assert channels.reply_answer(word) == "yes"
+        assert channels.reply_answer("yesterday") is None
+        assert channels.reply_answer("") is None
+        assert channels.enabled() == ["telegram"]
+
+        with patch.dict(os.environ, {"RESEND_API_KEY": "test", "PING_EMAIL_TO": "test@example.invalid",
+                                   "PUBLIC_BASE_URL": "https://guard.example", "APP_SECRET": "channel-test",
+                                   "BEEPER_ACCESS_TOKEN": "test", "BEEPER_CHAT_ID": "chat/id"}):
+            cid = await channel_question()
+            call = state.get_call(cid)
+            text = "Someone is calling. Is this you?"
+            requests = []
+            def email_http(request):
+                requests.append(request)
+                return httpx.Response(200, json={"id": "test-email"})
+            with httpx.Client(transport=httpx.MockTransport(email_http)) as client:
+                with patch.object(settings, "REAL_EMAIL", True), patch.object(channels.httpx, "post", client.post):
+                    await asyncio.to_thread(channels._email, call, text)
+            req, = requests
+            assert str(req.url) == "https://api.resend.com/emails"
+            assert req.headers["user-agent"] == "curl/8.7.1"
+            assert req.headers["authorization"] == "Bearer test"
+            assert req.extensions["timeout"]["read"] <= 3
+            body = json.loads(req.content)
+            assert body["subject"] == text and body["to"] == ["test@example.invalid"]
+            links = re.findall('href="([^"]+)"', body["html"])
+            assert len(links) == 2
+            for link, action in zip(links, ("n", "y")):
+                d = parse_qs(urlparse(html.unescape(link)).query)["d"][0]
+                assert telegram.verify_callback(d) == (action, cid)
+
+            now = datetime.now(timezone.utc)
+            sent = []
+            def beeper_http(request):
+                assert request.url.path == "/v1/chats/chat/id/messages"
+                assert request.headers["authorization"] == "Bearer test"
+                assert request.extensions["timeout"]["read"] <= 3
+                if request.method == "POST":
+                    sent.append(json.loads(request.content)["text"])
+                    return httpx.Response(200, json={"chatID": "chat/id", "pendingMessageID": "question"})
+                def msg(mid, seconds, body, sender=True):
+                    return {"id": mid, "timestamp": (now + timedelta(seconds=seconds)).isoformat(),
+                            "text": body, "type": "TEXT", "isSender": sender}
+                return httpx.Response(200, json={"hasMore": False, "items": [
+                    msg("old", -60, "no"), msg("question", 0.1, text + "\nReply NO or YES."),
+                    msg("noise", 0.2, "hello"), msg("reply", 0.3, "JA please", True)],
+                    "newestCursor": "new", "oldestCursor": "old"})
+            with httpx.Client(transport=httpx.MockTransport(beeper_http)) as client:
+                with patch.object(settings, "REAL_BEEPER", True), patch.object(channels.httpx, "request", client.request):
+                    await channels._whatsapp(call, text)
+            assert sent == [text + "\nReply NO or YES.", "Thanks. Putting the call through."]
+            assert state.get_call(cid).state == "confirmed"
+            decision = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "decision")
+            assert decision["channel"] == "whatsapp"
+            for t, want in (("No.", "no"), ("no!", "no"), ("Yeah", "yes"), ("\U0001F44E", "no"), ("maybe", None),
+                            ("Thanks. Call ended.", None), (text + "\nReply NO or YES.", None), (None, None)):
+                assert channels.reply_answer(t) == want, t
+            # A poller whose call is no longer the latest for its chat stops without answering.
+            flow.reset_demo()
+            cid2 = await channel_question()
+            call2 = state.get_call(cid2)
+            taps = []
+            async def fake_tap(*a, **k):
+                taps.append(a)
+                return True
+            channels._latest["chat/id"] = "someone-else"
+            real_request = channels.beeper_request
+            with httpx.Client(transport=httpx.MockTransport(beeper_http)) as client:
+                with patch.object(settings, "REAL_BEEPER", True), patch.object(channels.httpx, "request", client.request), \
+                     patch.object(flow, "on_tap", fake_tap):
+                    stale = asyncio.create_task(channels._whatsapp(call2, text))
+                    await asyncio.sleep(0.05)
+                    channels._latest["chat/id"] = "newer-call"
+                    await asyncio.wait_for(stale, 3)
+            assert taps == []
+        flow.reset_demo()
+        # A stalled delivery must neither delay Telegram nor prevent the winning tap.
+        import threading
+        gate, started, telegram_sent = threading.Event(), threading.Event(), threading.Event()
+        def stalled_email(*args):
+            started.set()
+            gate.wait(3)
+            raise RuntimeError("private HTTP error must not be logged")
+        def telegram_delivery(*args):
+            telegram_sent.set()
+        try:
+            with patch.dict(os.environ, {"REAL_EMAIL": "1", "RESEND_API_KEY": "test",
+                                       "PING_EMAIL_TO": "test@example.invalid", "PUBLIC_BASE_URL": "https://guard.example",
+                                       "APP_SECRET": "channel-test"}), patch.object(channels, "_email", stalled_email), patch.object(telegram, "send_ping", telegram_delivery):
+                cid = await channel_question()
+                assert await asyncio.to_thread(started.wait, 1)
+                assert await asyncio.to_thread(telegram_sent.wait, 1)
+                assert await flow.on_tap(cid, "yes", channel="telegram")
+                assert state.get_call(cid).state == "confirmed"
+        finally:
+            gate.set()
+        await asyncio.sleep(0.05)
+        flow.reset_demo()
+    c.portal.call(channel_transports)
+    ok("channels: Resend payload and signed links, Beeper requests and own-account replies")
     async def audience_claims():
         for method, display in (("gift cards", "$2,000 in gift cards"), ("wire", "$2,000 by wire")):
             cid = flow.start_call("+15550990001")
@@ -578,8 +722,8 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
 
         with patch.object(contacts, "_attempts", []), patch.object(flow, "_pings", {}):
             for fake, real_persona, failure, expected, by in (
-                (False, True, None, "unverified", "stepup_unavailable"),
-                (False, True, RuntimeError("offline"), "unverified", "stepup_unavailable"),
+                (False, True, None, "confirmed", "tap"),
+                (False, True, RuntimeError("offline"), "confirmed", "tap"),
                 (False, False, None, "confirmed", "tap"),
                 (True, True, None, "confirmed", "tap"),
             ):
@@ -593,7 +737,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             await flow.on_transcript(cid, "caller", "This is Jakob, please wire $2000")
             with patch.object(settings, "FAKE", False), patch.object(settings, "REAL_PERSONA", True), patch.object(persona, "start", return_value=None):
                 assert await flow.on_tap(cid, "yes")
-            assert state.get_call(cid).decided_by == "stepup_unavailable"
+            assert state.get_call(cid).decided_by == "tap"
 
         contact = contacts.get("jakob")
         with patch.object(contact, "known_numbers", []):
@@ -612,7 +756,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert set(tools) == {"verify_caller", "check_code_word"}
     assert tools["check_code_word"]["function"]["parameters"]["required"] == ["spoken"]
     assert tools["check_code_word"]["server"]["url"].endswith("/vapi/tool/check_code_word")
-    ok("trust gaps: notice, late denial, repeat numbers, Persona failure, safe learning, setup preview")
+    ok("trust gaps: notice, late denial, repeat numbers, direct Yes confirmation, safe learning, setup preview")
 
     async def exercise_seams():
         from guard.contracts import Claim
@@ -643,23 +787,13 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         await flow.verify_caller(cid, None)
         await flow.verify_caller(cid, "Lena")
         assert state.get_call(cid).state == "pending"
-        with patch.object(persona, "start", return_value="https://verify.example/check"):
+        with patch.object(persona, "start", side_effect=AssertionError("Persona must stay off the call path")):
             assert await flow.on_tap(cid, "yes")
-            assert state.get_call(cid).state == "pending"
+            assert state.get_call(cid).state == "confirmed"
+            assert state.get_call(cid).decided_by == "tap"
             assert not await flow.on_tap(cid, "yes")
-            assert any(e.call_id == cid and e.data.get("kind") == "stepup"
-                       and e.data.get("link") == "https://verify.example/check" for e in state.events_since(0))
-            assert await flow.on_stepup(cid, True)
-            assert state.get_call(cid).decided_by == "stepup"
-            assert not await flow.on_stepup(cid, False)
-        cid = flow.start_call(None)
-        await flow.on_transcript(cid, "caller", "This is Lena, please wire $2000")
-        await flow.verify_caller(cid, None)
-        with patch.object(persona, "start", return_value="https://verify.example/check"):
-            assert await flow.on_tap(cid, "yes")
-            assert await flow.on_stepup(cid, False)
-            assert state.get_call(cid).state == "denied"
-            assert not await flow.on_tap(cid, "yes")
+            assert not any(e.call_id == cid and e.data.get("kind") == "stepup"
+                           for e in state.events_since(0))
         seen = []
         def broken_subscriber(event):
             raise RuntimeError("subscriber is unavailable")
@@ -672,7 +806,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         state._subscribers.remove(seen.append)
     with patch.object(flow, "_pings", {}):
         c.portal.call(exercise_seams)
-    ok("seams: claim extraction, learning, repeat limit, name retry, step-up, subscribers")
+    ok("seams: claim extraction, learning, repeat limit, name retry, direct Yes, subscribers")
     # Live words: partials stay in memory, are masked, clear on final, and sim plays both sides.
     with patch.object(contacts, "_all", return_value=[contacts.get("jakob").model_copy(
             update={"challenge_answer": "Bruno"})]):

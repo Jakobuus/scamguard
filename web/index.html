@@ -211,6 +211,11 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const ms = ts => Date.parse(String(ts).replace(/(\.\d{3})\d+/, "$1"));
 const human = s => String(s ?? "").replace(/[._]/g, " ");
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const CH = {telegram: "Telegram", whatsapp: "WhatsApp", email: "Email"};
+const chLabel = c => CH[c] || cap(c);
+const viaOther = d => d && d.channel && d.channel !== "telegram";
+const verb = d => viaOther(d) ? "answered" : "tapped";
+const onCh = d => viaOther(d) ? " on " + chLabel(d.channel) : "";
 
 let since = 0, S = null, skew = Infinity;
 
@@ -251,10 +256,10 @@ function describe(e) {
     case "contact.lookup":
       return ["contact", d.contact ? `Matched ${d.contact.name} (${d.contact.relationship}), ${d.number_known ? "known number" : "unknown number"}`
                                    : `No match in ${OWNER}'s circle${d.note ? ": " + d.note : ""}`];
-    case "ping.sent": return ["person", `Asked ${n} on Telegram: “Is this you?”`];
+    case "ping.sent": return ["person", `Asked ${n} on ${(d.channels || ["telegram"]).map(chLabel).join(", ")}: “Is this you?”`];
     case "notice.sent": return ["person", `Sent ${n} a heads-up: “${d.text}”`];
     case "decision": {
-      const by = {tap: `${n} tapped ${d.state === "confirmed" ? "Yes" : "No"}`, timeout: `no answer from ${n}`,
+      const by = {tap: `${n} ${verb(d)} ${d.state === "confirmed" ? "Yes" : "No"}${onCh(d)}`, timeout: `no answer from ${n}`,
                   known_number: "known number, harmless request", lookup: "caller not in the circle",
                   repeat_attempt: "number already denied today", stepup: "identity check", code_word: "family code word",
                   ping_cap: "too many attempts today", credential: "verified agent credential",
@@ -339,14 +344,14 @@ function outcome() {
   if (d) {
     const by = d.by;
     if (d.state === "denied") return ["st-denied", "DENIED", {
-      tap: `${n} tapped No. The guard hung up.`,
+      tap: `${n} ${verb(d)} No${onCh(d)}. The guard hung up.`,
       repeat_attempt: `This number was already denied as ${n} today. Hung up without asking again.`,
       stepup: `Failed ${n}'s identity check. The guard hung up.`}[by] || `Denied by ${human(by)}. The guard hung up.`];
     if (d.state === "confirmed") {
       if (by === "code_word") return ["st-ok", "Verified by code word", `${n} didn't answer, but the caller knew the family code word.`];
       if (S.expected || by === "context" || by === "expected") return ["st-expected", "Expected call", S.expected || "The owner was expecting this call."];
       if (by === "known_number") return ["st-known", "Known caller", `${n}'s own number, harmless request. Put through; ${n} got a heads-up.`];
-      return ["st-ok", "VERIFIED", {tap: `${n} tapped Yes. Put through to ${OWNER}.`,
+      return ["st-ok", "VERIFIED", {tap: `${n} ${verb(d)} Yes${onCh(d)}. Put through to ${OWNER}.`,
         stepup: `${n} passed the identity check. Put through to ${OWNER}.`}[by] || `Confirmed by ${human(by)}. Put through.`];
     }
     if (d.state === "unverified") return ["st-unver", "UNVERIFIED", {
@@ -362,7 +367,7 @@ function outcome() {
     return ["st-screen", human(d.state).toUpperCase(), `Decided by ${human(by)}.`];
   }
   if (S.stepup) return ["st-check", "Checking", `With the real person: ${n} tapped Yes. Now confirming it is really ${n}.`];
-  if (S.ping) return ["st-check", "Checking", `With the real person: asked ${n} on Telegram. The caller is on hold.`];
+  if (S.ping) return ["st-check", "Checking", `With the real person: asked ${n} on ${(S.ping.channels || ["telegram"]).map(chLabel).join(", ")}. The caller is on hold.`];
   if (S.expected) return ["st-screen", "Screening", S.expected];
   if (S.askedName) return ["st-screen", "Screening", "The assistant asked the caller for their first name."];
   return ["st-screen", "Screening", "The assistant is answering and listening."];
@@ -480,7 +485,9 @@ function renderPhone() {
     else if (d && d.by === "timeout") { st = "none"; status = `No answer in ${secsBetween(S.ping.at, d.at)} s`; }
     else if (d) { st = "none"; status = `Not answered: decided by ${human(d.by)}`; }
     else waiting = true;
-    setMsg("ping", msgHTML(S.ping.text, [["yes", "Yes, it's me", yes], ["no", "No", no]], st, status, waiting));
+    const channelChips = (S.ping.channels || ["telegram"]).map(c =>
+      `<span class="chip${S.decision && S.decision.channel === c ? " on" : ""}">${esc(chLabel(c))}${S.decision && S.decision.channel === c ? " · answered" : ""}</span>`).join(" ");
+    setMsg("ping", msgHTML(S.ping.text, [["yes", "Yes, it's me", yes], ["no", "No", no]], st, status, waiting) + `<div style="padding:0 16px 12px">${channelChips}</div>`);
   }
   if (S.notice) {
     const status = S.late ? `Tapped Not me after ${secsBetween(S.notice.at, S.late)} s` : "Heads-up only. The call already went through.";

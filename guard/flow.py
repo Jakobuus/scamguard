@@ -4,13 +4,12 @@ import re
 import time
 from datetime import datetime, timezone
 
-from guard import credential, persona, settings, state, telegram, vapi
+from guard import channels, credential, settings, state, telegram, vapi
 from guard.brain import classify, contacts, context
 
 _tasks: set = set()
 _caller_text: dict[str, str] = {}
 _asked_name: set[str] = set()
-_stepups: set[str] = set()
 _late_denials: set[str] = set()
 _code_tries: dict[str, int] = {}
 _pings: dict[tuple, int] = {}
@@ -248,9 +247,9 @@ async def verify_caller(call_id, claimed_name) -> None:
             await _notify(call_id, f"Many attempts as {lk.contact.name} today. Don't send money.")
         return
     _pings[key] = _pings.get(key, 0) + 1
-    telegram.send_ping(state.get_call(call_id), lk.contact, claim)
+    asked = channels.send_ping(state.get_call(call_id), lk.contact, claim)
     text = telegram.ping_text(lk.contact, claim)
-    state.emit(call_id, "ping.sent", {"contact_id": lk.contact.id, "channels": ["telegram"], "timeout_s": settings.TIMEOUT_S, "text": text})
+    state.emit(call_id, "ping.sent", {"contact_id": lk.contact.id, "channels": asked, "timeout_s": settings.TIMEOUT_S, "text": text})
     spawn(_timeout(call_id))
 
 
@@ -259,7 +258,7 @@ async def _timeout(call_id) -> None:
     await _resolve(call_id, "unverified", "timeout")
 
 
-async def on_tap(call_id, answer) -> bool:
+async def on_tap(call_id, answer, channel="telegram") -> bool:
     call = state.get_call(call_id)
     if call is None:
         return False
@@ -277,21 +276,8 @@ async def on_tap(call_id, answer) -> bool:
     late_no = answer == "no" and call.state == "unverified" and call.decided_by == "timeout"
     if call.state != "pending" and not late_no:
         return False
-    if answer == "yes" and call_id in _stepups:
-        return False
-    if answer == "yes" and call.flags and call.flags.needs_verification:
-        try:
-            link = persona.start(call.contact_id)
-        except Exception:
-            link = None
-        if not link and settings.REAL_PERSONA and not settings.FAKE:
-            return await _resolve(call_id, "unverified", "stepup_unavailable")
-        if link:
-            _stepups.add(call_id)
-            state.emit(call_id, "action", {"kind": "stepup", "link": link})
-            return True
     new_state = {"yes": "confirmed", "no": "denied"}.get(answer)
-    return bool(new_state) and await _resolve(call_id, new_state, "tap")
+    return bool(new_state) and await _resolve(call_id, new_state, "tap", channel=channel)
 
 
 async def on_code_word(call_id, spoken: str) -> str:
@@ -329,13 +315,6 @@ async def on_code_word(call_id, spoken: str) -> str:
     return "failed"
 
 
-async def on_stepup(call_id, ok: bool) -> bool:
-    if call_id not in _stepups:
-        return False
-    _stepups.discard(call_id)
-    return await _resolve(call_id, "confirmed" if ok else "denied", "stepup")
-
-
 async def on_credential(call_id, token) -> bool:
     info = credential.check(token)
     if info is None:
@@ -350,14 +329,14 @@ async def on_credential(call_id, token) -> bool:
     return await _resolve(call_id, "agent_verified", "credential")
 
 
-async def _resolve(call_id, new_state, by) -> bool:
+async def _resolve(call_id, new_state, by, channel=None) -> bool:
     if not state.decide(call_id, new_state, by):
         return False  # someone already decided: do nothing
     c = state.get_call(call_id)
-    _stepups.discard(call_id)
     contacts.learn(c)
     secs = round((c.decided_at - c.started_at).total_seconds(), 1)
-    state.emit(call_id, "decision", {"state": new_state, "by": by, "seconds_to_decide": secs})
+    state.emit(call_id, "decision", {"state": new_state, "by": by, "seconds_to_decide": secs,
+                                    **({"channel": channel} if by == "tap" else {})})
     await _act(call_id, new_state)
     return True
 

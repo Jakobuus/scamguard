@@ -35,6 +35,8 @@ REAL_DB = _real("REAL_DB")
 REAL_SIE = _real("REAL_SIE")
 REAL_COGNEE = _real("REAL_COGNEE")
 REAL_PERSONA = _real("REAL_PERSONA")
+REAL_BEEPER = _real("REAL_BEEPER") and bool(os.environ.get("BEEPER_ACCESS_TOKEN") and os.environ.get("BEEPER_CHAT_ID"))
+REAL_EMAIL = _real("REAL_EMAIL") and all(os.environ.get(k) for k in ("RESEND_API_KEY", "PING_EMAIL_TO", "PUBLIC_BASE_URL", "APP_SECRET"))
 
 
 def services() -> dict:
@@ -42,6 +44,7 @@ def services() -> dict:
         n: ("real" if v else "fake")
         for n, v in [
             ("vapi", REAL_VAPI), ("telegram", REAL_TELEGRAM), ("db", REAL_DB),
+            ("beeper", REAL_BEEPER), ("email", REAL_EMAIL),
             ("sie", REAL_SIE), ("cognee", REAL_COGNEE), ("persona", REAL_PERSONA),
         ]
     }
