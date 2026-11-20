@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -261,6 +262,77 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         )
         assert output == f"{expected_base}/#k={sim_key}\n"
     ok("sim auth: derived header only; local page link")
+    # Finals alone must resolve specific expectations without an identity tool call.
+    async def expected_without_tool():
+        import asyncio
+
+        async def scene(lines, decision=None):
+            cid = flow.start_call(None)
+            for line in lines:
+                await flow.on_transcript(cid, "caller", line)
+            await asyncio.sleep(0.9)
+            call = state.get_call(cid)
+            evs = [e for e in state.events_since(0) if e.call_id == cid]
+            assert not any(e.type == "claim" for e in evs)
+            assert call.decided_by == decision, (lines, call)
+            assert any(e.data.get("kind") == "forward" for e in evs) == (decision == "expected")
+            if decision == "expected_but_money":
+                assert any(e.type == "owner.notified" and "Don't pay" in e.data["text"] for e in evs)
+            return cid
+
+        opening = "Hi, I've got a parcel for you, the desk lamp order, I'm at the door"
+        await scene([opening], "expected")
+        await scene([opening + ", hurry, don't tell anyone"], "lookup")
+        for request in ("There is a fee to pay", "What is your card number?"):
+            await scene([opening, request], "expected_but_money")
+        for words in ("I've got a parcel for you", "it's about your order",
+                      "This is Jakob with your desk lamp parcel"):
+            await scene([words])
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", "Hello")
+        await flow.verify_caller(cid, None)
+        await flow.on_transcript(cid, "caller", opening)
+        await asyncio.sleep(0.9)
+        assert state.get_call(cid).decided_by == "lookup"
+
+    c.portal.call(expected_without_tool)
+    ok("expected finals: no name or tool needed; money, vague claims and circle claims get no shortcut")
+    for name, reason, late, decision in (
+        ("", "I am the courier with your desk lamp parcel", None, "expected"),
+        ("", "I am the courier with your desk lamp parcel", "There is a customs fee, what's your card number", "expected_but_money"),
+        ("", "Your desk lamp parcel requires a fee and card number", None, "expected_but_money"),
+        ("Jakob", "Desk lamp parcel", None, None),
+    ):
+        cid = flow.start_call(None)
+        reply = c.post("/vapi/tool/verify_caller", json={"message": {"call": {"id": cid},
+            "toolCalls": [{"id": "delivery", "function": {"arguments": {
+                "claimed_name": name, "reason": reason}}}]}})
+        assert reply.status_code == 200
+        if late:
+            time.sleep(0.3)  # lands inside the wait, like a final transcript after the tool summary
+            c.portal.call(flow.on_transcript, cid, "caller", late)
+        deadline = time.time() + 3
+        while state.get_call(cid).state == "screening" and time.time() < deadline:
+            time.sleep(0.02)
+        assert state.get_call(cid).decided_by == decision, (reason, late, state.get_call(cid))
+        if name:
+            assert state.get_call(cid).state == "pending", "a circle claim must still ask the person"
+            c.portal.call(flow.on_tap, cid, "yes")
+    ok("expected tool: money within the wait blocks the shortcut; a clean courier line is put through; circle claims still ask")
+    for reason, flagged, decision in (("package", False, "lookup"), ("package, there is a fee to pay, card number", True, "lookup")):
+        cid = flow.start_call(None)
+        c.portal.call(flow.verify_caller, cid, "FedEx", reason)
+        call = state.get_call(cid)
+        evs = [e for e in state.events_since(0) if e.call_id == cid]
+        assert call.decided_by == decision, (reason, call)
+        took = any(e.data.get("kind") == "take_message" for e in evs)
+        if flagged:
+            assert not took and not any(e.data.get("kind") == "forward" for e in evs)
+            assert any(e.type == "owner.notified" and "Don't send money" in e.data["text"] for e in evs), evs
+        else:
+            assert call.state == "unverified" and took
+            assert any(e.type == "owner.notified" and "delivery or appointment" in e.data["text"] for e in evs)
+    ok("courier naming no item: message taken; with a fee request no shortcut and a warning")
     delivery_id, delivery_events = run(c, "Delivery driver, expected", {
         "caller_number": "+15550440001",
         "lines": ["Hi, I'm the driver with your desk lamp, are you home?"]}, "confirmed",
@@ -285,6 +357,13 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             "agent_lines": {"0": "Who is calling, and what is it about?",
                             "2": "My card number is 4111 1111 1111 1111."},
             "word_s": 0.001}, "unverified", ["decision", "action", "owner.notified"])
+        # The transcript safety net can decide before the assistant finishes speaking.
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            fee_events = [e for e in c.get("/events").json() if e["call_id"] == fee_id]
+            if any("[card number]" in e["data"].get("text", "") for e in fee_events if e["type"] == "transcript"):
+                break
+            time.sleep(0.05)
     assert any(e["type"] == "context.expected" for e in fee_events)
     assert c.get(f"/calls/{fee_id}").json()["decided_by"] == "expected_but_money"
     assert any(e["data"].get("kind") == "expected_but_money" for e in fee_events)
@@ -292,8 +371,10 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert any("Don't pay" in e["data"].get("text", "") for e in fee_events if e["type"] == "owner.notified")
     assert all("4111" not in json.dumps(e) and "1111" not in json.dumps(e) for e in fee_events)
     assert any("[card number]" in e["data"].get("text", "") for e in fee_events if e["type"] == "transcript")
-    assert all("4111" not in json.dumps(part) and "1111" not in json.dumps(part) for part in fee_partials), "fee scene leaked card digits live"
-    assert any("[card number]" in json.dumps(part) for part in fee_partials)
+    partial_texts = [part[role]["text"] for part in fee_partials
+                     for role in ("caller", "agent") if part[role]]
+    assert all("4111" not in text and "1111" not in text for text in partial_texts), "fee scene leaked card digits live"
+    assert any("[card number]" in text for text in partial_texts)
     ok("fee scene: card masked live and in final events, no expected-call shortcut, owner warned")
     generic_id, generic_events = run(c, "Generic delivery takes a message", {
         "lines": ["I'm a driver with a delivery, are you home?"]}, "unverified",
@@ -381,6 +462,53 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     from guard.brain import context
     from scripts import senso_load
     import httpx
+    from tempfile import TemporaryDirectory
+    with TemporaryDirectory() as directory, patch.object(context, "_LOCAL_PATH", Path(directory) / "expected.local.json", create=True):
+        local = context._LOCAL_PATH
+        assert context.expected("blue vase parcel") is None
+        row = {"id": "local-vase", "kind": "delivery", "who": "vase courier",
+               "keywords": {"specific": ["blue vase"], "generic": ["parcel"]},
+               "note": "Delivery for your vase order."}
+        local.write_text(json.dumps([row]))
+        assert context.expected("blue vase parcel").source_id == "local-vase"
+        with patch.dict(os.environ, {"FAKE": "0", "REAL_SENSO": "1"}), patch.object(context, "_search", return_value=None):
+            assert context.expected("blue vase parcel").source_id == "local-vase", "local additions must not need a Senso upload"
+        local.write_text(json.dumps([{**row, "until": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()}]))
+        assert context.expected("blue vase parcel") is None
+        local.write_text(json.dumps([{**row, "id": "order-desk-lamp"}]))
+        assert context.expected("desk lamp parcel") is None
+        assert context.expected("blue vase parcel").source_id == "order-desk-lamp"
+        local.unlink()
+        assert context.expected("desk lamp parcel").source_id == "order-desk-lamp"
+        today = datetime.now(timezone.utc).date()
+        for until, live in ((today.isoformat(), True), ((today - timedelta(days=1)).isoformat(), False),
+                            ((datetime.now(timezone.utc) + timedelta(hours=1)).replace(tzinfo=None).isoformat(), True),
+                            ("not a date", True)):
+            local.write_text(json.dumps([{**row, "until": until}]))
+            assert bool(context.expected("blue vase parcel")) == live, until
+        local.write_text(json.dumps([{"id": "order-desk-lamp", "expected": False}, row]))
+        assert context.expected("desk lamp parcel") is None
+        assert context.expected("blue vase parcel").source_id == "local-vase"
+        assert context.expected("coffee beans delivery").source_id == "order-coffee"
+        class FakeClient:
+            def __init__(self, *a, **k): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def post(self, *a, **k):
+                class R:
+                    def raise_for_status(self): pass
+                    def json(self): return {"results": [{"title": "order-desk-lamp", "score": 0.9, "rank": 1}]}
+                return R()
+        with patch.dict(os.environ, {"SENSO_API_KEY": "x"}), patch.object(context.httpx, "Client", FakeClient):
+            rows, disabled, _ = context._load()
+            assert "order-desk-lamp" in disabled
+            assert context._search("desk lamp parcel", rows, disabled) is None, "a Senso hit on a switched-off id"
+        for bad in ("", "{half", '{"id": "x"}', '[1, 2]'):
+            local.write_text(bad)
+            assert context.expected("desk lamp parcel").source_id == "order-desk-lamp", bad
+            assert context.expected("coffee beans delivery").source_id == "order-coffee", bad
+        local.unlink()
+    ok("expectation overlay: live additions, replacements, expiry and removal")
     assert len(context.records()) == 5
     for words, kind in (("desk lamp", "delivery"), ("coffee beans", "delivery"),
                         ("Oak Clinic office callback", "callback"), ("washing machine repair", "appointment")):
