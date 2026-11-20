@@ -144,7 +144,9 @@ def _guard_number() -> str:
 
 
 def _persona_template() -> str:
-    return os.environ.get("PERSONA_TEMPLATE_ID", "").strip()
+    """Non-empty when the hosted Persona check is configured (a ready link, a template version, or a template)."""
+    return (os.environ.get("PERSONA_INQUIRY_URL", "").strip() or os.environ.get("PERSONA_TEMPLATE_VERSION_ID", "").strip()
+            or os.environ.get("PERSONA_TEMPLATE_ID", "").strip())
 
 
 # ---------- pages and auth ----------
@@ -225,11 +227,16 @@ def verify_start(request: Request):
     template = _persona_template()
     if not template:
         return {"mode": "demo", "url": None}
-    ready = os.environ.get("PERSONA_INQUIRY_URL", "").strip()
-    if ready:  # HACK: a link to an inquiry prepared in Persona's dashboard (reference id = this user's id)
-        return {"mode": "hosted", "url": ready}
     base = (os.environ.get("PUBLIC_BASE_URL") or str(request.base_url)).rstrip("/")
-    params = {"inquiry-template-id": template, "reference-id": user["id"], "redirect-uri": base + "/app"}
+    extra = {"reference-id": user["id"], "redirect-uri": base + "/app"}
+    ready = os.environ.get("PERSONA_INQUIRY_URL", "").strip()
+    if ready:  # a prepared link; add who is checking and where to come back to when it does not say so
+        add = {k: v for k, v in extra.items() if k + "=" not in ready}
+        return {"mode": "hosted", "url": ready + (("&" if "?" in ready else "?") + urlencode(add) if add else "")}
+    version = os.environ.get("PERSONA_TEMPLATE_VERSION_ID", "").strip()
+    # A published template version works in an environment the template is not deployed to yet.
+    params = {"inquiry-template-version-id": version} if version else {"inquiry-template-id": os.environ.get("PERSONA_TEMPLATE_ID", "").strip()}
+    params.update(extra)
     if os.environ.get("PERSONA_ENVIRONMENT_ID"):
         params["environment-id"] = os.environ["PERSONA_ENVIRONMENT_ID"]
     return {"mode": "hosted", "url": "https://inquiry.withpersona.com/verify?" + urlencode(params)}
