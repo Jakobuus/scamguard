@@ -394,4 +394,4 @@ def _build_graph() -> dict:
         edges.append({"from": nid, "to": f"contact:{c['contact_id']}" if c["contact_id"] in ids else "owner"})
     return {"source": source, "nodes": nodes, "edges": edges,
             "memory_note": ("Live memory." if source == "cognee" else
-                            "Sample memory. With the memory layer connected, only what a verified answer proved is remembered.")}
+                            "Shown here: sample memory.")}
