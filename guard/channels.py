@@ -116,7 +116,7 @@ def result_text(answer, won):
     return "Thanks. Putting the call through." if answer == "yes" else "Thanks. Call ended."
 
 
-OWN_PREFIXES = ("someone is calling", "thanks.", "too late", "call guard test")
+OWN_PREFIXES = ("someone is calling", "thanks.", "too late", "call guard test", "test,")
 
 
 def _norm(text):
@@ -149,6 +149,7 @@ async def _whatsapp(call, text, chat_id=None):
             await asyncio.to_thread(beeper_request, "POST", path, timeout=15, json={"text": question})
         except httpx.TimeoutException:
             log.warning("WhatsApp send timed out; polling for the reply anyway")
+        own_sender = None
         deadline = time.monotonic() + 90
         # HACK: poll only the latest page; the demo chat has low message volume.
         while time.monotonic() < deadline:
@@ -172,9 +173,10 @@ async def _whatsapp(call, text, chat_id=None):
                     if mid in seen:
                         continue
                     seen.add(mid)
-                    # In a chat with someone else, only the other person's messages count;
-                    # in the owner's own chat everything is "ours", so the text filter decides.
-                    if message.get("isSender") and chat_id != os.environ.get("BEEPER_CHAT_ID"):
+                    # isSender is not used: in bridged chats every message can carry isSender true.
+                    # Our own question is identified by its text; the prefix filter is a second guard.
+                    if _norm(body) == _norm(question):
+                        own_sender = message.get("senderID")
                         continue
                     if (_own_line(body) or message.get("isDeleted")
                             or message.get("type", "TEXT") != "TEXT"):
@@ -183,6 +185,8 @@ async def _whatsapp(call, text, chat_id=None):
                     if answer:
                         if _latest.get(chat_id) != call.call_id:
                             return
+                        if message.get("senderID") and own_sender:
+                            log.info("WhatsApp reply same_sender=%s", str(message["senderID"] == own_sender).lower())
                         from guard import flow
                         won = await flow.on_tap(call.call_id, answer, channel="whatsapp")
                         await asyncio.to_thread(beeper_request, "POST", path, timeout=15,

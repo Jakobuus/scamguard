@@ -172,10 +172,11 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
                     return httpx.Response(200, json={"chatID": chat, "pendingMessageID": "~pending"})
                 items = []
                 if sent[chat]:
-                    items = [{"id": "question", "text": sent[chat][0], "isSender": True},
+                    items = [{"id": "question", "text": sent[chat][0], "isSender": True, "senderID": "@us"},
                              {"id": "confirmation", "text": "Thanks. Call ended.", "isSender": True}]
                     if chat == "!first" or release.is_set():
-                        items.insert(0, {"id": "reply", "text": "YES", "isSender": False})
+                        items.insert(0, {"id": "reply", "text": "YES", "isSender": True, "senderID": "@other"})
+                        items.insert(1, {"id": "chat", "text": "ok one sec", "isSender": True, "senderID": "@other"})
                 return httpx.Response(200, json={"items": items, "hasMore": False})
             with httpx.Client(transport=httpx.MockTransport(beeper_http)) as client, patch.object(
                 settings, "REAL_BEEPER", True), patch.object(channels.httpx, "request", client.request):
