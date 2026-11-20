@@ -705,6 +705,8 @@
   body.lc-present #lc-listen{display:none}
   .lc-talk .lc-h-note{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .lc-controls .lc-pbtn{flex:none;white-space:nowrap}
+  /* HACK: stage shows one real and one cloned-voice call: hide the scripted scenes and the Present button (?present=1 still works). */
+  #lc-present,.lc-scenes button[data-scene]:not([data-scene="reset"]),.lc-scenes #lc-cast-hint{display:none!important}
   .lc-scenes #lc-cast-hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 
   /* elsewhere in the app */
@@ -2457,6 +2459,35 @@ $("xform").addEventListener("submit", async e => {
       cloneExists = r.status !== 404; renderScenes();
     } catch (_) {}
   }
+  // HACK: on the demo Mac the cloned-voice call runs in a local helper page (port 8072) that joins a Vapi web call; the button just opens it.
+  const HELPER = "http://127.0.0.1:8072";
+  let helperUp = false, helperWin = null;
+  async function probeHelper() {
+    if (!/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) return;
+    try { helperUp = (await fetch(HELPER + "/ping", {cache: "no-store"})).ok; } catch (_) { helperUp = false; }
+    renderScenes();
+  }
+  function helperOpen() { return !!(helperWin && helperWin.isConnected); }
+  function helperStart() {
+    // Hidden iframe only, never a popup or tab: the dashboard stays in front.
+    try { const c = new AudioContext(); c.resume().then(() => c.close()); } catch (_) {}
+    const f = document.createElement("iframe");
+    f.allow = "autoplay; microphone"; f.src = HELPER + "/?autostart=1";
+    f.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;right:0;border:0";
+    document.body.appendChild(f); helperWin = f;
+    if (location.hash !== "#live") location.hash = "#live";
+    renderScenes();
+  }
+  function helperStop() {
+    const w = helperWin; helperWin = null; renderScenes();
+    if (!w) return;
+    try { w.contentWindow.postMessage("stop", HELPER); } catch (_) {}
+    setTimeout(() => { try { w.remove(); } catch (_) {} }, 1500);
+  }
+  window.addEventListener("message", ev => {
+    if (ev.origin === HELPER && ev.data && ev.data.kcCall === "ended" && helperWin) helperStop();
+  });
+  setInterval(() => { if (helperWin && !helperOpen()) { helperWin = null; renderScenes(); } }, 1000);
   async function cloneRequest(path) {
     const headers = {"Content-Type": "application/json"};
     if (simKey()) headers["X-Sim-Key"] = simKey();
@@ -3109,15 +3140,17 @@ $("xform").addEventListener("submit", async e => {
     }
     $("lc-cast-hint").textContent = !healthReady ? "waiting for the server" : !demoContact ? "demo contact not set" : "";
     const start = $("lc-clone-start"), stop = $("lc-clone-stop");
-    start.hidden = !cloneExists || !(simKey() || CONFIG.fake || healthFake);
-    start.textContent = clonePending ? "calling…" : "Start cloned-voice call";
-    start.disabled = clonePending || cloneRunning || cloneStopping || sceneBusy;
+    start.hidden = !(cloneExists || helperUp) || !(simKey() || CONFIG.fake || healthFake);
+    start.textContent = helperUp ? (helperWin ? "Stop call" : "Start cloned-voice call") : clonePending ? "calling…" : "Start cloned-voice call";
+    start.disabled = helperUp ? false : clonePending || cloneRunning || cloneStopping || sceneBusy;
+    if (helperUp) { stop.hidden = true; return; }
     stop.hidden = start.hidden || !cloneRunning;
     stop.disabled = cloneStopping;
   }
   $("lc-scenes").addEventListener("click", async ev => {
     const b = ev.target.closest("#lc-clone-start, #lc-clone-stop");
     if (!b || b.disabled) return;
+    if (helperUp && b.id === "lc-clone-start") { helperWin ? helperStop() : helperStart(); return; }
     if (b.id === "lc-clone-stop") {
       cloneStopping = true; renderScenes();
       try { await cloneRequest("/sim/scam-call/stop"); cloneRunning = false; cloneCall = null; finishCloneWait(); }
@@ -3164,6 +3197,8 @@ $("xform").addEventListener("submit", async e => {
   setInterval(loadHealth, 30000);
   probeClone();
   setInterval(probeClone, 30000);
+  probeHelper();
+  setInterval(() => { if (!helperWin) probeHelper(); }, 15000);
 
   // ---------- polling: one /events request at a time; fast while watched or a call is on, slow otherwise, none while hidden ----------
   const fast = () => onLive() || phase() === "live";
