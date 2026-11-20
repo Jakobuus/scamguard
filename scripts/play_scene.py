@@ -28,6 +28,7 @@ def play(scene: str, number: int, text: str, dry_run: bool) -> None:
 
 def main() -> int:
     scenes = json.loads((CLIPS / "lines.json").read_text())
+    scenes.pop("_voices", None)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scene", choices=scenes)
     parser.add_argument("--auto", type=float, metavar="SECONDS", help="gap after each clip")
