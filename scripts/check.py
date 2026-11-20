@@ -146,26 +146,31 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             def beeper_http(request):
                 assert request.url.path == "/v1/chats/chat/id/messages"
                 assert request.headers["authorization"] == "Bearer test"
-                assert request.extensions["timeout"]["read"] <= 3
                 if request.method == "POST":
                     sent.append(json.loads(request.content)["text"])
-                    return httpx.Response(200, json={"chatID": "chat/id", "pendingMessageID": "question"})
-                def msg(mid, seconds, body, sender=True):
-                    return {"id": mid, "timestamp": (now + timedelta(seconds=seconds)).isoformat(),
-                            "text": body, "type": "TEXT", "isSender": sender}
-                return httpx.Response(200, json={"hasMore": False, "items": [
-                    msg("old", -60, "no"), msg("question", 0.1, text + "\nReply NO or YES."),
-                    msg("noise", 0.2, "hello"), msg("reply", 0.3, "JA please", True)],
-                    "newestCursor": "new", "oldestCursor": "old"})
+                    # Real shape: the pending id differs from the listed id.
+                    return httpx.Response(200, json={"chatID": "chat/id", "pendingMessageID": "~pending_1_8"})
+                def msg(mid, ts, body):
+                    return {"id": mid, "timestamp": ts, "text": body, "type": "TEXT", "isSender": True}
+                items = [msg("100", "2020-01-01T00:00:00.000Z", "no")]
+                if sent:  # newest first; listed text has <br>, the reply's second stamp is EARLIER than the question's
+                    q = (now + timedelta(seconds=5)).strftime("%Y-%m-%dT%H:%M:%S.") + "681Z"
+                    r = (now + timedelta(seconds=4)).strftime("%Y-%m-%dT%H:%M:%S.") + "000Z"
+                    items = [msg("103", r, "JA please"), msg("102", q, "hello"),
+                             msg("101", q, sent[0].replace(" Reply NO", "<br>Reply NO"))] + items
+                    if len(sent) > 1:
+                        items.insert(0, msg("104", q, sent[1]))
+                return httpx.Response(200, json={"hasMore": False, "items": items,
+                                                 "newestCursor": "new", "oldestCursor": "old"})
             with httpx.Client(transport=httpx.MockTransport(beeper_http)) as client:
                 with patch.object(settings, "REAL_BEEPER", True), patch.object(channels.httpx, "request", client.request):
                     await channels._whatsapp(call, text)
-            assert sent == [text + "\nReply NO or YES.", "Thanks. Putting the call through."]
+            assert sent == [text + " Reply NO or YES.", "Thanks. Putting the call through."]
             assert state.get_call(cid).state == "confirmed"
             decision = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "decision")
             assert decision["channel"] == "whatsapp"
             for t, want in (("No.", "no"), ("no!", "no"), ("Yeah", "yes"), ("\U0001F44E", "no"), ("maybe", None),
-                            ("Thanks. Call ended.", None), (text + "\nReply NO or YES.", None), (None, None)):
+                            ("Thanks. Call ended.", None), (text + "<br>Reply NO or YES.", None), (None, None)):
                 assert channels.reply_answer(t) == want, t
             # A poller whose call is no longer the latest for its chat stops without answering.
             flow.reset_demo()

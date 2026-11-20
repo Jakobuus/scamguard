@@ -29,11 +29,11 @@ def enabled() -> list[str]:
     return names
 
 
-def beeper_request(method, path, **kwargs):
+def beeper_request(method, path, timeout=3, **kwargs):
     response = httpx.request(
         method, (os.environ.get("BEEPER_BASE_URL") or "http://localhost:23373").rstrip("/") + path,
         headers={"Authorization": "Bearer " + os.environ.get("BEEPER_ACCESS_TOKEN", "")},
-        timeout=3, **kwargs,
+        timeout=timeout, **kwargs,
     )
     response.raise_for_status()
     return response.json()
@@ -65,20 +65,44 @@ def result_text(answer, won):
     return "Thanks. Putting the call through." if answer == "yes" else "Thanks. Call ended."
 
 
+OWN_PREFIXES = ("someone is calling", "thanks.", "too late", "call guard test")
+
+
+def _norm(text):
+    return " ".join((text or "").replace("<br>", " ").replace("<br/>", " ").split()).casefold()
+
+
+def _own_line(text):
+    return _norm(text).startswith(OWN_PREFIXES)
+
+
+def _why(e):
+    # Never log URLs, headers or HTTP bodies: they can carry credentials.
+    if isinstance(e, httpx.HTTPStatusError):
+        return f"{type(e).__name__} status {e.response.status_code}"
+    if isinstance(e, httpx.HTTPError):
+        return type(e).__name__
+    return f"{type(e).__name__}: {e}"
+
+
 async def _whatsapp(call, text):
     if not settings.REAL_BEEPER:
         log.info("fake whatsapp ping (call %s): %s", call.call_id, text)
         return
     try:
-        path = message_path(os.environ["BEEPER_CHAT_ID"])
-        question = text + "\nReply NO or YES."
         chat_id = os.environ["BEEPER_CHAT_ID"]
+        path = message_path(chat_id)
+        # One line: the listed text of a multi-line message comes back with <br>.
+        question = text + " Reply NO or YES."
         _latest[chat_id] = call.call_id
-        since = datetime.now(timezone.utc)
-        sent = await asyncio.to_thread(beeper_request, "POST", path, json={"text": question})
-        question_id = sent.get("pendingMessageID")
+        before = await asyncio.to_thread(beeper_request, "GET", path)
+        seen = {m.get("id") for m in before.get("items", [])}
+        try:
+            # Sending can take longer than a poll; a timeout does not mean it was not sent.
+            await asyncio.to_thread(beeper_request, "POST", path, timeout=15, json={"text": question})
+        except httpx.TimeoutException:
+            log.warning("WhatsApp send timed out; polling for the reply anyway")
         deadline = time.monotonic() + 90
-        seen = set()
         # HACK: poll only the latest page; the demo chat has low message volume.
         while time.monotonic() < deadline:
             if _latest.get(chat_id) != call.call_id:
@@ -89,38 +113,34 @@ async def _whatsapp(call, text):
             await asyncio.sleep(1)
             if _latest.get(chat_id) != call.call_id:
                 return
-            page = await asyncio.to_thread(beeper_request, "GET", path)
-            messages = []
-            for message in page.get("items", []):
-                try:
-                    stamp = datetime.fromisoformat((message.get("timestamp") or "").replace("Z", "+00:00"))
-                except ValueError:
-                    continue
-                messages.append((stamp, message))
-            messages.sort(key=lambda m: m[0])
-            for stamp, message in messages:
-                if message.get("id") == question_id or message.get("text") == question:
-                    since = max(since, stamp)
-            for stamp, message in messages:
+            try:
+                page = await asyncio.to_thread(beeper_request, "GET", path)
+            except httpx.HTTPError as e:
+                log.warning("WhatsApp poll failed: %s", _why(e))
+                continue
+            items = page.get("items", [])
+            for message in reversed(items):  # oldest first
                 try:
                     mid, body = message.get("id"), message.get("text") or ""
-                    if (mid in seen or mid == question_id or body == question or stamp <= since
-                            or message.get("isDeleted") or message.get("type", "TEXT") != "TEXT"):
+                    if mid in seen:
                         continue
                     seen.add(mid)
+                    if (_own_line(body) or message.get("isDeleted")
+                            or message.get("type", "TEXT") != "TEXT"):
+                        continue
                     answer = reply_answer(body)
                     if answer:
                         if _latest.get(chat_id) != call.call_id:
                             return
                         from guard import flow
                         won = await flow.on_tap(call.call_id, answer, channel="whatsapp")
-                        await asyncio.to_thread(beeper_request, "POST", path,
+                        await asyncio.to_thread(beeper_request, "POST", path, timeout=15,
                                                 json={"text": result_text(answer, won)})
                         return
                 except Exception:
                     log.warning("Skipped one bad WhatsApp message")
-    except Exception:
-        log.warning("WhatsApp question failed")
+    except Exception as e:
+        log.warning("WhatsApp question failed: %s", _why(e))
 
 
 def _email(call, text):
@@ -149,9 +169,8 @@ async def _deliver(name, call, contact, claim):
             await _whatsapp(call, telegram.ping_text(contact, claim))
         else:
             await asyncio.to_thread(_email, call, telegram.ping_text(contact, claim))
-    except Exception:
-        # HTTP exception text can include credentials: keep this line fixed.
-        log.warning("Question delivery failed on %s", name)
+    except Exception as e:
+        log.warning("Question delivery failed on %s: %s", name, _why(e))
 
 
 def send_ping(call, contact, claim=None):
