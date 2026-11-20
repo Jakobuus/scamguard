@@ -195,7 +195,7 @@ if (fragment.has("k")) {
 }
 let OWNER = "Mum";
 const FLAGS = {authority_or_kinship:"Identity claim", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
-const SCAM = ["Mum, it's Jakob. I'm in trouble.", "I need two thousand dollars in gift cards right now.", "Don't tell dad."];
+const SCAM = ["Mum, it's Jakob. I'm in trouble.", "I need $2,000 in gift cards right now.", "Don't tell dad."];
 // The assistant's side of the scripted scenes: key i is said before caller line i, key = number of lines after the last.
 const GREET = "Hello, this is Mum's assistant. Who is calling, and what is it about?";
 const HOLD = "One moment, I am trying to reach her.";
@@ -315,7 +315,9 @@ function addStep(e) {
   const steps = $("steps");
   steps.appendChild(li);
   // Only whole rows: drop the oldest until the newest fits, so no row is cut off or faded.
-  while (steps.children.length > 1 && (steps.children.length > 40 || steps.scrollHeight > steps.clientHeight)) steps.firstChild.remove();
+  // A scam-script match stays as long as there are other rows to drop.
+  while (steps.children.length > 1 && (steps.children.length > 40 || steps.scrollHeight > steps.clientHeight))
+    (steps.querySelector("li:not(.warn)") || steps.firstChild).remove();
 }
 
 // ---------- the call's state, from events ----------

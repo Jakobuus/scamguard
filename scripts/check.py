@@ -924,8 +924,12 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert flow._caller_name("mommy!", "") is None and flow._caller_name(settings.OWNER_NAME, "") is None
     assert flow._caller_name("Mum,", "Mum, it's Jakob. I'm in trouble.") == "Jakob"
     assert flow._caller_name("Lena", "") == "Lena" and flow._caller_name(None, "it's Jakob") is None
+    nana = contacts._all()[0].model_copy(update={"id": "nana", "name": "Grete", "nicknames": ["Nana"]})
+    with patch.object(contacts, "_contacts", [*contacts._all(), nana]):
+        assert flow._caller_name("Nana", "Hi, it's Nana.") == "Nana", "a contact called Nana keeps her name"
+    assert flow._caller_name("Nana", "Hi, it's Nana.") is None, "no Nana contact: a form of address"
     stage_scam = {"claimed_name": "Jakob", "tap": "no", "tap_after_s": 0.5, "lines": [
-        "Mum, it's Jakob. I'm in trouble.", "I need two thousand dollars in gift cards right now.", "Don't tell dad."]}
+        "Mum, it's Jakob. I'm in trouble.", "I need $2,000 in gift cards right now.", "Don't tell dad."]}
     for label, number, extract in (("keyword claim", "+15550666601", classify.claim),
                                    ("extractor says Mum", "+15550666602",
                                     lambda t: Claim(claimed_name="Mum", method="gift cards", quote=t))):

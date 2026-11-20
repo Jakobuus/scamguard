@@ -209,6 +209,8 @@ def _caller_name(name, text):
     When the extractor took the addressee, fall back to the keyword name ("it's Jakob")."""
     def own(n):
         n = re.sub(r"[\W_]+$", "", (n or "").strip()).casefold()
+        if any(n == known.casefold() for c in contacts._all() for known in [c.name, *c.nicknames]):
+            return False  # a contact may really be called "Dad" or "Nana"
         return n in _ADDRESS or n == settings.OWNER_NAME.casefold()
     if not name or not own(name):
         return name
