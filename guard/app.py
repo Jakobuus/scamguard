@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
 from guard import account, channels, credential, flow, gmail, settings, sim, state, telemetry, telegram, vapi
@@ -15,7 +15,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="guard", lifespan=lifespan)
-for r in (channels.router, vapi.router, telegram.router, sim.router, drill.router, account.router, gmail.router):
+for r in (channels.router, vapi.router, telegram.router, sim.public, sim.router, drill.router, account.router, gmail.router):
     app.include_router(r)
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -40,9 +40,14 @@ def health():
 
 
 @app.get("/live")
-async def live():
+async def live(req: Request):
     """In-progress words of the current call; memory only, so the screen can poll it fast."""
-    return flow.live()
+    out = flow.live()
+    # The live audio carries the spoken code word: its URL only goes to holders of the sim key.
+    out["listen_available"] = bool(out.get("listen_url"))
+    if not sim.key_ok(req):
+        out["listen_url"] = None
+    return out
 
 
 @app.get("/calls/{call_id}")

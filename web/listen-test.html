@@ -6,15 +6,19 @@ button{font-size:24px;padding:16px 40px;border-radius:12px;border:0;cursor:point
 <button id="b">Listen</button><div id="s">waiting for a live call</div></div>
 <script src="/listen.js"></script>
 <script>
+// The listen URL needs the demo key: open /listen-test?k=<key> once; it is kept like on /app.
+var q = new URLSearchParams(location.search);
+if (q.get("k")) { try { localStorage.setItem("sim-key", q.get("k")); } catch (e) {} history.replaceState(null, "", location.pathname); }
+function key() { try { return localStorage.getItem("sim-key") || ""; } catch (e) { return ""; } }
 var want = false, b = document.getElementById("b"), s = document.getElementById("s");
 b.onclick = function () { want = !want; if (!want) KinCheckListen.stop(); tick(); };
 function tick() {
-  fetch("/live").then(function (r) { return r.json(); }).then(function (live) {
+  fetch("/live", {headers: key() ? {"X-Sim-Key": key()} : {}}).then(function (r) { return r.json(); }).then(function (live) {
     var url = live && live.listen_url;
     if (want && url) KinCheckListen.start(url);
     if (!url && KinCheckListen.isOn()) KinCheckListen.stop();
     b.textContent = KinCheckListen.isOn() ? "Stop" : "Listen";
-    s.textContent = !url ? "waiting for a live call" : KinCheckListen.isOn() ? "playing the live call" : "live call: press Listen";
+    s.textContent = !url ? (live && live.listen_available ? "live call, but no key: open with ?k=" : "waiting for a live call") : KinCheckListen.isOn() ? "playing the live call" : "live call: press Listen";
   }).catch(function () {});
 }
 setInterval(tick, 1000); tick();

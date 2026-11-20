@@ -505,7 +505,8 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     with patch.object(settings, "REAL_VAPI", True), patch.object(settings, "FAKE", False), \
             patch.dict(os.environ, {"APP_SECRET": "test-app-secret", "VAPI_SCAM_PHONE_ID": ""}):
         r = c.post("/sim/scam-call", headers={"X-Sim-Key": sim_key}).json()
-        assert r["started"] is False and "VAPI_SCAM_PHONE_ID" in r["reason"], r
+        assert r == {"started": False, "reason": "no caller number"}, r
+        assert c.get("/sim/scam-call").status_code == 404, "button stays hidden without a caller number"
     ok("sim auth: derived header only; local page link; scam call refuses without key, fake mode or number")
     # Finals alone must resolve specific expectations without an identity tool call.
     async def expected_without_tool():
@@ -1428,7 +1429,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     with patch.object(contacts, "_all", return_value=[contacts.get("jakob").model_copy(
             update={"challenge_answer": "Bruno"})]):
         cid = flow.start_call("+15550123123")
-        assert c.get("/live").json() == {"call_id": cid, "caller": None, "agent": None, "listen_url": None}
+        assert c.get("/live").json() == {"call_id": cid, "caller": None, "agent": None, "listen_url": None, "listen_available": False}
         hook = lambda body: c.post("/vapi/webhook", json={"message": {**body, "call": {"id": cid}}})
         hook({"type": "transcript", "transcriptType": "partial", "role": "user", "transcript": "the word is Bru"})
         live = c.get("/live").json()
@@ -1455,7 +1456,12 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     lhook = lambda body: c.post("/vapi/webhook", json={"message": {**body, "call": {
         "id": lid, "customer": {"number": "+15550124444"}, "monitor": {"listenUrl": lurl}}}})
     lhook({"type": "status-update", "status": "in-progress"})
-    assert c.get("/live").json()["listen_url"] == lurl
+    assert c.get("/live").json()["listen_url"] == lurl  # fake mode: sim routes are open
+    with patch.dict(os.environ, {"APP_SECRET": "test-app-secret"}), patch.object(settings, "FAKE", False):
+        anon = c.get("/live").json()
+        assert anon["listen_url"] is None and anon["listen_available"] is True, anon
+        assert c.get("/live", headers={"X-Sim-Key": "wrong"}).json()["listen_url"] is None
+        assert c.get("/live", headers={"X-Sim-Key": sim_key}).json()["listen_url"] == lurl
     c.post("/vapi/webhook", json={"message": {"type": "status-update", "status": "in-progress", "call": {
         "id": "vapi-listen-bad", "monitor": {"listenUrl": "wss://evil.example/listen"}}}})
     assert c.get("/live").json()["listen_url"] is None, "only vapi.ai listen URLs"
