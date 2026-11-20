@@ -1153,6 +1153,16 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert classify.flags(claim.quote).latency_ms >= 1
         assert classify.flags(claim.quote).needs_verification
         assert not classify.flags("Please wire $2000").needs_verification
+        # Keyword fallback: spoken amounts, gift cards, codes and credentials count as money; photos do not.
+        for line in ("I need two thousand dollars in gift cards", "send me five hundred bucks", "a few hundred by Zelle",
+                     "Read me the six digit code we just texted you", "This is your bank's fraud department, confirm your PIN"):
+            assert classify.flags(line).money, line
+        assert classify.flags("Mum, it's me. I need two thousand dollars in gift cards").needs_verification
+        assert not classify.flags("Hi Mum, it's Lena. Can you send me the photos from the party?").money
+        assert not classify.flags("Hi, I'm the driver with your desk lamp, are you home?").money
+        assert classify.flags("Don't tell dad, keep it quiet, I need it within 30 minutes").secrecy
+        spoken = classify.claim("I need two thousand dollars in gift cards")
+        assert spoken.amount == "$2,000" and spoken.method == "gift cards"
         assert contacts.lookup("Jake", None).contact.id == "jakob"
         assert contacts.candidates(Claim(relationship="daughter"), None)[0].contact.id == "lena"
         # A known number still requires a tap for a sensitive identity claim.
