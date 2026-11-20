@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "descriptor_sha256": "REPLACE_WITH_DIGEST_PRINTED_BY_firedrill_register",
+  "roots": [
+    { "alias": "app", "path": "/ABSOLUTE/PATH/TO/scamguard", "identity_sha256": "SAME_ROOT_IDENTITY_AS_DESCRIPTOR" }
+  ],
+  "services": [
+    {
+      "alias": "agent",
+      "root_alias": "app",
+      "mode": "launch",
+      "command": { "executable": "uv", "args": ["run", "python", "drill/firedrill/serve.py"] },
+      "cwd": ".",
+      "env_passthrough": ["PATH", "HOME"],
+      "env_static": { "FAKE": "1" },
+      "local_secret_env": [],
+      "readiness": { "kind": "http", "url": "http://127.0.0.1:0/health", "expect_status": [200] },
+      "readiness_timeout_ms": 60000,
+      "stop_timeout_ms": 5000,
+      "per_drill": true,
+      "port_env": "PORT"
+    }
+  ],
+  "driver": {
+    "profile": "http.v1",
+    "service_alias": "agent",
+    "path": "/analyze",
+    "method": "POST",
+    "stream": "none",
+    "session_header": null,
+    "request_template": "message-text",
+    "response_pointer": "/reply"
+  },
+  "state_hooks": [],
+  "max_parallel_drills": 1
+}
