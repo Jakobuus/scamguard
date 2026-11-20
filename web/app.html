@@ -768,8 +768,11 @@
   body.lc-present .lc-tl{display:none}
   body.lc-present .lc-controls{position:fixed;left:0;right:0;bottom:0;height:54px;padding:0 72px;background:var(--mg-surface);
                               border-top:1px solid var(--mg-line);box-shadow:0 -6px 24px -10px rgba(27,29,42,.12);
-                              opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .18s ease,transform .18s ease;z-index:6}
-  body.lc-present .lc-controls.lc-show,body.lc-present .lc-controls:focus-within{opacity:1;pointer-events:auto;transform:translateY(0)}
+                              opacity:.3;pointer-events:auto;transition:opacity .18s ease;z-index:20}
+  body.lc-present .lc-controls.lc-show,body.lc-present .lc-controls:hover,body.lc-present .lc-controls:focus-within{opacity:1}
+  /* the cards never grow over the controls, however long the call gets */
+  #v-live .lc-talk,#v-live .lc-facts,#v-live .lc-tl{min-height:0;overflow:hidden}
+  #v-live .lc-convo{flex:1 1 auto}
 
   @media (max-width:1100px){
     #v-live{grid-template-columns:1fr;grid-template-rows:auto;height:auto}
