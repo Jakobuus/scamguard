@@ -271,14 +271,30 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert not any(e["type"] == "ping.sent" for e in delivery_events)
     assert any(e["data"].get("kind") == "forward" for e in delivery_events)
     assert any("desk lamp" in e["data"].get("text", "") for e in delivery_events if e["type"] == "owner.notified")
-    fee_id, fee_events = run(c, "Fake delivery fee", {
-        "caller_number": "+15550440002",
-        "lines": ["Your desk lamp parcel is held, pay a 40 dollar customs fee with a gift card"]}, "unverified",
-        ["decision", "action", "owner.notified"])
+    fee_partials = []
+    original_partial = flow.on_partial
+    def capture_fee_partial(call_id, role, text):
+        original_partial(call_id, role, text)
+        fee_partials.append(flow.live())
+    with patch.object(flow, "on_partial", side_effect=capture_fee_partial):
+        fee_id, fee_events = run(c, "Fake delivery fee", {
+            "caller_number": "+15550440002",
+            "lines": ["I'm calling from the parcel service about your desk lamp delivery.",
+                      "There is a small customs fee of $4.99 to pay. What is your card number?",
+                      "I'll process that payment now."],
+            "agent_lines": {"0": "Who is calling, and what is it about?",
+                            "2": "My card number is 4111 1111 1111 1111."},
+            "word_s": 0.001}, "unverified", ["decision", "action", "owner.notified"])
     assert any(e["type"] == "context.expected" for e in fee_events)
     assert c.get(f"/calls/{fee_id}").json()["decided_by"] == "expected_but_money"
     assert any(e["data"].get("kind") == "expected_but_money" for e in fee_events)
     assert not any(e["data"].get("kind") == "forward" for e in fee_events)
+    assert any("Don't pay" in e["data"].get("text", "") for e in fee_events if e["type"] == "owner.notified")
+    assert all("4111" not in json.dumps(e) and "1111" not in json.dumps(e) for e in fee_events)
+    assert any("[card number]" in e["data"].get("text", "") for e in fee_events if e["type"] == "transcript")
+    assert all("4111" not in json.dumps(part) and "1111" not in json.dumps(part) for part in fee_partials), "fee scene leaked card digits live"
+    assert any("[card number]" in json.dumps(part) for part in fee_partials)
+    ok("fee scene: card masked live and in final events, no expected-call shortcut, owner warned")
     generic_id, generic_events = run(c, "Generic delivery takes a message", {
         "lines": ["I'm a driver with a delivery, are you home?"]}, "unverified",
         ["decision", "action", "owner.notified"])

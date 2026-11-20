@@ -85,6 +85,10 @@ def redact(text: str, *, rules_only: bool = False, partial: bool = False) -> Red
     started = time.perf_counter()
     source = 'rules'
     spans = _spans(text)
+    if partial:
+        # A named card number is private from its first digit, even before it is complete.
+        for match in re.finditer(r'\bcard(?: number)?\s*(?:is\s*|[:=]\s*)?(?P<value>\d(?:[\d -]*\d)?)', text, re.I):
+            spans.insert(0, (*match.span('value'), 'card number'))
     if not rules_only and classify._enabled() and time.monotonic() >= classify._COOLDOWN.get(classify.EXTRACTION_MODEL, 0):
         try:
             body = {'items': [{'text': text}], 'params': {'labels': LABELS}}
