@@ -64,6 +64,8 @@ def run(c, name, body, final, types):
     return call_id, [e for e in c.get("/events").json() if e["call_id"] == call_id]
 
 
+settings.EXPECTED_QUIET_S = 0.5  # real default is 2.5 s; shortened so the checks run fast
+
 with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert c.get("/health").json()["fake"] is True
     assert c.get("/health").json()["services"]["beeper"] == "fake"
@@ -296,6 +298,51 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert state.get_call(cid).decided_by == "lookup"
 
     c.portal.call(expected_without_tool)
+    async def quiet_net():
+        import asyncio
+        quiet = settings.EXPECTED_QUIET_S  # shortened for the check; 2.5 s in real use
+        clean = "Hi, I have your desk lamp delivery."
+        fee = "There is a customs fee of $4.99, what is your card number?"
+        # Normal pace: the fee line arrives after the first line, before the quiet period ends.
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", clean)
+        await asyncio.sleep(quiet * 0.6)
+        assert state.get_call(cid).state == "screening", "first line alone must not be put through"
+        await flow.on_transcript(cid, "caller", fee)
+        await asyncio.sleep(0.5)
+        assert state.get_call(cid).decided_by == "expected_but_money"
+        # A partial (words in progress) keeps the wait going.
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", clean)
+        for _ in range(3):
+            await asyncio.sleep(quiet * 0.6)
+            flow.on_partial(cid, "caller", "and there is")
+            assert state.get_call(cid).state == "screening"
+        # Clean line then silence: put through only after the quiet period.
+        cid = flow.start_call(None)
+        t0 = time.time()
+        await flow.on_transcript(cid, "caller", clean)
+        while state.get_call(cid).state == "screening" and time.time() - t0 < quiet + 2:
+            await asyncio.sleep(0.05)
+        waited = time.time() - t0
+        assert state.get_call(cid).decided_by == "expected" and waited >= quiet, waited
+        # Late money after the forward: one warning, the decision stays.
+        for line in ("Okay, one more thing, a payment by card number", "send the fee now"):
+            await flow.on_transcript(cid, "caller", line)
+        evs = [e for e in state.events_since(0) if e.call_id == cid]
+        assert sum(e.data.get("kind") == "late_warning" for e in evs if e.type == "action") == 1
+        assert sum("Don't pay; hang up" in e.data.get("text", "") for e in evs if e.type == "owner.notified") == 1
+        assert state.get_call(cid).state == "confirmed" and state.get_call(cid).decided_by == "expected"
+
+    c.portal.call(quiet_net)
+    ok("expected net: waits for caller silence, money acts at once, late money warns once")
+    # The audience-screen fee scene at its own pacing (0.3 s gap between lines, quiet 0.5 s).
+    fee_id, fee_ev = run(c, "Fee scene at speaking pace", {
+        "caller_number": "+15550440002",
+        "lines": ["I'm calling from the parcel service about your desk lamp delivery.",
+                  "There is a small customs fee of $4.99 to pay. What is your card number?"],
+        "word_s": 0.05}, "unverified", ["decision", "owner.notified"])
+    assert c.get(f"/calls/{fee_id}").json()["decided_by"] == "expected_but_money"
     ok("expected finals: no name or tool needed; money, vague claims and circle claims get no shortcut")
     for name, reason, late, decision in (
         ("", "I am the courier with your desk lamp parcel", None, "expected"),
@@ -372,7 +419,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert any("Don't pay" in e["data"].get("text", "") for e in fee_events if e["type"] == "owner.notified")
     assert all("4111" not in json.dumps(e) and "1111" not in json.dumps(e) for e in fee_events)
     assert any("[card number]" in e["data"].get("text", "") for e in fee_events if e["type"] == "transcript")
-    partial_texts = [part[role]["text"] for part in fee_partials
+    partial_texts = [part[role] for part in fee_partials
                      for role in ("caller", "agent") if part[role]]
     assert all("4111" not in text and "1111" not in text for text in partial_texts), "fee scene leaked card digits live"
     assert any("[card number]" in text for text in partial_texts)
