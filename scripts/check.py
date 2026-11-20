@@ -1462,5 +1462,27 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         contacts.candidates(Claim(quote="your teammate from the hackathon"), None)
         assert time.time() - t0 < 0.05, "a slow memory backend never delays lookup"
     ok("memory: teammate resolves to Erick with facts, two friends resolve to nobody, a name beats memory, only verified outcomes are learned, lookup never waits")
+    # Memory through the simulator: nameless "teammate from the hackathon" resolves to Erick and is asked.
+    flow._pings.clear()
+    _, ev = run(c, "teammate by memory", {"caller_number": "+15550880001", "lines": ["Hi, it's your teammate from the hackathon."],
+                "tap": "yes", "tap_after_s": 0.5}, "confirmed", BASE + ["memory.learned"])
+    look = next(e["data"] for e in ev if e["type"] == "contact.lookup")
+    assert look["resolved_by"] == "memory" and look["contact"]["id"] == "erick" and 1 <= len(look["memory_facts"]) <= 3, look
+    assert not any(e["type"] == "action" and e["data"].get("kind") == "ask_name" for e in ev)
+    assert any(e["type"] == "ping.sent" for e in ev)
+    learned = [e["data"] for e in ev if e["type"] == "memory.learned"]
+    assert learned[0]["pending"] is True and learned[0]["contact_id"] == "erick" and "confirmed" in learned[0]["fact"]
+    mem = c.get("/memory").json()
+    assert mem["source"] == "local" and mem["contacts"]["erick"]["learned"] and mem["contacts"]["erick"]["facts"]
+    contacts._attempts.clear()
+    flow._pings.clear()
+    _, ev = run(c, "teammate, no answer yet", {"caller_number": "+15550880002", "lines": ["Hi, it's your teammate from the hackathon."]},
+                "pending", ["contact.lookup", "ping.sent"])
+    assert not any(e["type"] == "memory.learned" for e in ev), "a timeout teaches nothing"
+    flow._pings.clear()
+    _, ev = run(c, "friend, two possible", {"caller_number": "+15550880003", "lines": ["Hi, it's your friend."]},
+                "unverified", ["claim"])
+    assert not any(e["type"] == "contact.lookup" and e["data"].get("resolved_by") for e in ev)
+    ok("memory through the simulator: teammate resolves to Erick and is asked, Yes is learned, a timeout is not, a friend is not guessed, /memory answers")
 _timer.cancel()
 print("ALL OK")

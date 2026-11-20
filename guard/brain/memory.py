@@ -196,7 +196,9 @@ def resolve(text: str | None, relationship: str | None = None) -> dict | None:
     for cid, name in dict(_people).items():
         own = _tokens(name)
         a = set().union(set(), *[_tokens(x) for x in _aliases.get(cid, [])]) - own
-        f = set().union(set(), *[_tokens(x) for x in facts(cid)]) - own - a
+        # "never asks for gift cards" must not make a nameless scammer look like that person
+        f = set().union(set(), *[_tokens(x) for x in facts(cid)
+                                 if not re.search(r"\bnever\b|\bnot\b", x, re.I)]) - own - a
         hit_a, hit_f = query & a, query & f
         scored.append((2 * len(hit_a) + len(hit_f), cid, sorted(hit_a | hit_f)))
     scored.sort(reverse=True)
@@ -217,12 +219,14 @@ def _add(texts: list[str], cognify: bool = True, timeout: float = 10) -> None:
             r.raise_for_status()
 
 
-def remember(text: str, contact_id: str | None = None) -> None:
+def remember(text: str, contact_id: str | None = None, on_visible=None) -> None:
     """Store a fact. It shows locally at once (pending until Cognee has it); the write runs in the background."""
     if contact_id:
         with _lock:
             _learned.setdefault(contact_id, []).append({"text": text, "pending": real()})
     if not real():
+        if on_visible:
+            on_visible()
         return
 
     def run():
@@ -239,6 +243,8 @@ def remember(text: str, contact_id: str | None = None) -> None:
                         if item["text"] == text:
                             item["pending"] = False
                     _refresh(_contacts_ref)
+                    if on_visible:
+                        on_visible()
                     return
             except Exception:
                 pass
@@ -257,6 +263,31 @@ def seed_texts() -> list[str]:
         texts.append(" ".join([line, *person.get("facts", [])]))
     texts.extend(data.get("household", []))
     return [scrub(t, limit=2000) for t in texts]
+
+
+_graph_cache: dict = {"at": 0.0, "value": None, "busy": False}
+
+
+def graph_cached(max_age: float = 30) -> dict | None:
+    """Last graph, never waits: a stale or missing one triggers a background refresh."""
+    if real() and time.time() - _graph_cache["at"] > max_age and not _graph_cache["busy"]:
+        _graph_cache["busy"] = True
+
+        def run():
+            try:
+                _graph_cache["value"] = graph()
+            finally:
+                _graph_cache["at"], _graph_cache["busy"] = time.time(), False
+
+        threading.Thread(target=run, daemon=True, name="cognee-graph").start()
+    return _graph_cache["value"]
+
+
+def snapshot() -> dict:
+    """What the dashboards read: facts per contact from prefetched data, plus the cached graph."""
+    return {"source": "cognee" if real() else "local",
+            "contacts": {cid: {"facts": facts(cid), "learned": learned(cid)} for cid in dict(_people)},
+            "graph": graph_cached()}
 
 
 def _graph_raw(timeout: float) -> dict:

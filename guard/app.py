@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
 from guard import account, channels, credential, flow, settings, sim, state, telemetry, telegram, vapi
-from guard.brain import drill
+from guard.brain import contacts, drill, memory
 
 @asynccontextmanager
 async def lifespan(app):
@@ -19,6 +19,16 @@ for r in (channels.router, vapi.router, telegram.router, sim.router, drill.route
     app.include_router(r)
 
 WEB = Path(__file__).resolve().parent.parent / "web"
+
+
+@app.get("/memory")
+def memory_view():
+    """Read-only memory for the dashboards: prefetched facts per contact and the cached graph. Never raises."""
+    try:
+        contacts._all()
+        return memory.snapshot()
+    except Exception:
+        return {"source": "local", "contacts": {}, "graph": None}
 
 
 @app.get("/health")

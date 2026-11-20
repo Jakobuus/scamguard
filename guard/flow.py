@@ -199,7 +199,7 @@ async def _expected_without_tool(call_id) -> None:
     def circle_claim():
         claim = classify.claim(text)
         claim.claimed_name = _caller_name(claim.claimed_name, text)
-        return contacts.candidates(claim, call.caller_number)
+        return contacts.candidates(claim, call.caller_number, text)
     found = await asyncio.to_thread(circle_claim)
     if text != _caller_text.get(call_id, ""):
         return
@@ -311,11 +311,11 @@ async def verify_caller(call_id, claimed_name, reason=None) -> None:
     claim.claimed_name = _caller_name(claim.claimed_name, _caller_text.get(call_id, "")) or claimed_name
     state.emit(call_id, "claim", {**claim.model_dump(), "asks_for": telegram.asks_for(claim)})
     state.update_call(call_id, claimed_name=claim.claimed_name)
-    found = contacts.candidates(claim, call.caller_number)
+    found = contacts.candidates(claim, call.caller_number, _caller_text.get(call_id, ""))
     if await _expected_call(call_id, found):
         return
     # A relationship alone never supplies a name to the caller, even with one match.
-    if found and (len(found) > 1 or not claim.claimed_name):
+    if found and not found[0].resolved_by and (len(found) > 1 or not claim.claimed_name):
         if call_id not in _asked_name:
             _asked_name.add(call_id)
             text = "Ask the caller for their first name. Do not offer any name."
@@ -325,7 +325,8 @@ async def verify_caller(call_id, claimed_name, reason=None) -> None:
         found = []
     lk = found[0] if found else contacts.lookup(None, call.caller_number)
     shown = {"id": lk.contact.id, "name": lk.contact.name, "relationship": lk.contact.relationship} if lk.contact else None
-    state.emit(call_id, "contact.lookup", {"contact": shown, "number_known": lk.number_known, "note": lk.note})
+    state.emit(call_id, "contact.lookup", {"contact": shown, "number_known": lk.number_known, "note": lk.note,
+               "resolved_by": lk.resolved_by, "memory_facts": lk.memory_facts})
     if lk.contact and lk.number_known and call.flags is not None and not call.flags.needs_verification:
         state.update_call(call_id, contact_id=lk.contact.id)
         if await _resolve(call_id, "confirmed", "known_number"):
@@ -436,11 +437,32 @@ async def on_credential(call_id, token) -> bool:
     return await _resolve(call_id, "agent_verified", "credential")
 
 
+def _learn(call_id, call) -> None:
+    """Learn from the decided call; tell the dashboard when a verified fact was stored and when Cognee has it."""
+    box = {"fact": None, "early": False}
+
+    def event(pending):
+        return state.emit(call_id, "memory.learned", {"contact_id": call.contact_id, "fact": box["fact"],
+                                                      "pending": pending})
+
+    def visible():  # Cognee has the fact (fake mode: at once, before we have returned)
+        if box["fact"] is None:
+            box["early"] = True
+        else:
+            event(False)
+
+    box["fact"] = contacts.learn(call, visible)
+    if box["fact"]:
+        event(True)
+        if box["early"]:
+            event(False)
+
+
 async def _resolve(call_id, new_state, by, channel=None) -> bool:
     if not state.decide(call_id, new_state, by):
         return False  # someone already decided: do nothing
     c = state.get_call(call_id)
-    contacts.learn(c)
+    _learn(call_id, c)
     secs = round((c.decided_at - c.started_at).total_seconds(), 1)
     state.emit(call_id, "decision", {"state": new_state, "by": by, "seconds_to_decide": secs,
                                     **({"channel": channel} if by == "tap" else {})})
