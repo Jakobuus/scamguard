@@ -8,7 +8,7 @@ A teammate calls and says, "It's your teammate from the hackathon." KinCheck nev
 
 Then the same voice, cloned, asks for gift cards. KinCheck holds the call and asks the real person, "Is this you?" He answers No. Code ends the call and sends you a warning. The familiar voice never decides the outcome.
 
-If nobody answers within 20 seconds, the call becomes unverified and the agent asks for the code word. A late No still ends it. Expected deliveries, callbacks and appointments can pass without a question when the caller matches and makes no sensitive request.
+If nobody answers within 20 seconds, the call becomes unverified and the agent asks for the code word. A late No still ends it. Expected deliveries, callbacks and appointments can pass without a question when the caller matches and makes no sensitive request. A mailbox scan adds them from orders, shipping notices and appointments; the demo runs on a sample mailbox.
 
 ## Built with our partners
 
@@ -60,6 +60,6 @@ Live calls need configured phone and message services and a transfer destination
 
 Persona runs in sandbox, at sign-up only. Hosted completion can trust the redirect when the API lookup is unavailable. Contact editing currently requires sign-in, without a separate Persona verification gate.
 
-Expected calls use stored records and the user's list, with no connected inbox or calendar. Sensitive requests block the shortcut; money after a match triggers a warning.
+Expected calls use stored records, the user's list and a mailbox scan; the scan runs on a sample mailbox in the demo, and no calendar is connected. Sensitive requests block the shortcut; money after a match triggers a warning.
 
 Redaction covers detected personal data in events and live text. Raw call records and the raw call API are outside that boundary. Code words are checked in code and masked on screen. Amplitude receives text lengths instead of conversation text unless sharing is explicitly enabled.

@@ -51,7 +51,7 @@ Only answers from the real person teach the system. A Yes adds the caller's numb
 
 ## Expected calls
 
-You can add a delivery, callback or appointment in the app. A matching caller is put through without a question, unless they ask for money, push urgency or secrecy. Money after a match triggers a warning.
+You can add a delivery, callback or appointment in the app. A mailbox scan finds orders, shipping notices and appointments and turns them into expected calls and memory facts; the demo runs on a sample mailbox. A matching caller is put through without a question, unless they ask for money, push urgency or secrecy. Money after a match triggers a warning.
 
 ## Limits
 
@@ -61,7 +61,7 @@ Live calls need configured phone and message services and a transfer destination
 
 Persona runs in sandbox, at sign-up only. Hosted completion can trust the redirect when the API lookup is unavailable. Contact editing currently requires sign-in, without a separate Persona verification gate.
 
-Expected calls use stored records and the user's list, with no connected inbox or calendar. Redaction covers detected personal data in events and live text; raw call records and the raw call API are outside that boundary.
+Expected calls use stored records, the user's list and a mailbox scan; the scan runs on a sample mailbox in the demo, and no calendar is connected. Redaction covers detected personal data in events and live text; raw call records and the raw call API are outside that boundary.
 
 ## Team and links
 
