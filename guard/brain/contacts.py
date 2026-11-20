@@ -49,7 +49,7 @@ def close(a: str, b: str) -> bool:
     return any(a == b[:i] + b[i + 1:] for i in range(len(b)))
 
 
-def candidates(claim: Claim, caller_number: str | None) -> list[Lookup]:
+def candidates(claim: Claim, caller_number: str | None, text: str = "") -> list[Lookup]:
     name = (claim.claimed_name or "").strip().casefold()
     relationship = (claim.relationship or "").strip().casefold()
     found = []
@@ -67,7 +67,7 @@ def candidates(claim: Claim, caller_number: str | None) -> list[Lookup]:
     if not name and len(found) != 1:
         # No personal name and no single relationship match: ask memory ("your teammate from the hackathon").
         # Prefetched data only; a personal name always wins, and an unclear match picks nobody.
-        hit = memory.resolve(claim.quote, claim.relationship)
+        hit = memory.resolve(f"{claim.quote} {text}", claim.relationship)
         contact = get(hit["contact_id"]) if hit else None
         if contact:
             known = caller_number in contact.known_numbers
@@ -99,26 +99,31 @@ def denied_today(contact_id: str, caller_number: str | None) -> bool:
         and call.decided_by == "tap" for when, call in _attempts)
 
 
-def learn(call: Call) -> None:
+def learn(call: Call, on_visible=None) -> str | None:
+    """Returns the fact sent to memory (None when nothing verified was stored)."""
     contact = get(call.contact_id) if call.contact_id else None
     if call.state == "confirmed" and call.decided_by in ("tap", "stepup") and contact and call.caller_number:
         if call.caller_number not in contact.known_numbers:
             contact.known_numbers.append(call.caller_number)
     elif call.state in ("denied", "unverified"):
         _attempts.append((datetime.now(timezone.utc), call.model_copy(deep=True)))
-    _remember(call, contact)
+    return _remember(call, contact, on_visible)
 
 
-def _remember(call: Call, contact: Contact | None) -> None:
+def _remember(call: Call, contact: Contact | None, on_visible=None) -> str | None:
     """Tell Cognee only what a verified outcome proves. No numbers, no transcript, no code words."""
     if not contact or not call.decided_by:
-        return
+        return None
     asked = " and asked for money" if call.flags and call.flags.money else ""
     if call.state == "confirmed" and call.decided_by in ("tap", "stepup"):
-        memory.remember(f"{contact.name} called{asked} and confirmed it was them.", contact.id)
+        fact = f"{contact.name} called{asked} and confirmed it was them."
     elif call.state == "denied" and call.decided_by in ("tap", "stepup", "repeat_attempt"):
-        memory.remember(f"Someone claiming to be {contact.name} called{asked}; "
-                        f"{contact.name} said it was not them.", contact.id)
+        fact = (f"Someone claiming to be {contact.name} called{asked}; "
+                f"{contact.name} said it was not them.")
+    else:
+        return None
+    memory.remember(fact, contact.id, on_visible)
+    return fact
 
 
 def reset_demo() -> None:
