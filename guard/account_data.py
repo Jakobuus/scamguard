@@ -323,7 +323,8 @@ def _build_graph() -> dict:
               "detail": f"{owner} is the person the guard answers calls for."}]
     edges = []
     removed = set(acct.get("removed") or [])
-    people = [c for c in contacts._all() if c.id not in removed]
+    all_people = contacts._all()  # Load memory contacts first, as GET /memory does.
+    people = [c for c in all_people if c.id not in removed]
     for c in people:
         nid = f"contact:{c.id}"
         nodes.append({"id": nid, "type": "contact", "label": c.name,
@@ -361,11 +362,52 @@ def _build_graph() -> dict:
         nodes.append({"id": f"exp:{r['id']}", "type": "expected", "label": label.capitalize(),
                       "detail": f"{r['note']} The guard lets this call through without a question."})
         edges.append({"from": f"exp:{r['id']}", "to": "owner", "label": "expected"})
-    source, facts = _facts(people)
     ids = {c.id for c in people}
-    for i, (cid, text) in enumerate(facts[:8]):
-        nodes.append({"id": f"fact:{i}", "type": "fact", "label": _short(text), "detail": _short(text, 200),
-                      "origin": _origin(text)})
+    try:
+        snapshot = memory.snapshot()
+        if (not isinstance(snapshot, dict) or snapshot.get("source") not in ("local", "cognee")
+                or not isinstance(snapshot.get("contacts"), dict) or not snapshot["contacts"]):
+            raise ValueError("No usable memory snapshot")
+        source = snapshot["source"]
+        learned_facts, plain_facts = [], []
+        for c in people:
+            entry = snapshot["contacts"].get(c.id, {})
+            if not isinstance(entry, dict):
+                raise ValueError("Invalid contact memory")
+            known, learned = entry.get("facts", []), entry.get("learned", [])
+            if not isinstance(known, list) or not isinstance(learned, list):
+                raise ValueError("Invalid memory facts")
+            # HACK: accept dashboard strings and today's {text, pending} learned entries.
+            learned = [f.get("text") if isinstance(f, dict) else f for f in learned]
+            learned = [f for f in learned if isinstance(f, str) and f.strip()]
+            known = [f for f in known if isinstance(f, str) and f.strip() and f not in learned]
+            learned_facts.extend((c.id, f, "Learned from a verified call") for f in learned[:4])
+            origin = f"Known about {c.name}" if source == "local" else "From memory"
+            plain_facts.extend((c.id, f, origin) for f in known[:max(0, 4 - len(learned))])
+        owner_facts = []
+        try:
+            seed = json.loads(memory.SEED.read_text())
+            names = {c.name.casefold() for c in all_people}
+            for person in seed.get("people", []):
+                if str(person.get("name", "")).casefold() not in names:
+                    owner_facts.extend(person.get("facts", []))
+            owner_facts.extend(seed.get("household", []))
+        except Exception:
+            pass
+        facts = (learned_facts + plain_facts +
+                 [(None, memory.scrub(f), _origin(f)) for f in owner_facts])[:14]
+    except Exception:
+        source, old_facts = _facts(people)
+        facts = [(cid, _short(text, 200), _origin(text)) for cid, text in old_facts[:8]]
+    secrets = [value for c in all_people for value in
+               (c.challenge_answer, c.whatsapp_chat_id, c.telegram_chat_id, c.email) if value]
+    secrets.extend(ch.get("handle") for entry in (acct.get("contacts") or {}).values()
+                   for ch in entry.get("channels", []) if ch.get("handle"))
+    for i, (cid, text, origin) in enumerate(facts):
+        text = memory.scrub(text, secrets, limit=len(text))
+        text = re.sub(r"(?<!\w)@[\w.-]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "••••", text)
+        nodes.append({"id": f"fact:{i}", "type": "fact", "label": _short(text, 34), "detail": text,
+                      "origin": origin})
         edges.append({"from": f"fact:{i}", "to": f"contact:{cid}" if cid in ids else "owner"})
     merged: dict[tuple, dict] = {}
     for c in _calls():  # oldest first, so the last write per key is the newest

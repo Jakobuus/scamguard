@@ -647,6 +647,7 @@
   .lc-rows{margin:0;flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
   .lc-f{display:grid;grid-template-columns:138px minmax(0,1fr);gap:14px;padding:11px 0;border-bottom:1px solid var(--mg-line);align-items:baseline}
   .lc-f:last-child{border-bottom:0}
+  .lc-f{flex-shrink:0}
   .lc-f.lc-f-top{align-items:start}
   .lc-f dt{font-size:var(--mg-fs-cap);font-weight:400;color:var(--mg-text-2);line-height:1.4}
   .lc-f dd{margin:0;min-width:0}
@@ -969,6 +970,8 @@
         <div class="lc-h"><h3>What the guard sees</h3><span class="lc-h-note" id="lc-facts-note"></span></div>
         <dl class="lc-rows">
           <div class="lc-f lc-f-top" id="lc-f-who"><dt>Says they are</dt><dd></dd></div>
+          <div class="lc-f lc-f-top" id="lc-f-memory" hidden><dt>What memory knows</dt><dd></dd></div>
+          <div class="lc-f lc-f-top" id="lc-f-learned" hidden><dt>Learned from this call</dt><dd></dd></div>
           <div class="lc-f" id="lc-f-ask"><dt>Asks for</dt><dd></dd></div>
           <div class="lc-f lc-f-top" id="lc-f-press"><dt>Pressure heard</dt><dd></dd></div>
           <div class="lc-f lc-f-top" id="lc-f-scam" hidden><dt id="lc-f-scam-dt">Matches a known scam script</dt><dd></dd></div>
@@ -2260,7 +2263,9 @@ $("xform").addEventListener("submit", async e => {
   const chLabel = c => CHN[c] || cap(human(c));
   const chans = p => ((p && p.channels) || ["telegram"]).map(chLabel).join(", ");
   const ms = ts => Date.parse(String(ts).replace(/(\.\d{3})\d+/, "$1"));
-  const owner = () => CONFIG.owner_name || "Mum";
+  const defaultContact = {name: "Jakob", relationship: "son"};
+  let healthOwner = "Mum", demoContact = defaultContact, healthReady = false, sceneBusy = false, healthFake = false;
+  const owner = () => healthOwner;
   const verb = d => d && d.channel && d.channel !== "telegram" ? "answered" : "tapped";
   const onCh = d => d && d.channel ? " on " + chLabel(d.channel) : "";
   const secsBetween = (a, b) => Math.max(0, (b - a) / 1000).toFixed(1);
@@ -2299,7 +2304,7 @@ $("xform").addEventListener("submit", async e => {
     S = {id: e.call_id, t0: ms(e.ts), lastAt: ms(e.ts), number: (e.data || {}).caller_number, flags: null,
          popped: new Set(), claim: null, scam: null, lookup: null, expected: null, expectedWho: null, expectedKind: null, ping: null,
          notice: null, decision: null, first: null, cred: null, told: null, ended: false, late: 0, stepup: false, codeFailed: false,
-         askedName: false, tookMessage: false, expectedMoney: false};
+         askedName: false, tookMessage: false, expectedMoney: false, learned: []};
     talk.live = {}; talk.awaiting = {}; talk.signal = Date.now();
     $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = "";
     lastWord = "";
@@ -2314,6 +2319,12 @@ $("xform").addEventListener("submit", async e => {
       case "flags": S.flags = d; break;
       case "script.match": S.scam = d; break;
       case "contact.lookup": S.lookup = d; break;
+      case "memory.learned":
+        if (d.fact) {
+          const i = S.learned.findIndex(x => x.contact_id === d.contact_id && x.fact === d.fact);
+          if (i < 0) S.learned.push(d); else S.learned[i] = d;
+        }
+        break;
       case "ping.sent": S.ping = {...d, at: ms(e.ts)}; break;
       case "notice.sent": S.notice = {...d, at: ms(e.ts)}; break;
       case "decision": S.decision = {...d, at: ms(e.ts)}; S.first = S.first || S.decision; talk.signal = Date.now(); break;
@@ -2423,8 +2434,10 @@ $("xform").addEventListener("submit", async e => {
       }
       case "script.match": return d.title ? [d.benign ? "context" : "scam", d.benign ? `Looks like: ${d.title}` : `Matches a known scam script: ${d.title}`] : ["call", "No known script matched"];
       case "contact.lookup":
-        return ["contact", d.contact ? `Matched ${d.contact.name} (${d.contact.relationship}), ${d.number_known ? "known number" : "unknown number"}`
+        return ["contact", d.contact ? `${d.resolved_by === "memory" ? "Worked out from memory:" : "Matched"} ${d.contact.name} (${d.contact.relationship}), ${d.number_known ? "known number" : "unknown number"}`
                                      : `No match in ${O}'s circle${d.note ? ": " + d.note : ""}`];
+      case "memory.known": return ["contact", `What memory knows: ${memoryFacts(d).join("; ")}`];
+      case "memory.learned": return d.fact ? ["contact", `Learned from this call: ${d.fact}${d.pending ? " (pending)" : ""}`] : null;
       case "context.expected": return ["context", `Expected ${d.kind || "call"}${d.why ? ": " + d.why : ""}${d.source ? ` (from ${d.source})` : ""}`];
       case "ping.sent": return ["ask", `Asked ${n} on ${chans(d)}: “Is this you?”`];
       case "notice.sent": return ["ask", `Sent ${n} a heads-up: “${d.text}”`];
@@ -2451,7 +2464,11 @@ $("xform").addEventListener("submit", async e => {
     const [kind, text] = r;
     const box = $("lc-steps");
     if (e.type === "flags" && box.lastElementChild && box.lastElementChild.dataset.type === "flags") box.lastElementChild.remove();
+    const memoryKey = e.type === "memory.learned" ? JSON.stringify([e.data.contact_id, e.data.fact]) : null;
+    const previous = memoryKey && [...box.children].find(li => li.dataset.memoryKey === memoryKey);
+    if (previous) { previous.querySelector(".x").textContent = text; previous.querySelector(".x").title = text; return; }
     const li = document.createElement("li");
+    if (memoryKey) li.dataset.memoryKey = memoryKey;
     li.dataset.id = e.id;
     li.dataset.type = e.type;
     li.style.setProperty("--k", kind.startsWith("dec:") ? (DEC[kind.slice(4)] || "var(--mg-text-3)") : (KIND[kind] || "var(--mg-text-3)"));
@@ -2460,6 +2477,7 @@ $("xform").addEventListener("submit", async e => {
     li.querySelector(".x").title = text;
     box.appendChild(li);
     while (box.children.length > 40) box.firstChild.remove();
+    if (e.type === "contact.lookup" && memoryFacts(e.data).length) addStep({...e, type: "memory.known"});
   }
 
   // ---------- transcript: finals from /events, words in progress from /live ----------
@@ -2623,10 +2641,13 @@ $("xform").addEventListener("submit", async e => {
   }
   const V = (v, note) => `<div class="lc-v">${esc(v)}</div>${note ? `<div class="lc-n lc-one">${esc(note)}</div>` : ""}`;
   const Q = text => `<div class="lc-q">${esc(text)}</div>`;
+  const memoryFacts = lk => (Array.isArray(lk && lk.memory_facts) ? lk.memory_facts : []).filter(x => typeof x === "string" && x.trim()).slice(0, 3);
   function renderFacts() {
     const O = owner(), n = name();
     $("lc-f-told-dt").textContent = `What ${O} was told`;
     $("lc-facts-note").textContent = !S ? "" : inProgress() ? "Live screening" : "Screening complete";
+    $("lc-f-memory").hidden = !S || !memoryFacts(S.lookup).length;
+    $("lc-f-learned").hidden = !S || !S.learned.length;
     if (!S) {
       row("lc-f-who", V("No call yet"), true); row("lc-f-ask", V("No call yet"), true); row("lc-f-press", V("None heard"), true);
       $("lc-f-scam").hidden = true; $("lc-f-cls").hidden = true;
@@ -2641,7 +2662,7 @@ $("xform").addEventListener("submit", async e => {
     if (S.cred) { w = S.cred.agent; wsub = `agent for ${S.cred.principal}`; }
     else if (lk && lk.contact) {
       w = `${lk.contact.name} (${lk.contact.relationship})`;
-      wsub = lk.number_known ? "calling from a known number" : "calling from an unknown number";
+      wsub = lk.resolved_by === "memory" ? "Worked out from memory" : lk.number_known ? "calling from a known number" : "calling from an unknown number";
       const att = S.ping && String(S.ping.text || "").match(/\(attempt (\d+) today\)/);
       if (att) wsub += `, attempt ${att[1]} today`;
     } else if (S.expectedWho) { w = {delivery: "A delivery", callback: "A callback", appointment: "An appointment"}[S.expectedKind] || "An expected caller"; wsub = S.expectedWho; }
@@ -2649,7 +2670,7 @@ $("xform").addEventListener("submit", async e => {
     else if (S.expectedMoney) { w = "An expected delivery"; wsub = "by its own account"; }
     else if (lk || d) w = `Nobody in ${O}'s circle`;
     else if (S.askedName) wsub = "asked for a name";
-    if (S.claim && (S.claim.claimed_name || S.claim.relationship)) {
+    if (!(lk && lk.resolved_by === "memory" && lk.contact) && S.claim && (S.claim.claimed_name || S.claim.relationship)) {
       w = S.claim.claimed_name || S.claim.relationship;
       if (S.claim.claimed_name && S.claim.relationship) w += ` (${S.claim.relationship})`;
     }
@@ -2657,6 +2678,10 @@ $("xform").addEventListener("submit", async e => {
     const numNbsp = S.number ? String(S.number).replace(/ /g, "\u00a0") : "";
     const sub = [trust && cap(trust), wsub, numNbsp].filter(Boolean).join(", ");
     row("lc-f-who", `<div class="lc-v">${esc(w || "Listening")}</div>${sub ? `<div class="lc-n lc-one">${esc(sub)}</div>` : ""}`, !w);
+
+    const facts = memoryFacts(lk);
+    if (facts.length) row("lc-f-memory", facts.map(fact => V(fact)).join(""), false);
+    if (S.learned.length) row("lc-f-learned", S.learned.map(x => V(x.fact, x.pending ? "pending" : "")).join(""), false);
 
     // Asks for: claim, then the question's text, then the caller's own words.
     let a = null, m;
@@ -2785,8 +2810,15 @@ $("xform").addEventListener("submit", async e => {
   function render() {
     renderGlobal();
     if (!onLive()) return;
-    renderScenes(); renderHero(); renderFacts(); renderPanels();
+    renderScenes(); renderHero(); renderFacts(); fitFacts(); renderPanels();
   }
+
+  function fitFacts() {
+    const rows = document.querySelector("#v-live .lc-rows");
+    $("lc-f-cls").hidden = !S || !S.flags;
+    if (document.body.classList.contains("lc-present") && rows.scrollHeight > rows.clientHeight) $("lc-f-cls").hidden = true;
+  }
+  addEventListener("resize", fitFacts);
 
   // ---------- stage mode: no rail, no header; kept in the address as ?present ----------
   function applyPresent() {
@@ -2800,7 +2832,7 @@ $("xform").addEventListener("submit", async e => {
   function setPresent(on) {
     const q = params();
     if (on) q.set("present", "1"); else q.delete("present");
-    setQuery(q); applyPresent();
+    setQuery(q); applyPresent(); fitFacts();
   }
   $("lc-present").addEventListener("click", () => setPresent(!document.body.classList.contains("lc-present")));
   addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("lc-present")) setPresent(false); });
@@ -2814,37 +2846,65 @@ $("xform").addEventListener("submit", async e => {
 
   // ---------- test calls: the audience screen's scenes ----------
   function scenes() {
-    const O = owner();
-    const GREET = `Hello, this is ${O}'s assistant. Who is calling, and what is it about?`, HOLD = "One moment, I am trying to reach her.";
-    const SCAM = [`${O}, it's me, I'm in trouble.`, "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
+    const owner = healthOwner, who = demoContact || defaultContact;
+    const family = /^(son|daughter)$/i.test(who.relationship);
+    const SCAM = family ? [`${owner}, it's ${who.name}. I'm in trouble.`, "I need $2,000 in gift cards right now.", "Don't tell dad."]
+                        : [`Hey ${owner}, it's ${who.name}. I'm in trouble.`, "I need $2,000 in gift cards right now.", "Please don't tell anyone."];
+    const REAL = family ? [`Hi ${owner}, it's ${who.name}.`, "Can you pick me up at five?"]
+                        : [`Hey ${owner}, it's ${who.name}. Do you have a minute?`, "I wanted to show you something."];
+    // The assistant's side of the scripted scenes: key i is said before caller line i, key = number of lines after the last.
+    const GREET = `Hello, this is ${owner}'s assistant. Who is calling, and what is it about?`;
+    const HOLD = `One moment, I am trying to reach ${owner === "Mum" ? "her" : "them"}.`;
+    const claimed_name = who.name;
+    // One line per scene. `label` is the button text and is not sent to the server.
     return {
-      scam_no: {label: "Scam, tap No", claimed_name: "Jakob", caller_number: "+15550999999", lines: SCAM, agent_lines: {0: GREET, 3: HOLD}, tap: "no", tap_after_s: 4},
-      real_yes: {label: "Real, tap Yes", claimed_name: "Jakob", caller_number: "+15550100002", lines: [`Hi ${O}, it's Jakob.`, "Can you pick me up at five?"], agent_lines: {0: GREET, 2: HOLD}, tap: "yes", tap_after_s: 4},
-      scam_none: {label: "Scam, no answer", claimed_name: "Jakob", caller_number: "+15550999999", lines: SCAM, agent_lines: {0: GREET, 3: HOLD}, tap: null, tap_after_s: 0},
-      delivery: {label: "Delivery driver, expected", caller_number: "+15550440001", lines: ["Hi, I'm the driver with your desk lamp, are you home?"], agent_lines: {0: GREET}},
-      delivery_fee: {label: "Fake delivery fee", caller_number: "+15550440002", lines: ["I'm calling from the parcel service about your desk lamp delivery.", "There is a small customs fee of $4.99 to pay. What is your card number?", "I'll process that payment now."], agent_lines: {0: GREET, 2: "My card number is 4111 1111 1111 1111."}},
+    scam_no: {label:"Scam, tap No", claimed_name, caller_number:"+15550999999", lines:SCAM, agent_lines:{0:GREET, 3:HOLD}, tap:"no", tap_after_s:4},
+    real_yes: {label:"Real, tap Yes", claimed_name, caller_number:"+15550100002", lines:REAL, agent_lines:{0:GREET, 2:HOLD}, tap:"yes", tap_after_s:4},
+    scam_none: {label:"Scam, no answer", claimed_name, caller_number:"+15550999999", lines:SCAM, agent_lines:{0:GREET, 3:HOLD}, tap:null, tap_after_s:0},
+    delivery: {label:"Delivery driver, expected", caller_number:"+15550440001", lines:["Hi, I'm the driver with your desk lamp, are you home?"], agent_lines:{0:GREET}},
+    delivery_fee: {label:"Fake delivery fee", caller_number:"+15550440002", lines:["I'm calling from the parcel service about your desk lamp delivery.", "There is a small customs fee of $4.99 to pay. What is your card number?", "I'll process that payment now."], agent_lines:{0:GREET, 2:"My card number is 4111 1111 1111 1111."}},
     };
   }
   function renderScenes() {
-    const nav = $("lc-scenes"), show = !!(simKey() || CONFIG.fake);
+    const nav = $("lc-scenes"), show = !!(simKey() || CONFIG.fake || healthFake);
     nav.hidden = !show;
-    if (!show || nav.children.length) return;
-    nav.innerHTML = '<button type="button" data-scene="reset">Reset demo</button>' +
-      Object.entries(scenes()).map(([k, s]) => `<button type="button" data-scene="${k}">${esc(s.label)}</button>`).join("");
+    if (!show) return;
+    const cast = scenes();
+    if (!nav.children.length) nav.innerHTML = '<button type="button" data-scene="reset">Reset demo</button>' +
+      Object.entries(cast).map(([k, s]) => `<button type="button" data-scene="${k}">${esc(s.label)}</button>`).join("") + '<span class="lc-n" id="lc-cast-hint"></span>';
+    for (const b of nav.querySelectorAll("button")) {
+      const s = cast[b.dataset.scene];
+      if (s) b.textContent = s.label;
+      b.disabled = sceneBusy || !!(s && s.claimed_name && (!healthReady || !demoContact));
+    }
+    $("lc-cast-hint").textContent = !healthReady ? "waiting for the server" : !demoContact ? "demo contact not set" : "";
+  }
+  async function loadHealth() {
+    try {
+      const h = await (await fetch("/health")).json();
+      healthOwner = h.owner_name || healthOwner;
+      demoContact = "demo_contact" in h ? h.demo_contact : defaultContact;
+      healthFake = !!h.fake;
+      healthReady = true;
+      render();
+    } catch (_) {}
   }
   $("lc-scenes").addEventListener("click", async ev => {
     const b = ev.target.closest("button[data-scene]");
-    if (!b) return;
-    const btns = [...$("lc-scenes").querySelectorAll("button")];
-    btns.forEach(x => x.disabled = true);
+    if (!b || b.disabled || sceneBusy) return;
+    sceneBusy = true; renderScenes();
     try {
+      await loadHealth();
+      const scene = scenes()[b.dataset.scene];
+      if (scene && scene.claimed_name && (!healthReady || !demoContact)) return;
       await sim("/sim/reset");
       if (b.dataset.scene === "reset") { dropBacklog = true; clearCall(); render(); }
-      else { const {label, ...body} = scenes()[b.dataset.scene]; await sim("/sim/call", body); }
+      else { const {label, ...body} = scene; await sim("/sim/call", body); }
       pollEvents();
     } catch (e) { say(`The test call didn't start: ${e.message}`); }
-    finally { btns.forEach(x => x.disabled = false); }
+    finally { sceneBusy = false; renderScenes(); }
   });
+  loadHealth();
 
   // ---------- polling: one /events request at a time; fast while watched or a call is on, slow otherwise, none while hidden ----------
   const fast = () => onLive() || phase() === "live";
