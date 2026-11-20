@@ -39,6 +39,9 @@ def _redact(text):
         if words:
             text = re.sub(r"(?<!\w)" + r"[\W_]+".join(map(re.escape, words)) + r"(?!\w)",
                           "••••", text, flags=re.IGNORECASE)
+            expected = _normalize(contact.challenge_answer)
+            text = re.sub(r"\w+", lambda m: "••••" if contacts.close(_normalize(m[0]), expected)
+                          else m[0], text)
     return text
 
 
@@ -57,8 +60,16 @@ def _drop_code_word_prefix(text):
     return " ".join(words)
 
 
+def _code_word_eligible(call_id):
+    call = state.get_call(call_id)
+    return call and call.contact_id and call.state in ("pending", "unverified")
+
+
 def on_partial(call_id, role, text) -> None:
     """Keep only the latest in-progress words per call and role, masked like finals."""
+    if role == "caller" and _code_word_eligible(call_id):
+        _partials.get(call_id, {}).pop(role, None)
+        return
     text = _drop_code_word_prefix(_redact(text)).strip()
     now = time.time()
     final = _last_final.get((call_id, role))
@@ -78,6 +89,9 @@ def live() -> dict:
     parts = _partials.get(call_id, {}) if call_id else {}
     now = time.time()
     for role in ("caller", "agent"):
+        if role == "caller" and call_id and _code_word_eligible(call_id):
+            parts.pop(role, None)
+            continue
         p = parts.get(role)
         if p and now - p["ts"] <= PARTIAL_TTL_S:
             out[role] = dict(p)

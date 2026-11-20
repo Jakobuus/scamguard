@@ -297,6 +297,42 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert "+15550999999" not in contacts.get("jakob").known_numbers
     assert "+15550100002" in contacts.get("jakob").known_numbers
 
+    def exercise_code_word_privacy():
+        cid = flow.start_call(None)
+        c.portal.call(flow.on_transcript, cid, "caller", "This is Jakob, please wire $2000")
+        for spoken, masked in [("it is Brunno", "it is ••••"), ("bruno!", "••••!")]:
+            c.portal.call(flow.on_transcript, cid, "caller", spoken)
+            lines = [e.data["text"] for e in state.events_since(0)
+                     if e.call_id == cid and e.type == "transcript"]
+            assert lines[-1] == masked, "finals must mask accepted code-word spellings"
+        assert "Brunno" not in flow._caller_text[cid]
+        flow.on_partial(cid, "caller", "it is Brunno and")
+        assert c.get("/live").json()["caller"]["text"] == "it is •••• and"
+        flow.on_partial(cid, "caller", "still speaking")
+        assert c.get("/live").json()["caller"]["text"] == "still speaking"
+        c.portal.call(flow.verify_caller, cid, "Jakob")
+        assert state.get_call(cid).state == "pending"
+        assert c.get("/live").json()["caller"] is None, "matching must hide an earlier partial"
+        for status in ("pending", "unverified"):
+            if status == "unverified":
+                c.portal.call(flow._resolve, cid, status, "timeout")
+            flow.on_partial(cid, "caller", "the word is Bru")
+            assert "caller" not in flow._partials.get(cid, {}), "private partials must not be retained"
+            flow.on_partial(cid, "agent", "One moment")
+            live = c.get("/live").json()
+            assert live["caller"] is None, f"{status} caller partials must stay private"
+            assert live["agent"]["text"] == "One moment"
+        c.portal.call(flow.on_transcript, cid, "caller", "it is Brunno")
+        assert c.get("/live").json()["caller"] is None
+        assert [e.data["text"] for e in state.events_since(0)
+                if e.call_id == cid and e.type == "transcript"][-1] == "it is ••••"
+
+    with patch.object(flow, "_pings", {}), patch.object(contacts, "_attempts", []), patch.object(
+            contacts, "_all", return_value=[contacts.get("jakob").model_copy(
+                update={"challenge_answer": "Bruno"})]):
+        exercise_code_word_privacy()
+    ok("code word privacy: tolerant masking, matched caller partials hidden, unmatched and agent visible")
+
     async def exercise_code_words():
         def events(cid):
             return [e for e in state.events_since(0) if e.call_id == cid]

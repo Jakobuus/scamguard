@@ -134,7 +134,7 @@ Use `FAKE=0 REAL_SENSO=1 uv run python scripts/senso_load.py` after configuring 
 by `id` over `data/contacts.json`: partial entries override supplied fields; new ids extend the circle.
 Keep real code words and chat ids only in this ignored local file. Neither models nor events receive
 expected words. Before emitting or accumulating any transcript line, replace any contact's code word
-(case-insensitive, whole word) with `••••`. The model passes the caller's exact spoken answer to code;
+(case-insensitive, whole word, including spellings accepted by `contacts.close`) with `••••`, and suppress caller partials while a matched call is pending or unverified. The model passes the caller's exact spoken answer to code;
 only code compares it and returns an outcome.
 
 `flow.on_code_word(call_id, spoken) -> "ok" | "retry" | "failed"` accepts only a matched contact in
