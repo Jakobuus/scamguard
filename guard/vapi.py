@@ -15,7 +15,10 @@ log = logging.getLogger(__name__)
 # HACK: live control URLs and webhook deduplication last only for this process.
 _control_urls: dict[str, str] = {}
 _ended: set[str] = set()
-_TOOL_RESULT = "Ping sent. Keep the caller holding and tell them you are checking."
+_TOOL_RESULT = ("Checking now. Say ONE short sentence: you are trying to reach her, and if they cannot use "
+                "their phone they can say the family code word. Then stay quiet and wait for the caller or a "
+                "system message. Do not say you are checking again. Do not call verify_caller again. If the "
+                "caller says a code word, call check_code_word with exactly what they said.")
 
 
 def _control(call_id: str, payload: dict) -> bool:

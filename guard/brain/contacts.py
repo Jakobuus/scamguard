@@ -25,12 +25,25 @@ def get(contact_id: str) -> Contact | None:
     return next((c for c in _all() if c.id == contact_id), None)
 
 
+def close(a: str, b: str) -> bool:
+    """Equal, or one edit apart for words of 5+ letters (speech-to-text spelling drift)."""
+    a, b = a.casefold().strip(), b.casefold().strip()
+    if a == b:
+        return True
+    if min(len(a), len(b)) < 5 or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) <= 1
+    a, b = sorted((a, b), key=len)
+    return any(a == b[:i] + b[i + 1:] for i in range(len(b)))
+
+
 def candidates(claim: Claim, caller_number: str | None) -> list[Lookup]:
     name = (claim.claimed_name or "").strip().casefold()
     relationship = (claim.relationship or "").strip().casefold()
     found = []
     for contact in _all():
-        matches = (name in [contact.name.casefold(), *[n.casefold() for n in contact.nicknames]]
+        matches = (any(close(name, n) for n in [contact.name, *contact.nicknames])
                    if name else bool(relationship) and relationship == contact.relationship.casefold())
         if matches:
             known = caller_number in contact.known_numbers

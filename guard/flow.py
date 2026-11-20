@@ -152,8 +152,10 @@ async def on_code_word(call_id, spoken: str) -> str:
         return "failed"
     _code_tries[call_id] = _code_tries.get(call_id, 0) + 1
     expected, supplied = _normalize(contact.challenge_answer), _normalize(spoken)
+    # Speech-to-text may spell the word slightly differently: allow one edit for 5+ letters.
     if expected and (hmac.compare_digest(supplied.encode(), expected.encode())
-                     or re.search(r"(?<!\w)" + re.escape(expected) + r"(?!\w)", supplied)):
+                     or re.search(r"(?<!\w)" + re.escape(expected) + r"(?!\w)", supplied)
+                     or any(contacts.close(w, expected) for w in supplied.split())):
         if not await _resolve(call_id, "confirmed", "code_word"):
             return "failed"
         c = state.get_call(call_id)
@@ -227,8 +229,9 @@ async def _act(call_id, new_state) -> None:
     elif new_state == "unverified":
         if c.decided_by == "code_word":
             return  # on_code_word handles the final failure.
-        q = ("No answer from the real person. Ask the caller for the family code word and pass exactly "
-             "what they say to check_code_word. Do not hint at the word."
+        q = ("No answer from the real person yet. Say: 'I could not reach her. If you know the family code "
+             "word, please say it now.' Then listen, and pass exactly what the caller says to check_code_word. "
+             "Do not hint at the word."
              if contact else "Who are you and why are you calling?")
         vapi.add_message(call_id, q)
         if c.decided_by != "ping_cap":
