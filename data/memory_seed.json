@@ -3,11 +3,13 @@
   "people": [
     {
       "name": "Jakob",
-      "nicknames": ["Jake"],
+      "nicknames": [
+        "Jake"
+      ],
       "relationship": "son",
       "facts": [
         "Jakob studies and lives in another city and usually calls on Sunday evenings.",
-        "Jakob has never asked his mother for money over the phone.",
+        "Jakob has never asked the owner for money over the phone.",
         "Jakob would never ask for gift cards, wire transfers or crypto."
       ]
     },
@@ -19,11 +21,22 @@
         "Lena lives nearby and helps with groceries and doctor appointments.",
         "Lena usually texts before she calls."
       ]
+    },
+    {
+      "name": "Erick",
+      "nicknames": [],
+      "relationship": "teammate",
+      "facts": [
+        "Erick met the owner at the hackathon today.",
+        "Erick is building the call guard with the owner.",
+        "Erick has never asked the owner for money.",
+        "Erick usually writes on WhatsApp before calling."
+      ]
     }
   ],
   "household": [
     "The family agreed that nobody asks for money by phone without a code word.",
-    "Mum orders household items online; deliveries usually come to the front door without any fee.",
-    "Mum's bank never calls to ask for a code, a password or a transfer."
+    "The owner orders household items online; deliveries usually come to the front door without any fee.",
+    "The owner's bank never calls to ask for a code, a password or a transfer."
   ]
 }
