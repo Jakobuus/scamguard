@@ -10,6 +10,7 @@ class Contact(BaseModel):
     nicknames: list[str] = []
     relationship: str
     known_numbers: list[str] = []
+    whatsapp_chat_id: str | None = None
     telegram_chat_id: str | None = None
     email: str | None = None
     challenge_question: str
