@@ -2,6 +2,7 @@
 import faulthandler
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -943,21 +944,26 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     ok("addressee is never the claimed name; stage scam scene asks Jakob and ends on his No")
     # Amplitude Agent Analytics mapping: no network, events collected in telemetry._sink
     from guard import telemetry
-    telemetry._sink = []
+    telemetry._sink, telemetry._raw_sink = [], []
     telemetry._calls.clear()
+    telemetry._finished.clear()
     amp_id, _ = run(c, "Amplitude scam scene", {
         "claimed_name": "Lena", "caller_number": "+15550100001",
         "lines": ["Hi Mum, this is Lena, I'm in trouble.", "Please wire $2000 right now, don't tell dad."],
         "agent_lines": {"0": "Hello, who is calling?", "2": "One moment while I check."},
         "word_s": 0.001, "tap": "no", "tap_after_s": 0.5}, "denied", ["decision", "call.ended"])
     time.sleep(0.5)
+    telemetry.drain()
     sent = [e for e in telemetry._sink if amp_id in e["insert_id"]]
+    raw = [e for e in telemetry._raw_sink if e["insert_id"].startswith(amp_id)]
+    assert raw and any(e["event_type"] == "guard.call.ended" for e in raw)
     names = [e["event_type"] for e in sent]
     tools = [e["event_properties"]["[Agent] Tool Name"] for e in sent if e["event_type"] == "[Agent] Tool Call"]
     for want in ("classify", "verify_caller", "lookup", "ask", "decide", "act"):
         assert want in tools, (want, tools)
     assert tools.index("classify") < tools.index("verify_caller") < tools.index("lookup") < tools.index("ask") < tools.index("decide") < tools.index("act")
     assert "[Agent] User Message" in names and "[Agent] AI Response" in names and names[-1] == "[Agent] Session End"
+    assert names.count("[Agent] Session End") == 1
     scores = {e["event_properties"]["[Agent] Score Name"]: e["event_properties"] for e in sent if e["event_type"] == "[Agent] Score"}
     assert set(scores) == {"eval_never_offered_a_name", "eval_never_agreed_to_pay",
                            "eval_only_verified_actions", "eval_asked_real_person"}, scores
@@ -985,11 +991,74 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     telemetry._calls["old"] = {"wall": 0}
     telemetry._st("fresh-call", 0)
     assert "old" not in telemetry._calls
+    # default allowlist: every string in the raw stream and the tool payloads is vocabulary or an id
+    def strings(v):
+        if isinstance(v, dict):
+            for x in v.values():
+                yield from strings(x)
+        elif isinstance(v, list):
+            for x in v:
+                yield from strings(x)
+        elif isinstance(v, str):
+            yield v
+    for e in raw:
+        for k, v in e["event_properties"].items():
+            assert all(telemetry._allowed(x, k) for x in strings(v)), (e["event_type"], k, v)
+    for e in sent:
+        if e["event_type"] == "[Agent] Tool Call":
+            for key in ("[Agent] Tool Input", "[Agent] Tool Output"):
+                for k, v in json.loads(e["event_properties"][key]).items():
+                    assert all(telemetry._allowed(x, k) for x in strings(v)), (e["event_properties"]["[Agent] Tool Name"], k, v)
+    rawblob = json.dumps(raw)
+    for pat in ("Lena", "in trouble", "Not someone", "daughter", "Hello, who"):
+        assert pat not in rawblob + blob, pat
+    # expected-delivery scene: its free-text description must not leave either
+    exp_id, _ = run(c, "Amplitude delivery scene", {"caller_number": "+15550440003",
+        "lines": ["Hi, I'm the driver with your desk lamp, are you home?"],
+        "word_s": 0.001}, "confirmed", ["decision"])
+    telemetry.drain()
+    xblob = json.dumps([e for e in telemetry._raw_sink + telemetry._sink if exp_id in e["insert_id"]])
+    assert "desk lamp" not in xblob and "driver" not in xblob and "parcel" not in xblob and "guard.context.expected" in xblob
+    # on_event does no evaluation work and raises nothing; the worker swallows evaluation errors
+    from guard.contracts import Event
+    from datetime import datetime, timezone
+    def ev(call, typ, data, i):
+        return Event(id=i, call_id=call, ts=datetime.now(timezone.utc), type=typ, data=data)
+    telemetry._sink.clear()
+    with patch.object(telemetry, "evals", side_effect=RuntimeError("boom")):
+        telemetry.on_event(ev("boom-call", "call.started", {}, 1))
+        telemetry.on_event(ev("boom-call", "call.ended", {}, 2))
+        assert not telemetry._sink  # on_event only queued
+        telemetry.drain()  # the error inside the worker path is swallowed
+    assert not any("boom-call" in e["insert_id"] for e in telemetry._sink)
+    # 200 decisions for one call: no threads, one deadline
+    before = threading.active_count()
+    for i in range(200):
+        telemetry.on_event(ev("many", "decision", {"state": "unverified", "by": "timeout", "seconds_to_decide": 1}, 10 + i))
+    telemetry.drain()
+    assert threading.active_count() == before and list(telemetry._deadline).count("many") == 1
+    # the deadline closes the session once; a later transcript and the real end add nothing
+    telemetry._deadline["many"] = 0
+    telemetry.drain()
+    telemetry.on_event(ev("many", "transcript", {"role": "caller", "text": "hello again"}, 300))
+    telemetry.on_event(ev("many", "call.ended", {}, 301))
+    telemetry.drain()
+    many = [e for e in telemetry._sink if e["insert_id"].startswith("many-")]
+    assert [e["event_type"] for e in many].count("[Agent] Session End") == 1
+    assert [e["event_type"] for e in many].count("[Agent] Score") == 4
+    assert [e for e in many if e["event_type"] == "Call Outcome"][0]["event_properties"]["outcome"] == "unverified"
+    assert "many" not in telemetry._calls and "many" not in telemetry._deadline
+    # opt-in text keeps masking
+    with patch.dict(os.environ, {"AMPLITUDE_SEND_TEXT": "1"}):
+        telemetry.on_event(ev("txt", "transcript", {"role": "caller", "text": "call 12345678 about the lamp"}, 400))
+        telemetry.drain()
+    tx = [e for e in telemetry._sink if e["insert_id"].startswith("txt-")]
+    assert tx and "12345678" not in json.dumps(tx) and "lamp" in json.dumps(tx)
     # a failing rule is reported, not hidden
     bad = telemetry._st("bad", 0)
     bad["agent_lines"] = ["Sure, I'll send the money now."]
     assert not dict((n, p) for n, p, _ in telemetry.evals(bad, "bad"))["eval_never_agreed_to_pay"]
-    telemetry._sink = None
+    telemetry._sink = telemetry._raw_sink = None
     ok("amplitude: agent events, tool trace order, four evals pass, no code word or card number")
 _timer.cancel()
 print("ALL OK")
