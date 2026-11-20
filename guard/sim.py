@@ -33,6 +33,10 @@ class SimCall(BaseModel):
     tap: Literal["yes", "no"] | None = None
     tap_after_s: float = 1.0
     credential: str | None = None  # extra: plays the credential path
+    # Assistant lines keyed by position: key i is spoken before caller line i; key len(lines)
+    # is spoken after the last caller line, while the guard checks.
+    agent_lines: dict[int, str] = {}
+    word_s: float | None = None  # seconds per word for the live partials; default SIM_WORD_S or 0.07
 
 
 class SimTap(BaseModel):
@@ -40,16 +44,35 @@ class SimTap(BaseModel):
     answer: Literal["yes", "no"]
 
 
+async def _say(call_id: str, role: str, text: str, word_s: float) -> None:
+    """Plays one line like a live call: growing partials word by word, then the final."""
+    if word_s > 0:
+        words = text.split()
+        for i in range(1, len(words) + 1):
+            flow.on_partial(call_id, role, " ".join(words[:i]))
+            await asyncio.sleep(word_s)
+    await flow.on_transcript(call_id, role, text)
+
+
 async def _play(call_id: str, b: SimCall) -> None:
-    for line in b.lines:
-        await flow.on_transcript(call_id, "caller", line)
-        await asyncio.sleep(0.3)
+    word_s = b.word_s if b.word_s is not None else float(os.environ.get("SIM_WORD_S", "0.07"))
+    pause = 0.5 if word_s > 0 else 0.3
+    for i, line in enumerate(b.lines):
+        if b.agent_lines.get(i):
+            await _say(call_id, "agent", b.agent_lines[i], word_s)
+            await asyncio.sleep(pause)
+        await _say(call_id, "caller", line, word_s)
+        await asyncio.sleep(pause)
     if b.credential:
         if await flow.on_credential(call_id, b.credential):
             return
     await flow.verify_caller(call_id, b.claimed_name)
+    t0 = asyncio.get_running_loop().time()
+    closing = b.agent_lines.get(len(b.lines))
+    if closing:
+        await _say(call_id, "agent", closing, word_s)
     if b.tap:
-        await asyncio.sleep(b.tap_after_s)
+        await asyncio.sleep(max(0.0, b.tap_after_s - (asyncio.get_running_loop().time() - t0)))
         await flow.on_tap(call_id, b.tap)
 
 

@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 # HACK: live control URLs and webhook deduplication last only for this process.
 _control_urls: dict[str, str] = {}
 _ended: set[str] = set()
+_partial_seen: set[str] = set()  # calls whose partials were logged once or looked up after a restart
 _TOOL_RESULT = ("Checking now. Say ONE short sentence: you are trying to reach her, and if they cannot use "
                 "their phone they can say the family code word. Then stay quiet and wait for the caller or a "
                 "system message. Do not say you are checking again. Do not call verify_caller again. If the "
@@ -128,10 +129,25 @@ async def webhook(req: Request):
             if state.get_call(call_id) is None:
                 flow.start_call(_dict(call.get("customer")).get("number"), call_id=call_id)
             _remember_control(call_id, call)
-        elif kind == "transcript" and msg.get("transcriptType") == "final":
+        elif isinstance(kind, str) and kind.startswith("transcript"):
+            # Vapi may also name the variant in the type, e.g. transcript[transcriptType="partial"].
+            ttype = msg.get("transcriptType") or ("partial" if "partial" in kind else "final")
             text = msg.get("transcript")
-            if isinstance(text, str) and state.get_call(call_id) is not None:
-                await flow.on_transcript(call_id, "caller" if msg.get("role") == "user" else "agent", text)
+            role = "caller" if msg.get("role") == "user" else "agent"
+            if not isinstance(text, str):
+                pass
+            elif ttype == "final":
+                if state.get_call(call_id) is not None:
+                    await flow.on_transcript(call_id, role, text)
+            elif ttype == "partial" and call_id not in _ended:
+                if call_id not in _partial_seen:
+                    _partial_seen.add(call_id)
+                    log.warning("Vapi partial transcripts are arriving for the current call")
+                    # After a restart the call is known only to the store: look it up once, not per partial.
+                    if call_id not in flow._live_calls and state.get_call(call_id) is not None:
+                        flow.mark_live(call_id)
+                if call_id in flow._live_calls:
+                    flow.on_partial(call_id, role, text)
         elif kind == "end-of-call-report" or (kind == "status-update" and msg.get("status") == "ended"):
             if call_id not in _ended:
                 # The decision flow can already have emitted the end event after a denial.

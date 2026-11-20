@@ -272,10 +272,11 @@ HTTP (all JSON):
 | `POST /vapi/tool/verify_caller` | A | `{claimed_name}` → holding response; may ask a name before pinging |
 | `POST /vapi/tool/check_code_word` | A | `{spoken: str}` in the same authenticated Vapi tool envelope as `verify_caller`; returns only next-speech instructions, never the expected word. |
 | `POST /telegram/webhook` | A | Verification button taps |
-| `POST /sim/call` | A | `{claimed_name, caller_number, lines: [str], tap: "yes"\|"no"\|null, tap_after_s: float, credential: str\|null}` → `{call_id}`; same flow, no phone. Out-of-scope credentials continue verification. |
+| `POST /sim/call` | A | `{claimed_name, caller_number, lines: [str], agent_lines: {int: str}, tap: "yes"\|"no"\|null, tap_after_s: float, credential: str\|null, word_s: float\|null}` → `{call_id}`; same flow, no phone. Out-of-scope credentials continue verification. See "Live conversation" below. |
 | `POST /sim/tap` | A | `{call_id, answer: "yes"\|"no"}` |
 | `GET /calls/{call_id}` | A | `Call` |
 | `GET /events?since=<id>` | A | `[Event]`, poll every 500 ms |
+| `GET /live` | A | `{call_id, caller: {text, ts}\|null, agent: {text, ts}\|null}`: words in progress of the most recent active call; memory only, poll every 200 ms during a call |
 | `POST /analyze` | B | `{message, session}` → `{reply, flags, action}` for text drills |
 | `GET /c/{cred_id}` | B logic, A screen | Credential page |
 | `GET /` | A | Audience screen |
@@ -346,3 +347,30 @@ It clears attempt history, the daily ping budget and warning, learned numbers vi
 `contacts.reset_demo()`, and accumulated caller text. It emits no events and preserves calls and
 past events. The page's Reset demo button returns the screen to idle; every scene resets before
 starting its call so previous decisions do not affect the next scene.
+
+## Live conversation (words in progress)
+
+The Vapi webhook also takes `transcript` messages with `transcriptType == "partial"` (or a type such as
+`transcript[transcriptType="partial"]`). `flow.on_partial(call_id, role, text)` keeps only the latest
+partial per call and role (`caller` for Vapi `user`, `agent` otherwise) with a `ts` in epoch seconds.
+Partials live in process memory only: never in the database, never as events. A role's partial is cleared
+when its final arrives (`flow.on_transcript`) or after 4 s without a new partial; a late partial of the line
+that just became final is ignored. Partials are masked like finals (`••••`), and when the last word(s) of a
+partial begin any contact's code word (3+ letters), they are dropped so a half-spoken word never shows.
+The first partial of each call logs one line, "Vapi partial transcripts are arriving for the current call".
+
+`GET /live` reads that memory: `call_id` is the most recent call started and not yet ended (a state
+subscriber, `flow.track_live`, drops calls on `call.ended`), or null. No database access.
+
+Finals of both roles still arrive as `transcript` events. The audience screen shows them in the
+conversation panel (caller plain, assistant in a bubble; consecutive lines from one speaker share a label)
+and no longer lists them in the audit trail. While a call is active the page polls `/live` every 200 ms:
+from `call.started` until `call.ended` or a decision, then for 15 s after the last decision, end, line or
+partial. A partial shows as lighter text with a soft caret and settles in place when its final arrives.
+
+`/sim/call` plays each line like a call: partials word by word (`word_s` seconds per word; default
+`SIM_WORD_S` or 0.07; 0 skips partials), then the final. `agent_lines` holds the assistant's lines keyed by
+position: key `i` is said before caller line `i`; key `len(lines)` is said after the last caller line,
+while the guard checks (the tap delay counts from the start of that line). `scripts/check.py` sets
+`SIM_WORD_S=0` for the scenes and checks the live path separately.
+

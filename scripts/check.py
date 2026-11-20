@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 os.environ["FAKE"] = "1"
 os.environ["TIMEOUT_S"] = "2"
+os.environ["SIM_WORD_S"] = "0"  # scenes skip the word-by-word delay; the live check sets its own
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -629,5 +630,46 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     with patch.object(flow, "_pings", {}):
         c.portal.call(exercise_seams)
     ok("seams: claim extraction, learning, repeat limit, name retry, step-up, subscribers")
+    # Live words: partials stay in memory, are masked, clear on final, and sim plays both sides.
+    with patch.object(contacts, "_all", return_value=[contacts.get("jakob").model_copy(
+            update={"challenge_answer": "Bruno"})]):
+        cid = flow.start_call("+15550123123")
+        assert c.get("/live").json() == {"call_id": cid, "caller": None, "agent": None}
+        hook = lambda body: c.post("/vapi/webhook", json={"message": {**body, "call": {"id": cid}}})
+        hook({"type": "transcript", "transcriptType": "partial", "role": "user", "transcript": "the word is Bru"})
+        live = c.get("/live").json()
+        assert live["caller"]["text"] == "the word is" and live["agent"] is None and live["caller"]["ts"]
+        hook({"type": "transcript", "transcriptType": "partial", "role": "user", "transcript": "the word is bruno and"})
+        assert c.get("/live").json()["caller"]["text"] == "the word is •••• and"
+        hook({"type": "transcript", "transcriptType": "partial", "role": "assistant", "transcript": "One moment"})
+        assert c.get("/live").json()["agent"]["text"] == "One moment"
+        hook({"type": "transcript", "transcriptType": "final", "role": "user", "transcript": "The word is Bruno."})
+        live = c.get("/live").json()
+        assert live["caller"] is None and live["agent"]["text"] == "One moment"
+        hook({"type": "transcript", "transcriptType": "partial", "role": "user", "transcript": "The word"})
+        assert c.get("/live").json()["caller"] is None, "late partial of a final line must not return"
+        with patch.object(flow.time, "time", return_value=flow.time.time() + 5):
+            assert c.get("/live").json()["agent"] is None, "partials expire after 4 s of silence"
+        evs = [e for e in c.get("/events").json() if e["call_id"] == cid]
+        assert [e["data"]["text"] for e in evs if e["type"] == "transcript"] == ["The word is ••••."]
+        assert all("Bru" not in json.dumps(e["data"]) for e in evs)
+        hook({"type": "status-update", "status": "ended"})
+        assert c.get("/live").json()["call_id"] != cid
+    sim_id = c.post("/sim/call", json={"lines": ["Hello there friend"], "word_s": 0.02,
+        "agent_lines": {"0": "Who is calling?", "1": "One moment."}}).json()["call_id"]
+    grew = set()
+    t0 = time.time()
+    while time.time() - t0 < 5:
+        live = c.get("/live").json()
+        if live["call_id"] == sim_id and live["caller"]:
+            grew.add(live["caller"]["text"])
+        roles = [e["data"]["role"] for e in c.get("/events").json()
+                 if e["call_id"] == sim_id and e["type"] == "transcript"]
+        if roles == ["agent", "caller", "agent"]:
+            break
+        time.sleep(0.01)
+    assert roles == ["agent", "caller", "agent"], roles
+    assert len(grew) >= 2 and all("Hello there friend".startswith(t) for t in grew), grew
+    ok("live words: masked partials in memory, cleared on final or silence, sim plays both sides")
 _timer.cancel()
 print("ALL OK")

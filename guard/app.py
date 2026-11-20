@@ -4,12 +4,13 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
-from guard import credential, settings, sim, state, telemetry, telegram, vapi
+from guard import credential, flow, settings, sim, state, telemetry, telegram, vapi
 from guard.brain import drill
 
 @asynccontextmanager
 async def lifespan(app):
     state.subscribe(telemetry.on_event)
+    state.subscribe(flow.track_live)
     yield
 
 
@@ -23,6 +24,12 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 @app.get("/health")
 def health():
     return {"ok": True, "fake": settings.FAKE, "owner_name": settings.OWNER_NAME, "services": settings.services()}
+
+
+@app.get("/live")
+async def live():
+    """In-progress words of the current call; memory only, so the screen can poll it fast."""
+    return flow.live()
 
 
 @app.get("/calls/{call_id}")

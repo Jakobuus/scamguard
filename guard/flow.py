@@ -1,6 +1,7 @@
 import asyncio
 import hmac
 import re
+import time
 from datetime import datetime, timezone
 
 from guard import credential, persona, settings, state, telegram, vapi
@@ -14,6 +15,11 @@ _late_denials: set[str] = set()
 _code_tries: dict[str, int] = {}
 _pings: dict[tuple, int] = {}
 _cap_notified: set[tuple] = set()
+# Live (partial) transcript lines: memory only, never stored or emitted as events.
+PARTIAL_TTL_S = 4.0
+_partials: dict[str, dict[str, dict]] = {}  # call_id -> role -> {"text", "ts"}
+_last_final: dict[tuple, tuple[str, float]] = {}  # (call_id, role) -> (normalized text, time)
+_live_calls: dict[str, None] = {}  # started and not yet ended, oldest first
 
 
 def reset_demo() -> None:
@@ -36,6 +42,66 @@ def _redact(text):
     return text
 
 
+def _drop_code_word_prefix(text):
+    """A half-spoken code word must not show: drop trailing words that begin a code word."""
+    words = text.split()
+    for contact in contacts._all():
+        secret = " ".join(re.findall(r"\w+", contact.challenge_answer.casefold()))
+        if not secret:
+            continue
+        for k in range(min(len(words), len(secret.split())), 0, -1):
+            tail = " ".join(_normalize(w) for w in words[-k:]).strip()
+            if len(tail.replace(" ", "")) >= 3 and secret.startswith(tail):
+                words = words[:-k]
+                break
+    return " ".join(words)
+
+
+def on_partial(call_id, role, text) -> None:
+    """Keep only the latest in-progress words per call and role, masked like finals."""
+    text = _drop_code_word_prefix(_redact(text)).strip()
+    now = time.time()
+    final = _last_final.get((call_id, role))
+    if final and now - final[1] < 1.0 and final[0].startswith(_normalize(text)):
+        return  # a late partial of the line that just became final
+    if not text:
+        _partials.get(call_id, {}).pop(role, None)
+        return
+    _partials.setdefault(call_id, {})[role] = {"text": text, "ts": now}
+
+
+def live() -> dict:
+    """Latest partial lines of the most recent active call. Memory only, no database."""
+    calls = list(_live_calls)
+    call_id = calls[-1] if calls else None
+    out = {"call_id": call_id, "caller": None, "agent": None}
+    parts = _partials.get(call_id, {}) if call_id else {}
+    now = time.time()
+    for role in ("caller", "agent"):
+        p = parts.get(role)
+        if p and now - p["ts"] <= PARTIAL_TTL_S:
+            out[role] = dict(p)
+        elif p:
+            parts.pop(role, None)
+    return out
+
+
+def track_live(event) -> None:
+    """State subscriber: a call stops being live when it ends."""
+    if event.type == "call.ended":
+        _live_calls.pop(event.call_id, None)
+        _partials.pop(event.call_id, None)
+
+
+def mark_live(call_id) -> None:
+    _live_calls.pop(call_id, None)
+    _live_calls[call_id] = None
+    while len(_live_calls) > 50:
+        old = next(iter(_live_calls))
+        _live_calls.pop(old, None)
+        _partials.pop(old, None)
+
+
 def spawn(coro) -> None:
     t = asyncio.create_task(coro)
     _tasks.add(t)
@@ -45,12 +111,17 @@ def spawn(coro) -> None:
 def start_call(caller_number, call_id=None) -> str:
     call = state.create_call(caller_number, call_id)
     digits = "".join(c for c in (caller_number or "") if c.isdigit())
+    mark_live(call.call_id)
     state.emit(call.call_id, "call.started", {"caller_number": f"•••• {digits[-4:]}" if digits else None})
     return call.call_id
 
 
 async def on_transcript(call_id, role, text) -> None:
     text = _redact(text)
+    _partials.get(call_id, {}).pop(role, None)
+    _last_final[(call_id, role)] = (_normalize(text), time.time())
+    if len(_last_final) > 200:
+        _last_final.pop(next(iter(_last_final)))
     state.emit(call_id, "transcript", {"role": role, "text": text})
     if role == "caller":
         _caller_text[call_id] = (_caller_text.get(call_id, "") + " " + text).strip()
