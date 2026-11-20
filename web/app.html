@@ -1,115 +1,182 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>My Guard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light">
 <style>
+  /* === design system === */
+  /* Light, calm, hairlines, one indigo accent; colour only on outcomes. Use these instead of inventing new styles.
+     Tokens: --mg-page --mg-rail --mg-surface --mg-subtle --mg-line --mg-text --mg-text-2 --mg-text-3
+             --mg-accent --mg-accent-soft --mg-accent-line; outcomes --mg-red --mg-green --mg-amber --mg-orange --mg-teal
+             (each with a -soft tint); --mg-r (10px) --mg-r-sm (6px); type --mg-fs (17px body) --mg-fs-cap (14px)
+             --mg-fs-section (18px) --mg-fs-title (30px) --mg-fs-num (48px); --mg-font.
+     Old names (--bg --s1 --s2 --s3 --rule --text --muted --faint --c-* --display --font --r-*) are aliases.
+     Classes:
+       .m-card            white surface, 1px hairline, 10px radius, 24px padding (.m-card.flush = no padding)
+       .m-section-title   18px/500 heading inside a card or above a list; .m-caption = muted 15px text under it
+       .m-rows            list of rows separated by hairlines (put on ul/ol/div; children are rows); .m-row = one row (grid/flex freely)
+       .m-stat            stat block: .m-num (48px/400, tight, tabular) + .m-label (14px muted); .m-num.sm = 32px
+       .m-tag             small pill tag, neutral grey; modifiers .is-blocked .is-ok .is-asking .is-unverified .is-expected .is-known;
+                          add .dot for a leading coloured dot. .m-dot.is-* = bare 8px outcome dot
+       .m-btn             button base; .m-btn--primary (filled indigo) .m-btn--secondary (white + hairline) .m-btn--quiet (text only);
+                          .m-btn--sm smaller. Legacy aliases: .btn-solid = primary, .btn-ghost = secondary
+       .m-input           text input; .m-switch = small switch (button role=switch aria-checked="true|false")
+       .m-empty           empty state: muted text block, first <b> is the one-line headline
+       .m-modal           <dialog> sheet: white, hairline, soft shadow, 32px padding
+       .card .chip .empty .badge .sw .inp are kept as legacy aliases restyled to the same look. */
   :root{
-    /* Dark sibling of the audience screen: its ink becomes the ground, its state colours the accents. */
-    --bg:#0E1821; --ink:#14202B; --s1:#172533; --s2:#1E2F3F; --s3:#27394B; --rule:#2C3F52;
-    --text:#EEF2F5; --muted:#A9B5C0; --faint:#71808D;
-    /* Same meanings as the audience screen, lifted for contrast on dark. */
-    --c-denied:#FF4A62; --c-ok:#2FC27A; --c-check:#FFC425; --c-unver:#FF8A3D;
-    --c-expected:#5B9BEB; --c-known:#2DBFA0; --c-screen:#2B4A6E;
-    --display:"Avenir Next Condensed","Avenir Next","Helvetica Neue",system-ui,sans-serif;
-    --font:"Avenir Next","Helvetica Neue",system-ui,-apple-system,"Segoe UI",sans-serif;
-    --r-xl:28px; --r-lg:22px; --r-md:14px;
+    --mg-page:#F7F8FA; --mg-rail:#F1F2F5; --mg-surface:#FFFFFF; --mg-subtle:#F4F5F8; --mg-line:#E4E6EC;
+    --mg-text:#1B1D2A; --mg-text-2:#5C6070; --mg-text-3:#9498A6;
+    --mg-accent:#5266EB; --mg-accent-soft:#EEF0FD; --mg-accent-line:#C9D0F8;
+    --mg-red:#D03B3B; --mg-red-soft:#FBECEC; --mg-green:#1F8A5B; --mg-green-soft:#E7F4ED;
+    --mg-amber:#B7791F; --mg-amber-soft:#FBF3E3; --mg-orange:#C2570C; --mg-orange-soft:#FCEEE3;
+    --mg-teal:#0F766E; --mg-teal-soft:#E4F2F0;
+    --mg-r:10px; --mg-r-sm:6px;
+    --mg-fs:17px; --mg-fs-cap:14px; --mg-fs-section:18px; --mg-fs-title:30px; --mg-fs-num:48px;
+    --mg-font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Helvetica Neue","Segoe UI",sans-serif;
+    --mg-shadow:0 12px 32px -12px rgba(27,29,42,.18);
+    /* legacy aliases */
+    --bg:var(--mg-page); --ink:var(--mg-text); --s1:var(--mg-surface); --s2:var(--mg-subtle); --s3:#E9EBF0; --rule:var(--mg-line);
+    --text:var(--mg-text); --muted:var(--mg-text-2); --faint:var(--mg-text-3);
+    --c-denied:var(--mg-red); --c-ok:var(--mg-green); --c-check:var(--mg-amber); --c-unver:var(--mg-orange);
+    --c-expected:var(--mg-accent); --c-known:var(--mg-teal); --c-screen:var(--mg-accent);
+    --display:var(--mg-font); --font:var(--mg-font);
+    --r-xl:var(--mg-r); --r-lg:var(--mg-r); --r-md:8px;
   }
+  .m-card{background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:24px;min-width:0}
+  .m-card.flush{padding:0}
+  .m-section-title{font-size:var(--mg-fs-section);font-weight:500;color:var(--mg-text);margin:0;letter-spacing:-.005em}
+  .m-caption{font-size:15px;color:var(--mg-text-2);margin:2px 0 0}
+  .m-rows{list-style:none;margin:0;padding:0}
+  .m-rows>*{border-top:1px solid var(--mg-line)}
+  .m-rows>*:first-child{border-top:0}
+  .m-row{padding:14px 0}
+  .m-stat{display:flex;flex-direction:column;gap:4px}
+  .m-num{font-size:var(--mg-fs-num);font-weight:400;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums lining-nums;color:var(--mg-text)}
+  .m-num.sm{font-size:32px}
+  .m-label{font-size:var(--mg-fs-cap);color:var(--mg-text-2)}
+  .m-tag{display:inline-flex;align-items:center;gap:6px;font-size:var(--mg-fs-cap);font-weight:500;line-height:1.2;padding:3px 10px;
+         border-radius:999px;background:var(--mg-subtle);color:var(--mg-text-2);white-space:nowrap}
+  .m-tag.dot::before,.m-dot{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none;display:inline-block}
+  .is-blocked{--tc:var(--mg-red);--tb:var(--mg-red-soft)} .is-ok{--tc:var(--mg-green);--tb:var(--mg-green-soft)}
+  .is-asking{--tc:var(--mg-amber);--tb:var(--mg-amber-soft)} .is-unverified{--tc:var(--mg-orange);--tb:var(--mg-orange-soft)}
+  .is-expected{--tc:var(--mg-accent);--tb:var(--mg-accent-soft)} .is-known{--tc:var(--mg-teal);--tb:var(--mg-teal-soft)}
+  .m-tag[class*="is-"]{color:var(--tc);background:var(--tb)}
+  .m-dot[class*="is-"]{background:var(--tc)}
+  .m-btn,.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:8px;cursor:pointer;
+       font:500 16px/1.2 var(--mg-font);padding:10px 16px;transition:background .12s,border-color .12s,color .12s;text-decoration:none;white-space:nowrap}
+  .m-btn svg.i,.btn svg.i{font-size:16px}
+  .m-btn--primary,.btn-solid{background:var(--mg-accent);color:#fff}
+  .m-btn--primary:hover,.btn-solid:hover{background:#4356D6}
+  .m-btn--secondary,.btn-ghost{background:var(--mg-surface);color:var(--mg-text);border-color:var(--mg-line)}
+  .m-btn--secondary:hover,.btn-ghost:hover{border-color:#CDD0D8;background:var(--mg-subtle)}
+  .m-btn--quiet{background:transparent;color:var(--mg-text-2);padding-left:8px;padding-right:8px}
+  .m-btn--quiet:hover{color:var(--mg-text);background:var(--mg-subtle)}
+  .m-btn--sm,.btn-sm{font-size:15px;padding:6px 12px}
+  .m-btn[disabled],.btn[disabled]{opacity:.5;cursor:default}
+  .m-input{font:400 var(--mg-fs)/1.3 var(--mg-font);color:var(--mg-text);background:var(--mg-surface);border:1px solid var(--mg-line);
+           border-radius:8px;padding:9px 12px;width:100%}
+  .m-input:focus{outline:none;border-color:var(--mg-accent);box-shadow:0 0 0 3px var(--mg-accent-soft)}
+  .m-input::placeholder{color:var(--mg-text-3)}
+  .m-switch{position:relative;width:36px;height:20px;border-radius:10px;border:0;padding:0;background:#D5D8E0;cursor:pointer;flex:none;transition:background .15s}
+  .m-switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;
+                   box-shadow:0 1px 2px rgba(27,29,42,.25);transition:transform .15s}
+  .m-switch[aria-checked="true"]{background:var(--mg-accent)}
+  .m-switch[aria-checked="true"]::after{transform:translateX(16px)}
+  .m-empty{color:var(--mg-text-3);font-size:15px;line-height:1.45}
+  .m-empty b{display:block;color:var(--mg-text-2);font-weight:500;font-size:var(--mg-fs)}
+  .m-modal{border:1px solid var(--mg-line);border-radius:12px;padding:32px;background:var(--mg-surface);color:var(--mg-text);box-shadow:var(--mg-shadow)}
+  .m-modal::backdrop{background:rgba(27,29,42,.28)}
+
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
-  body{background:var(--bg);color:var(--text);font:500 21px/1.4 var(--font);font-variant-numeric:tabular-nums;
+  body{background:var(--mg-page);color:var(--mg-text);font:400 var(--mg-fs)/1.45 var(--mg-font);font-variant-numeric:tabular-nums;
        -webkit-font-smoothing:antialiased}
   button{font:inherit;color:inherit}
-  a{color:var(--c-expected)}
-  :focus-visible{outline:3px solid var(--c-check);outline-offset:3px}
+  a{color:var(--mg-accent)}
+  :focus-visible{outline:2px solid var(--mg-accent);outline-offset:2px}
   svg.i{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   [hidden]{display:none!important}
 
   /* Nothing shows until we know whether someone is signed in: no flash of the wrong screen. */
   body.booting #signin, body.booting #app{display:none}
 
-  .mark{display:flex;align-items:center;gap:14px;font:700 34px/1 var(--display);letter-spacing:-.01em}
-  .mark .shield{width:44px;height:48px;flex:none}
+  /* Shell (part of the design system): mark, sign-in frame, rail, header, legacy aliases */
+  .mark{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:500;letter-spacing:-.01em;color:var(--mg-text)}
+  .mark .shield{width:22px;height:24px;flex:none}
 
   /* ---------- Sign-in ---------- */
-  #signin{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;
-          gap:0 80px;padding:56px 96px 48px;
-          background:radial-gradient(1200px 700px at 18% 60%,rgba(43,74,110,.55),transparent 70%),var(--bg)}
+  #signin{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;
+          gap:0 96px;padding:40px 120px 40px;background:var(--mg-surface)}
   #signin .mark{grid-column:1/-1}
   .si-left{align-self:center}
-  .si-q{font:800 156px/.92 var(--display);letter-spacing:-.025em;margin:0}
-  .si-q span{display:block;color:var(--c-check)}
-  .si-lede{font-size:28px;line-height:1.38;color:var(--muted);max-width:38ch;margin:34px 0 0}
-  .si-lede b{color:var(--text);font-weight:600}
+  .si-kick{font-size:20px;color:var(--mg-text-2);margin:0 0 12px}
+  .si-q{font-size:84px;font-weight:400;line-height:1.02;letter-spacing:-.035em;margin:0;color:var(--mg-text)}
+  .si-q span{display:block}
+  .si-lede{font-size:20px;line-height:1.5;color:var(--mg-text-2);max-width:44ch;margin:24px 0 0}
+  .si-lede b{color:var(--mg-text);font-weight:500}
   .si-right{align-self:center}
-  .ping{background:var(--s1);border:1.5px solid var(--rule);border-radius:var(--r-xl);padding:40px 44px 44px;
-        box-shadow:0 40px 80px -40px rgba(0,0,0,.7)}
-  .ping h2{font:700 44px/1.05 var(--display);margin:0 0 10px}
-  .ping p{margin:0 0 30px;color:var(--muted)}
-  .auth{display:flex;flex-direction:column;gap:16px}
-  #g-btn{min-height:52px;display:flex;align-items:center}
-  .g-note{font-size:18px;color:var(--faint);margin:0}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;border:0;border-radius:999px;cursor:pointer;
-       font-weight:600;font-size:21px;padding:14px 28px;transition:background .15s,color .15s}
-  .btn-solid{background:var(--text);color:var(--ink)}
-  .btn-solid:hover{background:#fff}
-  .btn-ghost{background:transparent;color:var(--text);box-shadow:inset 0 0 0 2px var(--rule)}
-  .btn-ghost:hover{box-shadow:inset 0 0 0 2px var(--muted)}
-  .btn[disabled]{opacity:.5;cursor:default}
-  .or{display:flex;align-items:center;gap:14px;color:var(--faint);font-size:17px}
-  .or::before,.or::after{content:"";flex:1;height:1.5px;background:var(--rule)}
-  .after{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:40px;padding-top:28px;
-         border-top:1.5px solid var(--rule)}
-  .after div{display:flex;gap:16px;align-items:flex-start;color:var(--muted);font-size:20px;line-height:1.35}
-  .after b{display:block;color:var(--text);font-weight:600;font-size:22px}
-  .after svg.i{font-size:30px;color:var(--c-check);margin-top:2px}
+  .ping{background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:12px;padding:36px 36px 32px;box-shadow:var(--mg-shadow);max-width:460px}
+  .ping h2{font-size:22px;font-weight:500;margin:0 0 6px;letter-spacing:-.01em}
+  .ping p{margin:0 0 24px;color:var(--mg-text-2);font-size:16px}
+  .auth{display:flex;flex-direction:column;gap:12px}
+  .auth .btn{width:100%;padding:12px 16px}
+  #g-btn{min-height:44px;display:flex;align-items:center}
+  .g-note{font-size:14px;color:var(--mg-text-3);margin:0}
+  .or{display:flex;align-items:center;gap:12px;color:var(--mg-text-3);font-size:14px}
+  .or::before,.or::after{content:"";flex:1;height:1px;background:var(--mg-line)}
+  .after{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:40px;margin-top:32px;padding-top:24px;border-top:1px solid var(--mg-line)}
+  .after div{display:flex;gap:12px;align-items:flex-start;color:var(--mg-text-2);font-size:15px;line-height:1.45}
+  .after b{display:block;color:var(--mg-text);font-weight:500;font-size:16px}
+  .after svg.i{font-size:20px;color:var(--mg-text-3);margin-top:1px;stroke-width:1.6}
 
   /* ---------- Signed-in app ---------- */
-  #app{height:100vh;display:grid;grid-template-columns:316px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
-  #rail{grid-row:1/3;background:var(--ink);border-right:1.5px solid var(--rule);display:flex;flex-direction:column;padding:34px 22px 28px}
-  #rail .mark{padding:0 12px 40px}
-  #nav{display:flex;flex-direction:column;gap:6px}
-  #nav a{display:flex;align-items:center;gap:16px;padding:14px 18px;border-radius:var(--r-md);color:var(--muted);
-         text-decoration:none;font-weight:600;font-size:22px;position:relative;white-space:nowrap}
-  #nav a svg.i{font-size:26px}
-  #nav a:hover{background:var(--s1);color:var(--text)}
-  #nav a[aria-current="page"]{background:var(--s2);color:var(--text)}
-  #nav a[aria-current="page"]::before{content:"";position:absolute;left:-22px;top:12px;bottom:12px;width:5px;border-radius:0 4px 4px 0;background:var(--c-check)}
-  .rail-foot{margin-top:auto;padding:18px;border-radius:var(--r-lg);background:var(--s1);font-size:17px;color:var(--muted);line-height:1.35}
-  .rail-foot b{display:block;font:700 26px/1.15 var(--display);color:var(--text);margin-top:4px;letter-spacing:.01em}
+  #app{height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  #rail{grid-row:1/3;background:var(--mg-rail);border-right:1px solid var(--mg-line);display:flex;flex-direction:column;padding:26px 14px 22px}
+  #rail .mark{padding:0 10px 28px}
+  #nav{display:flex;flex-direction:column;gap:2px}
+  #nav a{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:8px;color:var(--mg-text-2);
+         text-decoration:none;font-weight:400;font-size:16px;position:relative;white-space:nowrap}
+  #nav a svg.i{font-size:18px;stroke-width:1.7}
+  #nav a:hover{background:#E9EBF0;color:var(--mg-text)}
+  #nav a[aria-current="page"]{background:#E4E6EC;color:var(--mg-text);font-weight:500}
+  #nav a[aria-current="page"]::before{content:"";position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--mg-accent)}
+  .rail-foot{margin-top:auto;padding:0 12px;font-size:13px;color:var(--mg-text-3);line-height:1.4}
+  .rail-foot b{display:block;font-size:15px;font-weight:500;color:var(--mg-text-2);margin-top:2px;letter-spacing:0}
 
-  #top{display:flex;align-items:center;gap:22px;padding:30px 48px 22px}
-  #title{font:700 52px/1 var(--display);letter-spacing:-.01em;margin:0;flex:1;min-width:0}
-  .badge{display:inline-flex;align-items:center;gap:10px;border-radius:999px;padding:9px 18px 9px 14px;font-size:19px;font-weight:600;border:0}
-  .badge svg.i{font-size:22px}
-  .badge.ok{background:rgba(47,194,122,.16);color:var(--c-ok)}
-  .badge.todo{background:rgba(255,196,37,.14);color:var(--c-check);cursor:pointer;box-shadow:inset 0 0 0 2px rgba(255,196,37,.45)}
-  .badge.todo:hover{background:rgba(255,196,37,.24)}
-  .who{display:flex;align-items:center;gap:14px;font-weight:600}
-  .avatar{width:52px;height:52px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;
-          background:var(--c-screen);color:#fff;font:700 22px/1 var(--display);letter-spacing:.02em}
+  #top{display:flex;align-items:center;gap:16px;padding:26px 40px 18px}
+  #title{font-size:var(--mg-fs-title);font-weight:500;line-height:1.1;letter-spacing:-.02em;margin:0;flex:1;min-width:0}
+  .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 12px 4px 10px;font-size:14px;font-weight:500;border:0}
+  .badge svg.i{font-size:15px}
+  .badge.ok{background:var(--mg-green-soft);color:var(--mg-green)}
+  .badge.todo{background:var(--mg-orange-soft);color:var(--mg-orange);cursor:pointer}
+  .badge.todo:hover{background:#F9E2D2}
+  .who{display:flex;align-items:center;gap:10px;font-weight:400;font-size:16px}
+  .avatar{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;
+          background:#E3E6F4;color:#3B4699;font-size:13px;font-weight:500;line-height:1;letter-spacing:.02em}
   .avatar img{width:100%;height:100%;object-fit:cover}
-  .avatar.big{width:112px;height:112px;font-size:46px}
-  .iconbtn{border:0;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:8px;
-           padding:10px 14px;border-radius:12px;font-size:18px;font-weight:600}
-  .iconbtn:hover{background:var(--s1);color:var(--text)}
-  .iconbtn svg.i{font-size:22px}
+  .avatar.big{width:72px;height:72px;font-size:26px}
+  .iconbtn{border:0;background:transparent;color:var(--mg-text-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+           padding:6px 8px;border-radius:8px;font-size:15px;font-weight:400}
+  .iconbtn:hover{background:var(--mg-subtle);color:var(--mg-text)}
+  .iconbtn svg.i{font-size:16px;stroke-width:1.7}
 
-  main{min-height:0;overflow:auto;padding:4px 48px 40px}
+  main{min-height:0;overflow:auto;padding:4px 40px 32px}
   .view{height:100%;min-height:0}
-  .lede{color:var(--muted);margin:0 0 26px;max-width:70ch;font-size:22px}
+  .lede{color:var(--mg-text-2);margin:0 0 20px;max-width:80ch;font-size:16px;line-height:1.5}
 
-  .card{background:var(--s1);border-radius:var(--r-xl);padding:28px 32px;min-height:0;position:relative;overflow:hidden}
-  .card h3{font:700 30px/1.1 var(--display);margin:0 0 6px;letter-spacing:.005em}
-  .card .sub{color:var(--muted);font-size:18px;margin:0}
-  .empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;color:var(--faint);
-         font-size:20px;line-height:1.4;flex:1;min-height:0}
-  .empty b{color:var(--muted);font-weight:600}
-  .chip{display:inline-flex;align-items:center;gap:8px;font-size:17px;font-weight:600;padding:4px 14px 4px 11px;border-radius:999px;
-        border:2px solid var(--rule);color:var(--muted)}
-  .chip i{width:10px;height:10px;border-radius:50%;background:var(--faint)}
-  .chip.on{border-color:transparent;background:var(--s3);color:var(--text)}
-  .chip.on i{background:var(--c-ok)}
-  .chip.off i{background:var(--faint)}
+  /* legacy aliases, same look as .m-card / .m-empty / .m-tag */
+  .card{background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:24px;min-height:0;position:relative;overflow:hidden}
+  .card h3{font-size:var(--mg-fs-section);font-weight:500;line-height:1.3;margin:0 0 2px;letter-spacing:-.005em}
+  .card .sub{color:var(--mg-text-2);font-size:15px;margin:0}
+  .empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;color:var(--mg-text-3);
+         font-size:15px;line-height:1.45;flex:1;min-height:0}
+  .empty b{color:var(--mg-text-2);font-weight:500;font-size:var(--mg-fs)}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:500;padding:3px 10px;border-radius:999px;
+        border:0;background:var(--mg-subtle);color:var(--mg-text-2);white-space:nowrap}
+  .chip i{width:7px;height:7px;border-radius:50%;background:var(--mg-text-3)}
+  .chip.on{background:var(--mg-subtle);color:var(--mg-text)}
+  .chip.on i{background:var(--mg-green)}
+  .chip.off i{background:var(--mg-text-3)}
 
   /* Overview */
   #v-overview{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto minmax(0,1fr) minmax(0,1fr);gap:24px}
@@ -155,112 +222,117 @@
   .graph-cap h3{font-size:34px}
 
   /* === overview and graph === */
-  :root{--c-bar:#3F6B98;--c-tactic:#B794FF;--c-other:#8796A3}
-  #v-overview{grid-template-rows:auto minmax(0,.9fr) minmax(0,1.1fr)}
-  #v-overview .card{padding:24px 30px}
-  #v-overview .stat .l,#v-overview .stat.hero .money{white-space:nowrap}
-  #v-overview{grid-template-rows:auto minmax(0,.82fr) minmax(0,1.18fr)}
-  .donut{width:160px!important;height:160px!important}
-  .legend{gap:2px!important;line-height:1.2}
-  .legend li b{line-height:1.05!important}
-  .rlist{margin-top:0!important}
-  .rr{padding:4px 10px!important}
-  .rr .ro{gap:2px!important}
+  :root{--c-other:#B8BCC8;--ov-blk-bar:color-mix(in srgb,var(--mg-red) 55%,#fff)}
+  #v-overview{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto minmax(0,1fr) minmax(0,1.15fr);gap:20px}
+  #v-overview>.m-card{display:flex;flex-direction:column;min-height:0;padding:22px 26px}
+  #v-overview .ov-a{grid-column:1/5;grid-row:2}
+  #v-overview .ov-b{grid-column:5/10;grid-row:2}
+  #v-overview .ov-d{grid-column:10/13;grid-row:2}
+  #v-overview .ov-c{grid-column:1/-1;grid-row:3}
+  #v-overview .ov-empty{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px}
   /* The live-call banner sits above the views; keep both views inside one screen while it shows. */
   main:has(> #lc-banner:not([hidden])) :is(#v-overview,#v-graph){height:calc(100% - var(--lc-h,66px))}
   .ovb{flex:1;min-height:0;display:flex;margin-top:14px}
-  .sub .key{display:inline-block;width:14px;height:14px;border-radius:4px;margin:0 8px 0 2px;vertical-align:-1px}
-  .sub .key+.key,.sub i.key:nth-of-type(2){margin-left:14px}
-  /* donut */
-  .dn-wrap{display:flex;align-items:center;gap:26px;width:100%;min-width:0}
-  .donut{width:176px;height:176px;flex:none;overflow:visible}
-  .donut .seg{fill:none;stroke-width:24;transition:stroke-dasharray .7s ease,stroke-dashoffset .7s ease}
-  .donut .track{fill:none;stroke:var(--s2);stroke-width:24}
-  .donut .tot{font:700 56px/1 var(--display);fill:var(--text)}
-  .donut .tl{font:600 16px var(--font);fill:var(--muted)}
-  .legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:18px;min-width:0;flex:1}
-  .legend li{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:12px;align-items:center;color:var(--muted);white-space:nowrap}
-  .legend li span{overflow:hidden;text-overflow:ellipsis}
-  .legend li i{width:14px;height:14px;border-radius:4px}
-  .legend li b{color:var(--text);font:700 24px/1.15 var(--display);text-align:right}
-  .legend li.zero{opacity:.4}
+  .m-caption .key{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 7px 0 0;background:var(--mg-accent-line)}
+  .m-caption .key.blk{background:var(--ov-blk-bar);margin-left:16px}
+  /* quiet number strip */
+  #v-overview .heads{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;
+    background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r)}
+  .ov-num{display:flex;flex-direction:column;gap:6px;padding:20px 26px 22px;border-left:1px solid var(--mg-line);min-width:0}
+  .ov-num:first-child{border-left:0}
+  .ov-num .l{font-size:var(--mg-fs-cap);color:var(--mg-text-2);white-space:nowrap}
+  .ov-num .n{font-size:var(--mg-fs-num);font-weight:400;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+  .ov-num.blk .n{color:var(--mg-red)}
+  .ov-num .n.dim{color:var(--mg-text-3)}
+  /* how calls ended: one stacked bar and a plain legend table */
+  .sb{display:flex;flex-direction:column;width:100%;min-width:0}
+  .sb-total{display:flex;align-items:baseline;gap:8px;color:var(--mg-text-2);font-size:15px}
+  .sb-total b{font-size:32px;font-weight:400;letter-spacing:-.02em;color:var(--mg-text)}
+  .sb-bar{display:flex;gap:2px;height:12px;margin:12px 0 14px;border-radius:3px;overflow:hidden;background:var(--mg-subtle)}
+  .sb-bar i{height:100%;width:0;flex:none;transition:width .7s ease}
+  .sb-leg{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;column-gap:28px}
+  .sb-leg li{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--mg-line);font-size:15px;color:var(--mg-text-2);white-space:nowrap}
+  .sb-leg li:nth-child(-n+2){border-top:0}
+  .sb-leg li span{overflow:hidden;text-overflow:ellipsis}
+  .sb-leg li i{width:8px;height:8px;border-radius:50%}
+  .sb-leg li b{font-weight:500;color:var(--mg-text)}
+  .sb-leg li.zero{color:var(--mg-text-3)}
+  .sb-leg li.zero b{color:var(--mg-text-3);font-weight:400}
   /* bars over time */
   .bars{flex:1;display:flex;flex-direction:column;min-width:0}
-  .bars .plot{flex:1;min-height:0;display:flex;align-items:stretch;gap:12px;border-bottom:2px solid var(--rule)}
+  .bars .plot{flex:1;min-height:0;display:flex;align-items:stretch;gap:10px;border-bottom:1px solid var(--mg-line)}
   .bars .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-width:0}
-  .bars .val{text-align:center;font:700 24px/1 var(--display);margin-bottom:6px;color:var(--text)}
+  .bars .val{text-align:center;font-size:15px;line-height:1;margin-bottom:6px;color:var(--mg-text)}
   .bars .val.z{visibility:hidden}
-  .bars .bar{background:var(--c-bar);border-radius:8px 8px 2px 2px;height:0;transition:height .7s ease;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
-  .bars .blk{background:var(--c-denied);height:0;transition:height .7s ease}
-  .bars .labels{display:flex;gap:12px;margin-top:8px}
-  .bars .labels span{flex:1;text-align:center;color:var(--faint);font-size:16px;white-space:nowrap;min-width:0}
+  .bars .bar{background:var(--mg-accent-soft);border-top:2px solid var(--mg-accent);border-radius:2px 2px 0 0;height:0;transition:height .7s ease;
+             display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+  .bars .blk{background:var(--ov-blk-bar);height:0;transition:height .7s ease}
+  .bars .labels{display:flex;gap:10px;margin-top:8px}
+  .bars .labels span{flex:1;text-align:center;color:var(--mg-text-3);font-size:13px;white-space:nowrap;min-width:0}
   /* tactics */
-  .tac{display:flex;flex-direction:column;gap:12px;width:100%}
-  .tac-row{display:grid;grid-template-columns:200px minmax(0,1fr) 44px;gap:14px;align-items:center;font-size:19px;color:var(--muted)}
-  .tac-row .trk{height:16px;border-radius:8px;background:var(--s2);overflow:hidden}
-  .tac-row .fil{height:100%;width:0;border-radius:8px;background:var(--c-tactic);transition:width .7s ease}
-  .tac-row b{font:700 26px/1 var(--display);color:var(--text);text-align:right}
-  .tac-row.zero b{color:var(--faint)}
-  .answered{margin-top:auto;padding-top:14px;border-top:1.5px solid var(--rule);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-  .answered .al{color:var(--muted);font-size:18px;font-weight:600;margin-right:4px}
-  .answered .ac{background:var(--s2);border-radius:999px;padding:4px 14px;font-size:18px;font-weight:600}
-  .answered .ac b{font:700 21px/1 var(--display);margin-left:6px}
-  .answered .none{color:var(--faint);font-size:18px}
+  .tac{display:flex;flex-direction:column;width:100%}
+  .tac-row{display:grid;grid-template-columns:minmax(0,1fr) 72px 30px;gap:12px;align-items:center;font-size:15px;color:var(--mg-text);padding:7px 0;border-top:1px solid var(--mg-line)}
+  .tac-row:first-child{border-top:0}
+  .tac-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tac-row .trk{height:4px;border-radius:2px;background:var(--mg-subtle);overflow:hidden}
+  .tac-row .fil{height:100%;width:0;background:var(--mg-text-3);transition:width .7s ease}
+  .tac-row b{font-weight:500;text-align:right}
+  .tac-row.zero,.tac-row.zero b{color:var(--mg-text-3);font-weight:400}
+  .answered{margin-top:auto;padding-top:10px;font-size:14px;color:var(--mg-text-2);line-height:1.5}
+  .answered b{font-weight:500;color:var(--mg-text)}
   /* recent attempts */
-  .rlist{list-style:none;margin:10px 0 0;padding:0;flex-direction:column;overflow:hidden}
-  .rr{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:18px;align-items:center;padding:7px 10px;border-top:1.5px solid var(--rule);border-radius:10px}
-  .rr:first-child{border-top-color:transparent}
+  .rhead,.rr{display:grid;grid-template-columns:72px minmax(0,1.15fr) minmax(0,1fr) minmax(0,1.2fr) 150px minmax(0,1.35fr);gap:18px;align-items:center}
+  .rhead{margin-top:14px;padding:0 0 8px;border-bottom:1px solid var(--mg-line);font-size:var(--mg-fs-cap);color:var(--mg-text-3)}
+  .rlist{margin:0;flex-direction:column;overflow:hidden}
+  .rlist.ovb{margin-top:0}
+  .rr{padding:11px 0;font-size:16px;white-space:nowrap}
+  .rr>*{overflow:hidden;text-overflow:ellipsis}
   .rr.new{animation:rrnew 2.4s ease}
-  @keyframes rrnew{0%,35%{background:rgba(255,196,37,.16)}100%{background:transparent}}
-  .rr time{font:700 22px/1 var(--display);color:var(--muted)}
-  .rr .l1{display:flex;align-items:baseline;gap:10px;font-size:21px;line-height:1.25;white-space:nowrap;overflow:hidden}
-  .rr .l1 b{font-weight:700}
-  .rr .l1 .rel,.rr .l1 .num{color:var(--muted);font-size:17px}
-  .rr .l2{display:flex;align-items:center;gap:10px;font-size:18px;line-height:1.3;color:var(--muted);white-space:nowrap;overflow:hidden;margin-top:2px}
-  .rr .want{color:var(--text);font-weight:600}
-  .rr .want.no{color:var(--faint);font-weight:500}
-  .rr .scam{border:1.5px solid var(--rule);border-radius:999px;padding:0 10px;font-size:15px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
-  .tdots{display:inline-flex;gap:5px;flex:none}
-  .tdots i{width:11px;height:11px;border-radius:50%;background:var(--s3)}
-  .tdots i.on{background:var(--c-tactic)}
-  .rr .ro{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
-  .oc{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:3px 13px 3px 10px;font-size:17px;font-weight:700;
-      color:var(--oc);background:color-mix(in srgb,var(--oc) 17%,transparent)}
-  .oc::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--oc)}
-  .rr .how{color:var(--muted);font-size:15px;white-space:nowrap}
+  @keyframes rrnew{0%,35%{background:var(--mg-accent-soft)}100%{background:transparent}}
+  .rr time{color:var(--mg-text-2)}
+  .rr .who b{font-weight:500}
+  .rr .rel,.rr .num{color:var(--mg-text-3);margin-left:8px}
+  .rr .want.no{color:var(--mg-text-3)}
+  .rr .scam,.rr .how{color:var(--mg-text-2);font-size:15px}
+  .rr .oc{overflow:visible}
 
   /* knowledge graph canvas */
   #g-box{position:absolute;inset:0}
   #g-svg{position:absolute;inset:0;width:100%;height:100%;display:block}
-  .g-top{position:absolute;left:36px;right:36px;top:26px;display:flex;justify-content:space-between;align-items:baseline;gap:20px;pointer-events:none}
-  .g-sum{font:700 30px/1.1 var(--display)}
-  .g-sum span{color:var(--muted);font:500 20px var(--font);margin-left:12px}
-  .g-src{color:var(--faint);font-size:17px;font-weight:600}
-  .g-legend{position:absolute;left:36px;right:36px;bottom:24px;display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--muted);font-size:17px;pointer-events:none}
-  .g-legend span{display:inline-flex;align-items:center;gap:9px}
-  .g-legend svg{width:20px;height:20px;overflow:visible}
+  #v-graph .g-card{height:100%;position:relative;overflow:hidden}
+  .graph-empty g[fill]{fill:var(--mg-subtle)} .graph-empty g[stroke]{stroke:var(--mg-line)} .graph-empty svg>circle{fill:var(--mg-accent-soft)}
+  .g-top{position:absolute;left:28px;right:28px;top:22px;display:flex;justify-content:space-between;align-items:baseline;gap:20px;pointer-events:none}
+  .g-sum{font-size:var(--mg-fs-section);font-weight:500}
+  .g-sum span{color:var(--mg-text-2);font-size:15px;font-weight:400;margin-left:12px}
+  .g-src{color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
+  .g-foot{position:absolute;left:28px;right:28px;bottom:18px;pointer-events:none;border-top:1px solid var(--mg-line);padding-top:12px}
+  .g-legend{display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--mg-text-2);font-size:var(--mg-fs-cap)}
+  .g-legend span{display:inline-flex;align-items:center;gap:8px}
+  .g-legend svg{width:16px;height:16px;overflow:visible}
+  .g-note{margin:6px 0 0;color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
   .gn{cursor:pointer;transition:opacity .2s}
-  .gn text{paint-order:stroke;stroke:var(--s1);stroke-width:7px;stroke-linejoin:round;fill:var(--text);font-family:var(--font);font-weight:600;font-size:19px}
-  .gn.t-contact text{font:700 26px var(--display)}
-  .gn.t-owner text{font:800 34px var(--display)}
-  .gn.t-contact text.in{stroke:none;fill:var(--ink);font:800 24px var(--display)}
-  .gn.t-fact text{fill:var(--muted);font-weight:500}
-  .gn.t-attempt.blk text{fill:#FF9AA8}
-  .ge{fill:none;stroke:#34495E;stroke-width:2;transition:opacity .2s}
-  .ge.e-contact{stroke:#4A6178;stroke-width:3.5}
-  .ge.e-blk{stroke:var(--c-denied);stroke-dasharray:9 8;stroke-width:2.5}
-  .ge.e-ok{stroke:var(--c-ok);stroke-width:2.5}
-  .gel{font:600 16px var(--font);fill:var(--muted);paint-order:stroke;stroke:var(--s1);stroke-width:6px;stroke-linejoin:round;transition:opacity .2s}
-  #g-svg.focus .gn:not(.hl){opacity:.16}
-  #g-svg.focus .ge:not(.hl),#g-svg.focus .gel:not(.hl){opacity:.07}
-  .gn.sel circle.halo{stroke:var(--text);stroke-width:3}
-  #g-card{position:absolute;width:400px;background:var(--s2);border-radius:20px;padding:18px 22px 20px;pointer-events:none;
-          box-shadow:0 24px 48px -16px rgba(0,0,0,.75),inset 0 0 0 1.5px var(--rule)}
-  #g-card .gk{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:16px;font-weight:600}
-  #g-card .gk i{width:11px;height:11px;border-radius:50%}
-  #g-card .gt{font:700 28px/1.15 var(--display);margin:6px 0 6px}
-  #g-card .gd{color:var(--muted);font-size:18px;line-height:1.4;margin:0}
-  #g-card .gp{color:var(--faint);font-size:15px;margin-top:10px}
+  .gn text{paint-order:stroke;stroke:var(--mg-surface);stroke-width:4px;stroke-linejoin:round;fill:var(--mg-text);font-family:var(--mg-font);font-weight:400;font-size:17px}
+  .gn.t-contact text{font-weight:500;font-size:20px}
+  .gn.t-owner text{font-weight:500;font-size:22px}
+  .gn.t-contact text.in{stroke:none;fill:var(--mg-text);font-weight:500;font-size:16px}
+  .gn.t-fact text{fill:var(--mg-text-2)}
+  .gn.t-attempt.blk text{fill:var(--mg-red)}
+  .ge{fill:none;stroke:#D5D8E0;stroke-width:1;transition:opacity .2s}
+  .ge.e-contact{stroke:#B9BDC9;stroke-width:1.5}
+  .ge.e-blk{stroke:var(--mg-red);stroke-dasharray:5 5;stroke-opacity:.7}
+  .ge.e-ok{stroke:var(--mg-green);stroke-opacity:.7}
+  .gel{font:400 14px var(--mg-font);fill:var(--mg-text-3);paint-order:stroke;stroke:var(--mg-surface);stroke-width:4px;stroke-linejoin:round;transition:opacity .2s}
+  #g-svg.focus .gn:not(.hl){opacity:.2}
+  #g-svg.focus .ge:not(.hl),#g-svg.focus .gel:not(.hl){opacity:.12}
+  .gn.sel .ring{stroke:var(--mg-accent);stroke-width:2}
+  #g-card{position:absolute;width:380px;background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:16px 18px 18px;
+          pointer-events:none;box-shadow:0 8px 24px -14px rgba(27,29,42,.22)}
+  #g-card .gk{display:flex;align-items:center;gap:8px;color:var(--mg-text-2);font-size:var(--mg-fs-cap)}
+  #g-card .gk i{width:8px;height:8px;border-radius:50%}
+  #g-card .gt{font-size:20px;font-weight:500;line-height:1.25;margin:6px 0}
+  #g-card .gd{color:var(--mg-text-2);font-size:16px;line-height:1.45;margin:0}
+  #g-card .go{color:var(--mg-text-2);font-size:var(--mg-fs-cap);margin-top:10px;padding-top:8px;border-top:1px solid var(--mg-line)}
+  #g-card .gp{color:var(--mg-text-3);font-size:13px;margin-top:8px}
 
   /* Profile */
   #v-profile{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:24px;align-content:start}
@@ -394,133 +466,149 @@
   #signup p{color:var(--muted);margin:0 0 30px;font-size:23px;max-width:46ch}
 
   /* === live call === */
-  #v-live{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(0,1fr) 310px;grid-template-rows:auto minmax(0,1fr);gap:24px}
-  .lc-st-screen{--lc-c:var(--c-screen);--lc-on:#fff}
-  .lc-st-check{--lc-c:var(--c-check);--lc-on:var(--ink)}
-  .lc-st-denied{--lc-c:var(--c-denied);--lc-on:#fff}
-  .lc-st-ok{--lc-c:var(--c-ok);--lc-on:var(--ink)}
-  .lc-st-known{--lc-c:var(--c-known);--lc-on:var(--ink)}
-  .lc-st-expected{--lc-c:var(--c-expected);--lc-on:#fff}
-  .lc-st-unver{--lc-c:var(--c-unver);--lc-on:var(--ink)}
-  .lc-st-agent{--lc-c:#8C9CF0;--lc-on:var(--ink)}
-  .lc-hero{grid-column:1/3;position:relative;overflow:hidden;border-radius:var(--r-xl);height:222px;padding:22px 36px 24px;
-           display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr) auto;gap:0 36px;
-           background:var(--s1);color:var(--text);transition:background-color .45s ease,color .45s ease,box-shadow .45s ease}
-  .lc-hero.lc-live{background:var(--lc-c);color:var(--lc-on)}
-  .lc-hero.lc-last{box-shadow:inset 0 0 0 3px var(--lc-c)}
-  .lc-hero.lc-idle{background:radial-gradient(700px 260px at 0% 100%,rgba(43,74,110,.55),transparent 70%),var(--s1)}
-  .lc-top{grid-column:1;display:flex;align-items:center;gap:12px;font-size:21px;font-weight:600;opacity:.9;min-width:0;white-space:nowrap}
-  .lc-word{grid-column:1;align-self:end;font:800 104px/.95 var(--display);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lc-idle .lc-word{font-size:84px;color:var(--muted)}
-  .lc-last .lc-word{color:var(--lc-c)}
-  .lc-why{grid-column:1;margin:10px 0 0;font-size:25px;font-weight:600;line-height:1.25;max-width:64ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lc-idle .lc-why,.lc-last .lc-why{color:var(--muted)}
-  .lc-side{grid-column:2;grid-row:1/4;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;text-align:right;gap:12px}
-  .lc-secs{font:700 80px/1 var(--display);letter-spacing:-.01em}
-  .lc-cap{font-size:19px;font-weight:600;opacity:.85;margin-top:4px}
-  .lc-chans{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;max-width:420px}
-  .lc-chans .chip{border-color:currentColor;color:inherit;opacity:.9}
-  .lc-chans .chip.on{background:var(--lc-on);color:var(--lc-c);border-color:transparent;opacity:1}
-  .lc-scenes{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;opacity:.55;transition:opacity .2s}
-  .lc-scenes:hover,.lc-scenes:focus-within{opacity:1}
-  .lc-scenes button{font:600 14px var(--font);padding:5px 10px;border-radius:9px;border:1.5px solid var(--rule);background:transparent;color:var(--muted);cursor:pointer}
-  .lc-scenes button:hover{background:var(--s2);color:var(--text)}
-  .lc-scenes button[disabled]{opacity:.5;cursor:default}
-  .lc-pbtn{margin-left:auto;font-size:16px;padding:6px 12px;box-shadow:inset 0 0 0 1.5px var(--rule)}
-  .lc-sub{font:600 17px/1.3 var(--font);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  body.lc-present #rail,body.lc-present #top{display:none}
-  body.lc-present #app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
-  body.lc-present main{padding:28px 32px}
-  body.lc-present #v-live{grid-template-columns:minmax(0,1.65fr) minmax(0,1fr) 300px}
-  body.lc-present .lc-hero{height:300px;padding:28px 44px 30px}
-  body.lc-present .lc-word{font-size:150px}
-  body.lc-present .lc-why{font-size:31px}
-  body.lc-present .lc-secs{font-size:108px}
-  body.lc-present .lc-said{font-size:40px}
-  body.lc-present .lc-turn.agent .lc-said{font-size:33px}
-  .lc-bar{position:absolute;left:0;right:0;bottom:0;height:8px}
-  .lc-bar i{display:block;height:100%;width:0;background:currentColor;opacity:.4;transition:width .25s linear}
-  .lc-onair{width:13px;height:13px;border-radius:50%;background:var(--faint);flex:none}
-  .lc-onair.on{background:var(--c-denied);animation:lc-breathe 1.6s ease-in-out infinite}
-  .lc-live .lc-onair.on{background:currentColor}
-  @keyframes lc-breathe{50%{opacity:.3}}
-  .lc-stamp{animation:lc-stamp .5s cubic-bezier(.2,.8,.2,1)}
-  @keyframes lc-stamp{0%{opacity:0;transform:scale(1.06)}60%{opacity:1}100%{transform:none}}
+  /* Calm by default; the status band fills with the outcome colour only in the decisive states. Uses the design-system tokens. */
+  #v-live{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) 300px;grid-template-rows:auto minmax(0,1fr);gap:20px}
+  .lc-st-screen{--lc-c:var(--mg-accent)} .lc-st-check{--lc-c:var(--mg-amber)} .lc-st-denied{--lc-c:var(--mg-red)}
+  .lc-st-ok{--lc-c:var(--mg-green)} .lc-st-known{--lc-c:var(--mg-teal)} .lc-st-expected{--lc-c:var(--mg-accent)}
+  .lc-st-unver{--lc-c:var(--mg-orange)} .lc-st-agent{--lc-c:var(--mg-accent)}
 
-  .lc-talk{grid-column:1;grid-row:2;display:flex;flex-direction:column;padding:24px 32px 26px}
-  .lc-h{display:flex;align-items:center;gap:14px}
+  /* status band */
+  .lc-hero{grid-column:1/3;position:relative;overflow:hidden;height:196px;padding:22px 28px 24px;border:1px solid var(--mg-line);border-radius:var(--mg-r);
+           background:var(--mg-surface);color:var(--mg-text);display:grid;grid-template-columns:minmax(0,1fr) auto;
+           grid-template-rows:auto minmax(0,1fr) auto;gap:0 32px;transition:background-color .35s ease,color .35s ease,border-color .35s ease}
+  .lc-hero.lc-live:not(.lc-st-screen){background:var(--lc-c);border-color:var(--lc-c);color:#fff}
+  .lc-top{grid-column:1;display:flex;align-items:center;gap:10px;font-size:15px;color:var(--mg-text-2);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-hero.lc-live:not(.lc-st-screen) .lc-top{color:rgba(255,255,255,.85)}
+  .lc-word{grid-column:1;align-self:end;font-size:64px;font-weight:500;line-height:1;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-idle .lc-word{color:var(--mg-text-2);font-weight:400}
+  .lc-last .lc-word{color:var(--lc-c)}
+  .lc-why{grid-column:1;margin:10px 0 0;font-size:18px;line-height:1.35;color:var(--mg-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-hero.lc-live:not(.lc-st-screen) .lc-why{color:#fff}
+  .lc-side{grid-column:2;grid-row:1/4;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;text-align:right;gap:8px}
+  .lc-secs{font-size:var(--mg-fs-num);font-weight:400;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums}
+  .lc-last .lc-secs{font-size:32px;color:var(--mg-text-2)}
+  .lc-cap{font-size:var(--mg-fs-cap);opacity:.8;margin-top:4px}
+  .lc-chans{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:380px}
+  .lc-ch{font-size:var(--mg-fs-cap);font-weight:500;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.2)}
+  .lc-ch.on{background:#fff;color:var(--lc-c)}
+  .lc-bar{position:absolute;left:0;right:0;bottom:0;height:3px}
+  .lc-bar i{display:block;height:100%;width:0;background:currentColor;opacity:.7;transition:width .25s linear}
+  .lc-onair{width:8px;height:8px;border-radius:50%;background:var(--mg-text-3);flex:none}
+  .lc-onair.on{background:var(--mg-red);animation:lc-breathe 1.6s ease-in-out infinite}
+  .lc-st-screen .lc-onair.on{background:var(--mg-accent)}
+  .lc-hero.lc-live:not(.lc-st-screen) .lc-onair.on{background:#fff}
+  @keyframes lc-breathe{50%{opacity:.35}}
+  .lc-stamp{animation:lc-stamp .35s ease}
+  @keyframes lc-stamp{from{opacity:0}to{opacity:1}}
+
+  /* transcript: a two-speaker script */
+  .lc-talk{grid-column:1;grid-row:2;display:flex;flex-direction:column;padding:20px 28px 22px}
+  .lc-h{display:flex;align-items:center;gap:10px}
   .lc-h h3{margin:0}
-  .lc-h-note{margin-left:auto;color:var(--faint);font-size:17px;font-weight:600}
-  .lc-convo{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:16px;padding:18px 2px 2px;
-            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 64px);mask-image:linear-gradient(to bottom,transparent 0,#000 64px)}
+  .lc-h-note{display:inline-flex;align-items:center;gap:8px;margin-left:auto;color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
+  .lc-talk .lc-h .lc-onair{order:3}
+  .lc-talk .lc-h .lc-onair:not(.on){display:none}
+  .lc-convo{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;padding:8px 0 0;
+            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 48px);mask-image:linear-gradient(to bottom,transparent 0,#000 48px)}
   .lc-convo::-webkit-scrollbar{display:none}
   .lc-convo>:first-child{margin-top:auto}
-  .lc-turn{flex:none;max-width:90%;animation:lc-in .3s ease}
-  @keyframes lc-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  .lc-who{display:block;font-size:18px;font-weight:700;color:var(--muted);margin:0 0 2px}
-  .lc-turn.cont{margin-top:-8px}
+  .lc-turn{flex:none;padding:12px 0;border-top:1px solid var(--mg-line)}
+  .lc-turn:first-child{border-top:0}
+  .lc-turn.cont{border-top:0;padding-top:0}
+  .lc-who{display:block;font-size:var(--mg-fs-cap);color:var(--mg-text-3);margin:0 0 2px}
   .lc-turn.cont .lc-who{display:none}
-  .lc-said{margin:0;font:600 33px/1.28 var(--font);color:var(--text);overflow-wrap:anywhere}
-  .lc-turn.agent{align-self:flex-end;background:var(--s2);border-radius:22px 22px 6px 22px;padding:12px 22px 15px}
-  .lc-turn.agent .lc-who{color:#8FB4E8}
-  .lc-turn.agent .lc-said{font-size:28px;font-weight:500;color:#C9D6E3}
-  .lc-turn.live .lc-said{color:var(--muted)}
-  .lc-turn.live .lc-said::after{content:"";display:inline-block;width:3px;height:.95em;margin-left:6px;vertical-align:-.12em;border-radius:2px;
-                                background:currentColor;animation:lc-breathe 1.1s ease-in-out infinite}
-  .lc-mask{display:inline-block;border-radius:8px;padding:0 .35em;font-size:.78em;line-height:1.35;vertical-align:.1em;
-           background:rgba(255,196,37,.16);color:var(--c-check);box-shadow:inset 0 0 0 1.5px rgba(255,196,37,.45)}
+  .lc-said{margin:0;font-size:26px;font-weight:400;line-height:1.35;letter-spacing:-.01em;color:var(--mg-text);overflow-wrap:anywhere}
+  .lc-turn.agent .lc-said{color:var(--mg-text-2)}
+  .lc-turn.live .lc-said{color:var(--mg-text-3)}
+  .lc-turn.live .lc-said::after{content:"";display:inline-block;width:2px;height:.9em;margin-left:4px;vertical-align:-.1em;background:currentColor;
+                                animation:lc-breathe 1.1s ease-in-out infinite}
+  .lc-mask{display:inline-block;border-radius:var(--mg-r-sm);padding:0 .35em;font-size:.72em;line-height:1.4;vertical-align:.12em;
+           background:var(--mg-subtle);color:var(--mg-text-2);border:1px solid var(--mg-line)}
 
-  .lc-facts{grid-column:2;grid-row:2;display:flex;flex-direction:column;padding:24px 28px 18px}
-  .lc-rows{margin:8px 0 0;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
-  .lc-f{flex:none;display:flex;flex-direction:column;gap:3px;border-top:1.5px solid var(--rule);padding:6px 0 5px}
-  .lc-n.lc-one{display:block;white-space:nowrap;text-overflow:ellipsis}
-  .lc-inl{font:600 17px/1 var(--font);color:var(--muted);margin-left:12px;letter-spacing:0}
-  .lc-last .lc-secs{font-size:56px}
+  /* what the guard sees: a plain definition list */
+  .lc-facts{grid-column:2;grid-row:2;display:flex;flex-direction:column;padding:20px 24px 12px}
+  .lc-rows{margin:8px 0 0;flex:1;min-height:0;overflow:hidden}
+  .lc-f{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--mg-line);padding:10px 0}
   .lc-f:first-child{border-top:0}
-  .lc-f dt{font-size:16px;font-weight:600;color:var(--muted)}
+  .lc-f dt{font-size:var(--mg-fs-cap);color:var(--mg-text-3)}
   .lc-f dd{margin:0;min-width:0}
-  .lc-v{font:700 30px/1.1 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lc-n{font-size:17px;color:var(--muted);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-  .lc-f.wait .lc-v{font:600 20px/1.3 var(--font);color:var(--faint)}
-  .lc-f.fresh{animation:lc-fresh 1.6s ease}
-  @keyframes lc-fresh{from{background:rgba(255,196,37,.12)}to{background:transparent}}
-  .lc-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
-  .lc-tags .chip{font-size:15px;padding:2px 11px 2px 9px}
-  .lc-tags .chip.lc-red{border-color:transparent;background:rgba(255,74,98,.2);color:#fff}
-  .lc-tags .chip.lc-red i{background:var(--c-denied)}
-  .lc-tags .chip.lc-pop{animation:lc-pop .45s ease}
-  @keyframes lc-pop{40%{transform:scale(1.1)}}
-  .lc-tags .chip.lc-warn{border-color:rgba(255,138,61,.55);color:var(--c-unver)}
-  .lc-tags .chip.lc-warn i{background:var(--c-unver)}
-  .lc-n.lc-scam{color:var(--c-denied);font-weight:700;display:block;white-space:nowrap;text-overflow:ellipsis;margin-top:6px}
-  .lc-q{color:var(--text);font-size:19px;font-weight:600;margin-bottom:6px}
+  .lc-v{font-size:19px;font-weight:500;line-height:1.3;color:var(--mg-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
+  .lc-f.wait .lc-v{font-weight:400;color:var(--mg-text-3)}
+  .lc-v .lc-dot{width:8px;height:8px;border-radius:50%;background:var(--lc-c);flex:none}
+  .lc-v[class*="lc-st-"]{color:var(--lc-c)}
+  .lc-n{font-size:15px;color:var(--mg-text-2);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .lc-n.lc-one{display:block;white-space:nowrap;text-overflow:ellipsis}
+  .lc-q{color:var(--mg-text);font-size:16px}
+  .lc-meta{color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
+  .lc-n.lc-scam{color:var(--mg-red)}
+  .lc-tags{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0}
+  .lc-tag{display:inline-flex;font-size:var(--mg-fs-cap);font-weight:500;padding:3px 10px;border-radius:999px;background:var(--mg-red-soft);color:var(--mg-red)}
+  .lc-tag.lc-pop{animation:lc-stamp .35s ease}
+  .lc-f.fresh{animation:lc-fresh 1.4s ease}
+  @keyframes lc-fresh{from{background:var(--mg-accent-soft)}to{background:transparent}}
 
-  .lc-tl{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;padding:24px 22px 22px 26px}
+  /* timeline */
+  .lc-tl{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;padding:20px 20px 16px}
+  .lc-pbtn{margin-left:auto;font:500 var(--mg-fs-cap)/1.2 var(--mg-font);padding:5px 10px;border:1px solid var(--mg-line);border-radius:8px;background:var(--mg-surface);color:var(--mg-text)}
+  .lc-pbtn:hover{background:var(--mg-subtle)}
   .lc-steps{list-style:none;margin:14px 0 0;padding:0;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
-            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 60px);mask-image:linear-gradient(to bottom,transparent 0,#000 60px)}
-  .lc-steps li{flex:none;display:grid;grid-template-columns:16px minmax(0,1fr);gap:0 14px;padding:0 0 14px;position:relative;animation:lc-in .3s ease}
-  .lc-steps li::before{content:"";position:absolute;left:7px;top:20px;bottom:-2px;width:2px;background:var(--rule)}
+            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 48px);mask-image:linear-gradient(to bottom,transparent 0,#000 48px)}
+  .lc-steps li{flex:none;display:grid;grid-template-columns:8px minmax(0,1fr);gap:0 12px;padding:0 0 12px;position:relative}
+  .lc-steps li::before{content:"";position:absolute;left:3.5px;top:14px;bottom:0;width:1px;background:var(--mg-line)}
   .lc-steps li:last-child{padding-bottom:0}
   .lc-steps li:last-child::before{display:none}
-  .lc-steps .d{width:16px;height:16px;border-radius:50%;margin-top:5px;background:var(--k,var(--faint));box-shadow:0 0 0 4px var(--s1)}
-  .lc-steps .t{display:block;font-size:15px;font-weight:600;color:var(--faint)}
-  .lc-steps .x{font-size:18px;line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-  .lc-steps li:last-child .x{font-weight:600}
+  .lc-steps .d{width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--k,var(--mg-text-3))}
+  .lc-steps .t{display:block;font-size:13px;color:var(--mg-text-3)}
+  .lc-steps .x{font-size:15px;line-height:1.35;color:var(--mg-text);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   #lc-tl-empty,#lc-talk-empty{flex:1}
+  .lc-scenes{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--mg-line)}
+  .lc-scenes button{font:400 13px/1.2 var(--mg-font);padding:5px 9px;border-radius:var(--mg-r-sm);border:1px solid var(--mg-line);background:var(--mg-surface);color:var(--mg-text-2);cursor:pointer}
+  .lc-scenes button:hover{background:var(--mg-subtle);color:var(--mg-text)}
+  .lc-scenes button[disabled]{opacity:.5;cursor:default}
 
-  #nav a .lc-dot{display:none;position:absolute;right:16px;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:var(--c-denied);
-                 box-shadow:0 0 0 0 rgba(255,74,98,.6);animation:lc-ring 1.6s ease-out infinite}
+  /* elsewhere in the app */
+  #nav a .lc-dot{display:none;position:absolute;right:12px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--mg-red);
+                 animation:lc-breathe 1.6s ease-in-out infinite}
   #nav a.lc-on .lc-dot{display:block}
-  @keyframes lc-ring{70%{box-shadow:0 0 0 10px rgba(255,74,98,0)}100%{box-shadow:0 0 0 0 rgba(255,74,98,0)}}
-  #lc-banner{display:flex;align-items:center;gap:14px;margin:0 0 16px;padding:10px 22px;border-radius:999px;text-decoration:none;color:var(--text);
-             font-size:20px;font-weight:600;background:rgba(255,74,98,.14);box-shadow:inset 0 0 0 2px rgba(255,74,98,.45)}
-  #lc-banner:hover{background:rgba(255,74,98,.22)}
-  #lc-banner .lc-onair{background:var(--c-denied);animation:lc-breathe 1.6s ease-in-out infinite}
-  #lc-banner u{text-decoration:none;color:var(--c-denied);margin-left:auto}
+  #lc-banner{display:flex;align-items:center;gap:10px;margin:0 0 16px;padding:9px 16px;border:1px solid var(--mg-line);border-radius:8px;
+             background:var(--mg-surface);color:var(--mg-text);text-decoration:none;font-size:15px}
+  #lc-banner:hover{background:var(--mg-subtle)}
+  #lc-banner .lc-onair{background:var(--mg-red);animation:lc-breathe 1.6s ease-in-out infinite}
+  #lc-banner u{text-decoration:none;color:var(--mg-text-2);margin-left:auto}
+
+  /* stage mode (?present): no rail, no header, the band and transcript take the room */
+  body.lc-present #rail,body.lc-present #top{display:none}
+  body.lc-present #app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+  body.lc-present main{padding:32px 40px}
+  body.lc-present #v-live{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:24px}
+  body.lc-present .lc-hero{grid-column:1/-1;height:300px;padding:32px 44px 36px}
+  body.lc-present .lc-top{font-size:20px}
+  body.lc-present .lc-word{font-size:128px}
+  body.lc-present .lc-why{font-size:26px;margin-top:14px}
+  body.lc-present .lc-secs{font-size:88px}
+  body.lc-present .lc-cap{font-size:18px}
+  body.lc-present .lc-ch{font-size:17px;padding:4px 12px}
+  body.lc-present .lc-talk{padding:24px 36px 28px}
+  body.lc-present .lc-said{font-size:34px}
+  body.lc-present .lc-who{font-size:16px}
+  body.lc-present .lc-facts{padding:24px 32px 16px}
+  body.lc-present #lc-f-told,body.lc-present #lc-f-notice{display:none}
+  body.lc-present .lc-f{padding:16px 0}
+  body.lc-present .lc-f dt{font-size:16px}
+  body.lc-present .lc-v{font-size:26px}
+  body.lc-present .lc-n{font-size:17px}
+  body.lc-present .lc-q{font-size:19px}
+  body.lc-present .lc-tag{font-size:16px}
+  body.lc-present .lc-tl{position:fixed;right:20px;bottom:12px;padding:0;border:0;background:transparent;overflow:visible;opacity:0;transition:opacity .2s;z-index:5}
+  body.lc-present .lc-tl:hover,body.lc-present .lc-tl:focus-within{opacity:1}
+  body.lc-present .lc-tl h3,body.lc-present .lc-steps,body.lc-present #lc-tl-empty{display:none}
+  body.lc-present .lc-tl .lc-h{justify-content:flex-end}
+  body.lc-present .lc-scenes{border:0;margin:6px 0 0;padding:0;justify-content:flex-end;max-width:900px}
+
   @media (max-width:1100px){
     #v-live{grid-template-columns:1fr;grid-template-rows:auto;height:auto}
     .lc-hero,.lc-talk,.lc-facts,.lc-tl{grid-column:1;grid-row:auto}
-    .lc-hero{height:auto}.lc-word{font-size:64px}.lc-why{white-space:normal}
+    .lc-hero{height:auto}.lc-word{font-size:44px}.lc-why{white-space:normal}
     .lc-talk,.lc-tl{min-height:420px}
   }
 
@@ -559,10 +647,11 @@
   .xkind[aria-checked="true"] svg.i{color:var(--c-expected)}
 
   /* Status line for failed requests */
-  #status{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--s3);color:var(--text);border-radius:999px;
-          padding:12px 22px 12px 18px;font-size:18px;font-weight:600;display:flex;gap:12px;align-items:center;
-          box-shadow:0 20px 40px -20px rgba(0,0,0,.8);z-index:10}
-  #status i{width:10px;height:10px;border-radius:50%;background:var(--c-denied)}
+  #status{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--mg-surface);color:var(--mg-text);border-radius:8px;
+          border:1px solid var(--mg-line);padding:10px 16px 10px 14px;font-size:15px;font-weight:400;display:flex;gap:10px;align-items:center;
+          box-shadow:var(--mg-shadow);z-index:10}
+  #status i{width:7px;height:7px;border-radius:50%;background:var(--mg-red)}
+  .mark .shield use{fill:var(--mg-accent)} .mark .shield path{stroke:#fff}
 
   @media (max-width:1100px){
     #signin{grid-template-columns:1fr;padding:32px}
@@ -653,24 +742,25 @@
     <!-- Overview -->
     <section class="view" id="v-overview" data-title="Overview">
       <div class="heads">
-        <div class="stat hero"><div class="row"><span class="n" id="h-blocked">0</span><span class="money" id="h-money"></span></div><div class="l" id="h-blocked-l">calls blocked</div></div>
-        <div class="stat"><span class="n" id="h-calls">0</span><span class="l">calls screened</span></div>
-        <div class="stat"><span class="n" id="h-asked">0</span><span class="l">questions asked</span></div>
-        <div class="stat"><span class="n" id="h-money2">$0</span><span class="l">asked for, not sent</span></div>
-        <div class="stat"><span class="n" id="h-secs">–</span><span class="l">typical time to decide</span></div>
+        <div class="ov-num blk"><span class="l" id="h-blocked-l">Calls blocked</span><span class="n" id="h-blocked">0</span></div>
+        <div class="ov-num"><span class="l">Asked for, not sent</span><span class="n" id="h-money2">$0</span></div>
+        <div class="ov-num"><span class="l">Calls screened</span><span class="n" id="h-calls">0</span></div>
+        <div class="ov-num"><span class="l">Questions asked</span><span class="n" id="h-asked">0</span></div>
+        <div class="ov-num"><span class="l">Typical time to decide</span><span class="n" id="h-secs">–</span></div>
       </div>
-      <div class="card ov-a"><h3>How calls ended</h3><p class="sub">Blocked, confirmed, unverified, expected.</p>
-        <div class="empty" id="ov-a-empty"><b>No calls yet.</b>Each screened call adds to this chart.</div>
+      <div class="m-card ov-a"><h3 class="m-section-title">How calls ended</h3>
+        <div class="m-empty ov-empty" id="ov-a-empty"><b>No calls yet.</b>Each screened call adds to this chart.</div>
         <div class="ovb" id="ov-a-body" hidden></div></div>
-      <div class="card ov-b"><h3>Attempts over time</h3><p class="sub"><i class="key" style="background:var(--c-bar)"></i>Calls screened <i class="key" style="background:var(--c-denied)"></i>blocked, oldest on the left</p>
-        <div class="empty" id="ov-b-empty"><b>Nothing to plot yet.</b>The timeline fills in as calls come in.</div>
+      <div class="m-card ov-b"><h3 class="m-section-title">Attempts over time</h3><p class="m-caption"><i class="key"></i>Calls screened <i class="key blk"></i>Blocked</p>
+        <div class="m-empty ov-empty" id="ov-b-empty"><b>Nothing to plot yet.</b>The timeline fills in as calls come in.</div>
         <div class="ovb" id="ov-b-body" hidden></div></div>
-      <div class="card ov-c"><h3>Recent attempts</h3><p class="sub">Who they claimed to be, what they wanted, what happened.</p>
-        <div class="empty" id="ov-c-empty"><b>No attempts so far.</b>When someone pretends to be one of your people, it shows up here.</div>
-        <ol class="ovb rlist" id="ov-c-body" hidden></ol></div>
-      <div class="card ov-d"><h3>Pressure tactics</h3><p class="sub">Money, urgency, secrecy, a claimed relationship.</p>
-        <div class="empty" id="ov-d-empty"><b>None seen yet.</b>The guard notes every push it hears on a call.</div>
+      <div class="m-card ov-d"><h3 class="m-section-title">Pressure tactics</h3><p class="m-caption">Calls where the guard heard each push.</p>
+        <div class="m-empty ov-empty" id="ov-d-empty"><b>None seen yet.</b>The guard notes every push it hears on a call.</div>
         <div class="ovb" id="ov-d-body" hidden></div></div>
+      <div class="m-card ov-c"><h3 class="m-section-title">Recent attempts</h3>
+        <div class="m-empty ov-empty" id="ov-c-empty"><b>No attempts so far.</b>When someone pretends to be one of your people, it shows up here.</div>
+        <div class="rhead" id="ov-c-head" hidden><span>Time</span><span>Claimed to be</span><span>Wanted</span><span>Scam type</span><span>Outcome</span><span>How it was decided</span></div>
+        <ol class="ovb rlist m-rows" id="ov-c-body" hidden></ol></div>
     </section>
 
     <!-- Live call -->
@@ -801,11 +891,12 @@
 
     <!-- Knowledge graph -->
     <section class="view" id="v-graph" data-title="Knowledge graph" hidden>
-      <div class="card">
+      <div class="m-card flush g-card">
         <div id="g-box" hidden>
           <svg id="g-svg" role="img" aria-label="Knowledge graph"></svg>
           <div class="g-top"><div class="g-sum" id="g-sum"></div><div class="g-src" id="g-src"></div></div>
-          <div class="g-legend" id="g-legend"></div>
+          <div class="g-foot"><div class="g-legend" id="g-legend"></div>
+            <p class="g-note">The guard remembers only what a verified answer proved. Memory layer: Cognee. Expected calls: Senso. <span id="g-mnote"></span></p></div>
           <div id="g-card" hidden></div>
         </div>
         <div class="graph-empty" id="g-empty" aria-hidden="true">
@@ -981,11 +1072,10 @@ async function loadData() {
 }
 function renderHeadline(h) {
   const set = (id, v, fmt, dim) => { ovTween($(id), v, fmt); $(id).classList.toggle("dim", !!dim); };
-  set("h-blocked", h.blocked ?? 0, String);
-  $("h-blocked-l").textContent = h.blocked === 1 ? "call blocked" : "calls blocked";
-  $("h-money").textContent = h.money_not_sent ? `${money(h.money_not_sent)} kept` : "";
-  set("h-calls", h.calls_screened ?? 0, String);
-  set("h-asked", h.questions_asked ?? 0, String);
+  set("h-blocked", h.blocked ?? 0, ovInt);
+  $("h-blocked-l").textContent = h.blocked === 1 ? "Call blocked" : "Calls blocked";
+  set("h-calls", h.calls_screened ?? 0, ovInt);
+  set("h-asked", h.questions_asked ?? 0, ovInt);
   set("h-money2", +h.money_not_sent || 0, money);
   const s = h.median_seconds_to_decide;
   if (s == null) { $("h-secs")._v = undefined; $("h-secs").textContent = "–"; $("h-secs").classList.add("dim"); }
@@ -1297,6 +1387,7 @@ function justVerified() {
 const OUTCOME_COLOR = {blocked: "var(--c-denied)", confirmed: "var(--c-ok)", unverified: "var(--c-unver)",
   expected: "var(--c-expected)", known_number: "var(--c-known)", other: "var(--c-other)"};
 const CHANNEL_NAME = {whatsapp: "WhatsApp", telegram: "Telegram", email: "email", call: "a phone call"};
+const OUTCOME_TAG = {blocked: "is-blocked", confirmed: "is-ok", unverified: "is-unverified", expected: "is-expected", known_number: "is-known"};
 const TACTIC_KEYS = ["money", "urgency", "secrecy", "authority_or_kinship"];
 const TACTIC_NAME = {money: "Money", urgency: "Urgency", secrecy: "Secrecy", authority_or_kinship: "Authority or kinship"};
 const OV = {sig: {}, seen: null, people: {}, peopleAt: 0, busy: false};
@@ -1340,6 +1431,7 @@ async function renderOverview(s) {
   ovCard("a", has, () => ovDonut(s.outcomes || []), s.outcomes);
   ovCard("b", has, () => ovBars(s.over_time || []), s.over_time);
   ovCard("c", recent.length > 0, () => ovRecent(recent), [recent, Object.values(OV.people).map(p => [p.id, p.name, p.relationship])]);
+  $("ov-c-head").hidden = !recent.length;
   ovCard("d", has, () => ovTactics(s), [s.tactics, s.channels_answered, s.headline && s.headline.calls_screened]);
 }
 // Redraw a card only when its data changed, so the 5 s refresh never flickers.
@@ -1352,25 +1444,22 @@ function ovCard(k, has, draw, data) {
 }
 
 function ovDonut(outcomes) {
-  const body = $("ov-a-body"), R = 76, C = 2 * Math.PI * R;
-  if (!body.querySelector(".donut")) {
-    body.innerHTML = `<div class="dn-wrap"><svg class="donut" viewBox="0 0 200 200" aria-hidden="true"><circle class="track" cx="100" cy="100" r="${R}"/>
-      <g transform="rotate(-90 100 100)">${outcomes.map(o => `<circle class="seg" data-k="${esc(o.key)}" cx="100" cy="100" r="${R}" style="stroke:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other};stroke-dasharray:0 ${C}"/>`).join("")}</g>
-      <text class="tot" x="100" y="104" text-anchor="middle">0</text><text class="tl" x="100" y="132" text-anchor="middle">calls</text></svg>
-      <ul class="legend"></ul></div>`;
-    body.getBoundingClientRect(); // commit the empty ring so the first fill animates
+  // One stacked horizontal bar plus a plain legend table (the function keeps its old name).
+  const body = $("ov-a-body");
+  if (!body.querySelector(".sb")) {
+    body.innerHTML = `<div class="sb"><div class="sb-total"><b class="tot">0</b><span class="tl">calls</span></div>
+      <div class="sb-bar">${outcomes.map(o => `<i data-k="${esc(o.key)}" style="background:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other}"></i>`).join("")}</div>
+      <ul class="sb-leg"></ul></div>`;
+    body.getBoundingClientRect(); // commit zero widths so the first fill animates
   }
-  const total = outcomes.reduce((a, o) => a + (o.count || 0), 0), live = outcomes.filter(o => o.count > 0).length;
-  let acc = 0;
+  const total = outcomes.reduce((a, o) => a + (o.count || 0), 0);
   for (const o of outcomes) {
-    const seg = body.querySelector(`.seg[data-k="${CSS.escape(o.key)}"]`);
-    const len = total ? (o.count || 0) / total * C : 0, gap = live > 1 && len > 8 ? 4 : 0;
-    if (seg) { seg.style.strokeDasharray = `${Math.max(0, len - gap)} ${C}`; seg.style.strokeDashoffset = `${-acc}`; }
-    acc += len;
+    const seg = body.querySelector(`.sb-bar i[data-k="${CSS.escape(o.key)}"]`);
+    if (seg) seg.style.width = total && o.count ? `calc(${o.count / total * 100}% - 2px)` : "0px";
   }
   ovTween(body.querySelector(".tot"), total, ovInt);
-  body.querySelector(".tl").textContent = total === 1 ? "call" : "calls";
-  body.querySelector(".legend").innerHTML = outcomes.map(o => `<li class="${o.count ? "" : "zero"}"><i style="background:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other}"></i><span>${esc(o.label)}</span><b>${o.count || 0}</b></li>`).join("");
+  body.querySelector(".tl").textContent = total === 1 ? "call screened" : "calls screened";
+  body.querySelector(".sb-leg").innerHTML = outcomes.map(o => `<li class="${o.count ? "" : "zero"}"><i style="background:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other}"></i><span>${esc(o.label)}</span><b>${o.count || 0}</b></li>`).join("");
 }
 
 function ovBars(rows) {
@@ -1410,9 +1499,9 @@ function ovTactics(s) {
     row.title = `Heard on ${t.count || 0} of ${calls} calls`;
   }
   const ans = (s.channels_answered || []).filter(a => a.count > 0);
-  $("ov-ans").innerHTML = `<span class="al">Who answered</span>` + (ans.length
-    ? ans.map(a => `<span class="ac">${esc(a.label || a.kind)}<b>${a.count}</b></span>`).join("")
-    : `<span class="none">Nobody had to be asked yet.</span>`);
+  $("ov-ans").innerHTML = "Who answered: " + (ans.length
+    ? ans.map(a => `${esc(a.label || a.kind)} <b>${a.count}</b>`).join(", ")
+    : "nobody had to be asked yet.");
 }
 
 const ovTime = ts => { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false}); };
@@ -1444,14 +1533,15 @@ function ovRecent(recent) {
     const extra = p && p.relationship ? `<span class="rel">your ${esc(p.relationship)}</span>`
       : r.claimed_name ? `<span class="rel">not one of your people</span>`
       : r.caller_number ? `<span class="num">${esc(r.caller_number)}</span>` : "";
-    const tac = r.tactics || [], want = ovWant(r);
+    const want = ovWant(r);
     const live = r.outcome === "other" && !r.decided_by && Date.now() - new Date(r.ts) < 120000; // still being decided
-    const dots = `<span class="tdots" title="${esc(tac.map(k => TACTIC_NAME[k] || k).join(", ") || "No pressure tactics")}">${TACTIC_KEYS.map(k => `<i class="${tac.includes(k) ? "on" : ""}"></i>`).join("")}</span>`;
+    const tag = live ? "is-asking" : OUTCOME_TAG[r.outcome] || "";
     return `<li class="rr${!first && !seen.has(r.call_id) ? " new" : ""}"><time>${ovTime(r.ts)}</time>
-      <div style="min-width:0"><div class="l1"><b>${esc(name)}</b>${extra}</div>
-        <div class="l2">${dots}<span class="want${want ? "" : " no"}">${esc(want || "Didn't ask for anything")}</span>${r.scam_type ? `<span class="scam">${esc(r.scam_type)}</span>` : ""}</div></div>
-      <div class="ro">${live ? `<span class="oc" style="--oc:var(--c-check)">Asking now</span><span class="how">waiting for an answer</span>`
-        : `<span class="oc" style="--oc:${OUTCOME_COLOR[r.outcome] || OUTCOME_COLOR.other}">${esc(r.outcome_label || r.outcome)}</span><span class="how">${esc(ovHow(r))}</span>`}</div></li>`;
+      <span class="who"><b>${esc(name)}</b>${extra}</span>
+      <span class="want${want ? "" : " no"}">${esc(want || "Nothing asked")}</span>
+      <span class="scam">${esc(r.scam_type || "")}</span>
+      <span class="oc"><span class="m-tag dot ${tag}">${esc(live ? "Asking now" : (r.outcome_label || r.outcome))}</span></span>
+      <span class="how">${esc(live ? "waiting for an answer" : ovHow(r))}</span></li>`;
   }).join("");
   OV.seen = new Set(recent.map(r => r.call_id));
   ovFitRows(); requestAnimationFrame(ovFitRows); setTimeout(ovFitRows, 400);
@@ -1656,6 +1746,7 @@ function gDraw(d, W, H) {
   };
   G.raf = requestAnimationFrame(frame);
   gChrome(nodes, d.source);
+  $("g-mnote").textContent = typeof d.memory_note === "string" ? d.memory_note : "";
 }
 function gChrome(nodes, source) {
   const count = t => nodes.filter(n => n.type === t).length, att = nodes.filter(n => n.type === "attempt");
@@ -1685,7 +1776,7 @@ function gCard(id) {
     : n.type === "number" && String(id).startsWith("own:") ? "Your own number" : (GT[n.type] || {name: n.type}).name;
   const links = (G.adj[id] || []).map(x => G.byId[x] && G.byId[x].label).filter(Boolean);
   c.innerHTML = `<div class="gk"><i style="background:${gColor(n)}"></i>${esc(what)}</div><div class="gt">${esc(n.label)}</div>
-    <p class="gd">${esc(n.detail || "")}</p><div class="gp">${links.length ? `Linked to ${esc(links.slice(0, 4).join(", "))}${links.length > 4 ? ` and ${links.length - 4} more` : ""}. ` : ""}${G.pinned === id ? "Click empty space to let go." : "Click to pin."}</div>`;
+    <p class="gd">${esc(n.detail || "")}</p>${n.origin ? `<div class="go">${esc(n.origin)}</div>` : ""}<div class="gp">${links.length ? `Linked to ${esc(links.slice(0, 4).join(", "))}${links.length > 4 ? ` and ${links.length - 4} more` : ""}. ` : ""}${G.pinned === id ? "Click empty space to let go." : "Click to pin."}</div>`;
   c.hidden = false;
   const [x, y] = G.pos[id], r = gR(n), cw = c.offsetWidth, ch = c.offsetHeight, lb = G.lab[id];
   let left = lb && lb.anchor === "start" ? x - r - 28 - cw : x + r + 28;
@@ -1804,7 +1895,8 @@ $("xform").addEventListener("submit", async e => {
 // === live call ===
 // The same story as the audience screen: final lines and steps from /events, words in progress from /live.
 (function liveCall() {
-  const FLAGS = {money: "Money", urgency: "Urgency", secrecy: "Secrecy", authority_or_kinship: "Authority or kinship"};
+  // Wording and order as on the audience screen.
+  const FLAGS = {authority_or_kinship: "Identity claim", money: "Money", urgency: "Urgency", secrecy: "Secrecy"};
   const CHN = {telegram: "Telegram", whatsapp: "WhatsApp", email: "Email", call: "Phone call"};
   const human = s => String(s ?? "").replace(/[._]/g, " ");
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -1817,7 +1909,25 @@ $("xform").addEventListener("submit", async e => {
   const secsBetween = (a, b) => Math.max(0, (b - a) / 1000).toFixed(1);
   const onLive = () => !!ME && location.hash === "#live";
 
-  let since = 0, S = null, skew = null, primed = false, quiet = 0, busy = false, timer = 0, lastWord = "";
+  // ---------- test-call key: taken from ?k=..., kept in localStorage, never left in the address ----------
+  const params = () => new URLSearchParams(location.search);
+  function setQuery(q) { const s = q.toString(); history.replaceState(null, "", location.pathname + (s ? "?" + s : "") + location.hash); }
+  (function takeKey() {
+    const q = params();
+    if (!q.has("k")) return;
+    try { localStorage.setItem("sim-key", q.get("k")); } catch (_) {}
+    q.delete("k"); setQuery(q);
+  })();
+  const simKey = () => { try { return localStorage.getItem("sim-key") || ""; } catch (_) { return ""; } };
+  async function sim(path, body) {
+    const headers = {"Content-Type": "application/json"};
+    if (simKey()) headers["X-Sim-Key"] = simKey();
+    const r = await fetch(path, {method: "POST", credentials: "same-origin", headers, body: body ? JSON.stringify(body) : undefined});
+    if (!r.ok) throw new Error(r.status === 403 ? "the test-call key was not accepted" : `${r.status} ${r.statusText}`);
+  }
+
+  let since = 0, S = null, skew = null, primed = false, quiet = 0, busy = false, timer = 0, lastWord = "", dropBacklog = false;
+  const seen = new Set();
   const talk = {live: {}, awaiting: {}, signal: 0, inflight: false};
   const now = () => Date.now() - (skew ?? 0);
   const name = () => S && S.lookup && S.lookup.contact ? S.lookup.contact.name : "the real person";
@@ -1827,10 +1937,11 @@ $("xform").addEventListener("submit", async e => {
   banner.innerHTML = '<span class="lc-onair" aria-hidden="true"></span><span>Call in progress: watch it live</span><u id="lc-banner-word"></u>';
   document.querySelector("#app main").prepend(banner);
 
+  function clearCall() { S = null; talk.live = {}; talk.awaiting = {}; $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = ""; lastWord = ""; }
   function reset(e) {
-    S = {id: e.call_id, t0: ms(e.ts), lastAt: ms(e.ts), number: (e.data || {}).caller_number, flags: null, seenFlags: new Set(),
+    S = {id: e.call_id, t0: ms(e.ts), lastAt: ms(e.ts), number: (e.data || {}).caller_number, flags: null,
          popped: new Set(), claim: null, scam: null, lookup: null, expected: null, expectedWho: null, expectedKind: null, ping: null,
-         notice: null, decision: null, first: null, cred: null, ended: false, late: 0, stepup: false, codeFailed: false,
+         notice: null, decision: null, first: null, cred: null, told: null, ended: false, late: 0, stepup: false, codeFailed: false,
          askedName: false, tookMessage: false, expectedMoney: false};
     talk.live = {}; talk.awaiting = {}; talk.signal = Date.now();
     $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = "";
@@ -1850,6 +1961,7 @@ $("xform").addEventListener("submit", async e => {
       case "notice.sent": S.notice = {...d, at: ms(e.ts)}; break;
       case "decision": S.decision = {...d, at: ms(e.ts)}; S.first = S.first || S.decision; talk.signal = Date.now(); break;
       case "credential.verified": S.cred = d; break;
+      case "owner.notified": S.told = d.text; break;
       case "call.ended": S.ended = true; talk.signal = Date.now(); break;
       case "action":
         if (d.kind === "late_denial") S.late = ms(e.ts);
@@ -1860,10 +1972,13 @@ $("xform").addEventListener("submit", async e => {
         if (d.kind === "expected_but_money") S.expectedMoney = true;
         break;
       default:
-        if (e.type.startsWith("context.")) { S.expected = d.why || `${owner()} was expecting this call.`; S.expectedWho = d.who; S.expectedKind = d.kind; }
+        if (e.type.startsWith("context.")) { S.expected = d.why || "The owner was expecting this call."; S.expectedWho = d.who; S.expectedKind = d.kind; }
     }
   }
   function handle(e, fresh) {
+    if (seen.has(e.id)) return; // one row per event, even if a response repeats it
+    seen.add(e.id);
+    if (seen.size > 5000) seen.clear();
     if (fresh) skew = Math.min(skew ?? Infinity, Date.now() - ms(e.ts));
     if (e.type === "call.started") reset(e);
     if (!S || e.call_id !== S.id) return;
@@ -1884,10 +1999,10 @@ $("xform").addEventListener("submit", async e => {
   function byText(d) {
     const n = name();
     return {tap: `${n} ${verb(d)} ${d.state === "confirmed" ? "Yes" : "No"}${onCh(d)}`, timeout: `no answer from ${n}`,
-            known_number: "known number, harmless request", lookup: `caller not in ${owner()}'s circle`,
+            known_number: "known number, harmless request", lookup: "caller not in the circle",
             repeat_attempt: "number already denied today", stepup: "identity check", code_word: "family code word",
             ping_cap: "too many attempts today", credential: "verified agent credential",
-            stepup_unavailable: "identity check unavailable", expected: "an expected call", context: "an expected call",
+            stepup_unavailable: "identity check unavailable", expected: "an expected call",
             expected_but_money: "expected caller asked for money"}[d.by] || human(d.by);
   }
   function outcome() {
@@ -1902,35 +2017,35 @@ $("xform").addEventListener("submit", async e => {
         repeat_attempt: `This number was already denied as ${n} today. Hung up without asking again.`,
         stepup: `Failed ${n}'s identity check. The guard hung up.`}[by] || `Denied by ${human(by)}. The guard hung up.`];
       if (d.state === "confirmed") {
-        if (by === "code_word") return ["ok", "Put through", `${n} didn't answer, but the caller knew the family code word.`];
-        if (S.expected || by === "context" || by === "expected") return ["expected", "Expected call", S.expected || `${O} was expecting this call.`];
-        if (by === "known_number") return ["known", "Known number", `${n}'s own number, harmless request. Put through; ${n} got a heads-up.`];
+        if (by === "code_word") return ["ok", "Verified by code word", `${n} didn't answer, but the caller knew the family code word.`];
+        if (S.expected || by === "context" || by === "expected") return ["expected", "Expected call", S.expected || "The owner was expecting this call."];
+        if (by === "known_number") return ["known", "Known caller", `${n}'s own number, harmless request. Put through; ${n} got a heads-up.`];
         return ["ok", "Put through", {tap: `${n} ${verb(d)} Yes${onCh(d)}${after}. Put through to ${O}.`,
           stepup: `${n} passed the identity check. Put through to ${O}.`}[by] || `Confirmed by ${human(by)}. Put through.`];
       }
       if (d.state === "unverified") return ["unver", "Not verified", {
-        timeout: `No answer from ${n}${after}. The caller can still give the family code word.`,
+        timeout: `No answer from ${n} in ${S.ping ? secsBetween(S.ping.at, d.at) : d.seconds_to_decide} s. The caller can still give the family code word.`,
         lookup: S.tookMessage ? `Not in ${O}'s circle and not expected. Taking a message.` : `Not someone in ${O}'s circle. Asking who they are.`,
         expected_but_money: "Says it's an expected delivery, but asks for money. No shortcut; don't pay.",
         ping_cap: `Too many attempts as ${n} today. The caller can still give the family code word.`,
         stepup_unavailable: "The identity check is unavailable. Don't send money.",
         code_word: "Wrong code word twice. The guard hung up."}[by] || `Unverified (${human(by)}). Don't send money.`];
       if (d.state === "agent_verified") return ["agent", "Verified agent",
-        S.cred ? `${S.cred.agent}, acting for ${S.cred.principal}.` : "A verified agent credential."];
-      if (/expect/.test(d.state)) return ["expected", "Expected call", S.expected || `${O} was expecting this call.`];
+        S.cred ? `${S.cred.agent}, acting for ${S.cred.principal}. Scope: ${(S.cred.scope || []).join(", ")}.` : "A verified agent credential."];
+      if (/expect/.test(d.state)) return ["expected", "Expected call", S.expected || "The owner was expecting this call."];
       return ["screen", cap(human(d.state)), `Decided by ${human(by)}.`];
     }
-    if (S.stepup) return ["check", "Checking identity", `${n} tapped Yes. Now confirming it is really ${n}.`];
+    if (S.stepup) return ["check", "Checking", `With the real person: ${n} tapped Yes. Now confirming it is really ${n}.`];
     if (S.ping) return ["check", "Is this you?", `Asked ${n} on ${chans(S.ping)}. The caller is on hold.`];
     if (S.expected) return ["screen", "Screening", S.expected];
-    if (S.askedName) return ["screen", "Screening", "The guard asked the caller for their first name."];
-    return ["screen", "Screening", "The guard is answering and listening."];
+    if (S.askedName) return ["screen", "Screening", "The assistant asked the caller for their first name."];
+    return ["screen", "Screening", "The assistant is answering and listening."];
   }
 
-  // ---------- timeline ----------
-  const KIND = {call: "var(--muted)", heard: "var(--c-unver)", scam: "var(--c-denied)", contact: "var(--c-known)",
-                context: "var(--c-expected)", ask: "var(--c-check)", act: "#8FB4E8", owner: "var(--text)"};
-  const DEC = {denied: "var(--c-denied)", confirmed: "var(--c-ok)", unverified: "var(--c-unver)", agent_verified: "#8C9CF0"};
+  // ---------- timeline: one row per event (the transcript has its own panel) ----------
+  const KIND = {call: "var(--faint)", heard: "var(--c-unver)", scam: "var(--c-denied)", contact: "var(--c-known)",
+                context: "var(--c-expected)", ask: "var(--c-check)", act: "var(--muted)", owner: "var(--text)"};
+  const DEC = {denied: "var(--c-denied)", confirmed: "var(--c-ok)", unverified: "var(--c-unver)", agent_verified: "var(--c-expected)"};
   const STATE_WORD = {denied: "Blocked", confirmed: "Put through", unverified: "Not verified", agent_verified: "Verified agent"};
   function describe(e) {
     const d = e.data || {}, n = name(), O = owner();
@@ -1938,32 +2053,34 @@ $("xform").addEventListener("submit", async e => {
       case "transcript": return null;
       case "call.started": return ["call", `Call came in${d.caller_number ? " from " + d.caller_number : ""}`];
       case "flags": {
-        const added = Object.keys(FLAGS).filter(k => d[k] && !S.seenFlags.has(k));
-        added.forEach(k => S.seenFlags.add(k));
-        return added.length ? ["heard", `Heard pressure: ${added.map(k => FLAGS[k].toLowerCase()).join(", ")}`] : null;
+        const on = Object.keys(FLAGS).filter(k => d[k]).map(k => FLAGS[k].toLowerCase());
+        const r = d.risk != null ? ` (risk ${Math.round(d.risk * 100)}%)` : "";
+        return ["heard", on.length ? `Flagged ${on.join(", ")}${r}${d.needs_verification ? ": needs verification" : ""}` : "No warning signs"];
       }
       case "claim": {
         const ask = d.asks_for || d.amount;
-        if (!d.claimed_name && !ask) return null;
+        if (!d.claimed_name && !ask) return ["heard", "No name or request heard yet"];
         return ["heard", d.claimed_name ? `Claims to be ${d.claimed_name}${ask ? ", asks for " + ask : ""}` : `Asks for ${ask}`];
       }
-      case "script.match": return d.benign || !d.title ? null : ["scam", `Matches a known scam: ${d.title}`];
-      case "contact.lookup": return ["contact", d.contact ? `Found ${d.contact.name} in the trusted contacts` : `Not in ${O}'s trusted contacts`];
-      case "context.expected": return ["context", `Expected ${d.kind || "call"}${d.why ? ": " + d.why : ""}`];
+      case "script.match": return d.title ? [d.benign ? "context" : "scam", d.benign ? `Looks like: ${d.title}` : `Matches a known scam script: ${d.title}`] : ["call", "No known script matched"];
+      case "contact.lookup":
+        return ["contact", d.contact ? `Matched ${d.contact.name} (${d.contact.relationship}), ${d.number_known ? "known number" : "unknown number"}`
+                                     : `No match in ${O}'s circle${d.note ? ": " + d.note : ""}`];
+      case "context.expected": return ["context", `Expected ${d.kind || "call"}${d.why ? ": " + d.why : ""}${d.source ? ` (from ${d.source})` : ""}`];
       case "ping.sent": return ["ask", `Asked ${n} on ${chans(d)}: “Is this you?”`];
-      case "notice.sent": return ["ask", `Sent ${n} a heads-up`];
-      case "decision": return ["dec:" + d.state, `${STATE_WORD[d.state] || cap(human(d.state))}: ${byText(d)}`];
+      case "notice.sent": return ["ask", `Sent ${n} a heads-up: “${d.text}”`];
+      case "decision": return ["dec:" + d.state, `${STATE_WORD[d.state] || cap(human(d.state))}: ${byText(d)}, ${d.seconds_to_decide} s after the call began`];
       case "credential.verified": return ["context", `Verified agent ${d.agent} acting for ${d.principal}`];
       case "owner.notified": return ["owner", `Told ${O}: “${d.text}”`];
       case "call.ended": return ["call", "Call ended"];
       case "action": {
         const k = d.kind;
-        const t = {hangup: "Hung up on the caller", forward: `Put the call through to ${O}`, ask_name: "Asked the caller for their first name",
+        const t = {hangup: "Hung up on the caller", forward: `Put the call through to ${O}`,
+                   say: `Told the caller: “${d.text}”`, challenge: `Instructed the assistant: “${d.text}”`,
+                   ask_name: "Asked the caller for their first name", out_of_scope: d.text || "Credential out of scope",
                    late_denial: `${n} tapped Not me: hung up`, code_word_failed: "Wrong code word twice: hung up",
                    stepup: `Sent ${n} an identity check`, take_message: "Took a message instead of putting the call through",
-                   expected_but_money: "Expected call, but it asks for money: no shortcut",
-                   say: `Told the caller: “${d.text}”`,
-                   challenge: /code word/i.test(d.text || "") ? "Asked the caller for the family code word" : `Asked the caller: “${d.text}”`}[k];
+                   expected_but_money: "Matches an expected call but asks for money: no shortcut"}[k];
         return ["act", t || cap(human(k || "action")) + (d.text ? ": " + d.text : "")];
       }
     }
@@ -1974,12 +2091,14 @@ $("xform").addEventListener("submit", async e => {
     if (!r) return;
     const [kind, text] = r;
     const li = document.createElement("li");
-    li.style.setProperty("--k", kind.startsWith("dec:") ? (DEC[kind.slice(4)] || "var(--c-screen)") : (KIND[kind] || "var(--faint)"));
+    li.dataset.id = e.id;
+    li.style.setProperty("--k", kind.startsWith("dec:") ? (DEC[kind.slice(4)] || "var(--muted)") : (KIND[kind] || "var(--faint)"));
     li.innerHTML = `<span class="d"></span><span><span class="t">+${Math.max(0, (ms(e.ts) - S.t0) / 1000).toFixed(1)} s</span><span class="x"></span></span>`;
     li.querySelector(".x").textContent = text;
+    li.querySelector(".x").title = text;
     const box = $("lc-steps");
     box.appendChild(li);
-    while (box.children.length > 24) box.firstChild.remove();
+    while (box.children.length > 40) box.firstChild.remove();
   }
 
   // ---------- transcript: finals from /events, words in progress from /live ----------
@@ -2063,12 +2182,12 @@ $("xform").addEventListener("submit", async e => {
   }
   function renderHero() {
     const ph = phase(), O = owner();
-    let cls = "", word = "Waiting for a call", why = `The guard answers ${O}'s calls from unknown numbers. Each one plays out here as it happens.`, top;
+    let cls = "", word = "Waiting for a call", why = `The assistant answers ${O}'s phone and screens every caller.`, top;
     if (S) [cls, word, why] = outcome();
     const from = S && S.number ? " from " + esc(S.number) : "";
     if (ph === "live") top = `<span class="lc-onair on"></span>Live call to ${esc(O)}${from}`;
     else if (ph === "last") top = `<span class="lc-onair"></span>Last call${from}, ${ago(S.lastAt)}. Waiting for the next call.`;
-    else top = `<span class="lc-onair"></span>${esc(O)}'s line is protected`;
+    else top = `<span class="lc-onair"></span>${esc(O)}'s phone line`;
     $("lc-hero").className = `lc-hero lc-${ph === "none" ? "idle" : ph}${cls ? " lc-st-" + cls : ""}`;
     setHTML("lc-top", top);
     const w = $("lc-word");
@@ -2080,9 +2199,8 @@ $("xform").addEventListener("submit", async e => {
     $("lc-why").textContent = why; $("lc-why").title = why;
     let ch = "";
     if (ph === "live" && S.ping) ch = (S.ping.channels || ["telegram"]).map(c =>
-      `<span class="chip${S.decision && S.decision.channel === c ? " on" : ""}">${esc(chLabel(c))}</span>`).join("");
+      `<span class="lc-ch${S.decision && S.decision.channel === c ? " on" : ""}">${esc(chLabel(c))}</span>`).join("");
     setHTML("lc-chans", ch);
-    $("lc-try").hidden = !(CONFIG.fake && ph !== "live");
     tick();
   }
   function tick() {
@@ -2092,10 +2210,10 @@ $("xform").addEventListener("submit", async e => {
       const t = now(), d = S.decision;
       if (ph === "live" && S.ping && !d && !S.stepup && S.ping.timeout_s != null) {
         const left = Math.max(0, S.ping.timeout_s - (t - S.ping.at) / 1000);
-        secs = Math.ceil(left) + " s"; capt = "left to answer, asked on"; bar = left / S.ping.timeout_s;
+        secs = Math.ceil(left) + " s"; capt = "left to answer"; bar = left / S.ping.timeout_s;
       } else if (S.late) { secs = ((S.late - S.t0) / 1000).toFixed(1) + " s"; capt = "to catch it"; }
       else if (d && d.seconds_to_decide != null) { secs = (+d.seconds_to_decide).toFixed(1) + " s"; capt = "to decide"; }
-      else if (ph === "live" && !S.ended) { secs = Math.max(0, (t - S.t0) / 1000).toFixed(1) + " s"; capt = "on the line"; }
+      else if (ph === "live" && !S.ended && !S.codeFailed) { secs = Math.max(0, (t - S.t0) / 1000).toFixed(1) + " s"; capt = "on the line"; }
     }
     $("lc-secs").textContent = secs; $("lc-cap").textContent = capt;
     $("lc-bar").style.width = (bar * 100).toFixed(1) + "%";
@@ -2109,72 +2227,118 @@ $("xform").addEventListener("submit", async e => {
     el.classList.remove("fresh");
     if (!wait && was[0] === "w" && S) { void el.offsetWidth; el.classList.add("fresh"); }
   }
-  const V = (v, note) => `<div class="lc-v">${esc(v)}</div>${note ? `<div class="lc-n">${esc(note)}</div>` : ""}`;
+  const V = (v, note) => `<div class="lc-v">${esc(v)}</div>${note ? `<div class="lc-n lc-one">${esc(note)}</div>` : ""}`;
   const Q = text => `<div class="lc-n lc-q">${esc(text)}</div>`;
   function renderFacts() {
-    const O = owner();
+    const O = owner(), n = name();
+    $("lc-f-told-dt").textContent = `What ${O} was told`;
     if (!S) {
-      row("lc-f-num", V("No call yet"), true); row("lc-f-who", V("Listening"), true); row("lc-f-ask", V("Listening"), true);
-      row("lc-f-press", `<div class="lc-tags">${Object.values(FLAGS).map(l => `<span class="chip"><i></i>${l}</span>`).join("")}</div>`, false);
-      row("lc-f-ping", V("Not yet"), true); row("lc-f-dec", V("Not yet"), true);
+      row("lc-f-who", V("No call yet"), true); row("lc-f-ask", V("No call yet"), true); row("lc-f-press", V("None heard"), true);
+      row("lc-f-ping", V("No message yet"), true); row("lc-f-told", V("Nothing yet"), true); row("lc-f-dec", V("Not yet"), true);
+      $("lc-f-notice").hidden = true;
       return;
     }
     const d = S.decision, lk = S.lookup;
-    row("lc-f-num", `<div class="lc-v">${esc(S.number || "Hidden number")}${lk ? `<span class="lc-inl">${lk.number_known ? "known number" : "unknown number"}</span>` : ""}</div>`, false);
 
-    let who = null, tag = "";
-    if (S.cred) who = `${S.cred.agent}, agent for ${S.cred.principal}`;
-    else if (S.claim && (S.claim.claimed_name || S.claim.relationship)) who = [S.claim.claimed_name, S.claim.relationship && `(${S.claim.relationship})`].filter(Boolean).join(" ");
-    else if (lk && lk.contact) who = lk.contact.name;
-    else if (S.expectedWho) who = {delivery: "A delivery", callback: "A callback", appointment: "An appointment"}[S.expectedKind] || "An expected caller";
-    else if (S.expectedMoney) who = "An expected delivery";
-    if (lk && lk.contact) tag = `<span class="chip on"><i></i>${esc(lk.contact.name)}${lk.contact.relationship ? ` (${esc(lk.contact.relationship)})` : ""} is a trusted contact</span>`;
-    else if (lk) tag = '<span class="chip lc-warn"><i></i>Not in the trusted contacts</span>';
-    else if (who) tag = '<span class="chip"><i></i>Checking the trusted contacts</span>';
-    if (S.expected && !(lk && lk.contact)) tag += '<span class="chip on"><i></i>Expected call</span>';
-    row("lc-f-who", who || tag ? `<div class="lc-v">${esc(who || "No name given")}</div><div class="lc-tags">${tag}</div>` : V("Listening"), !who && !tag);
+    // Who: as the audience screen's claim panel, plus whether that person is a trusted contact.
+    let w = null, wsub = "";
+    if (S.cred) { w = S.cred.agent; wsub = `agent for ${S.cred.principal}`; }
+    else if (lk && lk.contact) {
+      w = `${lk.contact.name} (${lk.contact.relationship})`;
+      wsub = lk.number_known ? "from a known number" : "from an unknown number";
+      const att = S.ping && String(S.ping.text || "").match(/\(attempt (\d+) today\)/);
+      if (att) wsub += `, attempt ${att[1]} today`;
+    } else if (S.expectedWho) { w = {delivery: "A delivery", callback: "A callback", appointment: "An appointment"}[S.expectedKind] || "An expected caller"; wsub = S.expectedWho; }
+    else if (S.expected) w = "An expected caller";
+    else if (S.expectedMoney) { w = "An expected delivery"; wsub = "by its own account"; }
+    else if (lk || d) w = `Nobody in ${O}'s circle`;
+    else if (S.askedName) wsub = "asked for a name";
+    if (S.claim && (S.claim.claimed_name || S.claim.relationship)) {
+      w = S.claim.claimed_name || S.claim.relationship;
+      if (S.claim.claimed_name && S.claim.relationship) w += ` (${S.claim.relationship})`;
+    }
+    const trust = lk ? (lk.contact ? "trusted contact" : "not a trusted contact") : "";
+    const sub = [trust && cap(trust), wsub, S.number].filter(Boolean).join(", ");
+    row("lc-f-who", `<div class="lc-v">${esc(w || "Listening")}</div>${sub ? `<div class="lc-n lc-one">${esc(sub)}</div>` : ""}`, !w);
 
+    // Asks for: claim, then the question's text, then the caller's own words.
     let a = null, m;
     if (S.claim && S.claim.asks_for) a = S.claim.asks_for;
     else if (S.claim && (S.claim.amount || S.claim.method)) a = [S.claim.amount, S.claim.method && "by " + S.claim.method].filter(Boolean).join(" ");
     else if (S.ping && (m = String(S.ping.text || "").match(/asking for (.+?)(?: \(attempt \d+ today\))?\. Is this you\?/))) a = m[1];
-    else if (S.flags && S.flags.money) a = "Money";
+    else if (S.flags && S.flags.money) { // HACK: no claim event yet; read the amount from the caller's words
+      const said = [...$("lc-convo").querySelectorAll(".lc-turn.caller:not(.live) .lc-said")].map(l => l.textContent).join(" ");
+      const amt = said.match(/\$\s?\d[\d,]*(?:\.\d{2})?|\b\d[\d,]*\s*dollars?\b/i), how = said.match(/\b(gift cards?|wire|bank transfer|crypto|cash)\b/i);
+      a = (amt ? amt[0].replace(/^(\d[\d,]*)\s*dollars?$/i, "$$$1") : "Money") + (how ? " by " + how[0].toLowerCase() : "");
+    }
     else if (lk || d) a = "Nothing sensitive";
     row("lc-f-ask", V(a || "Listening"), !a);
 
+    // Pressure tags (only the ones that are on), the classifier line and the scam-script match, worded as on the audience screen.
     const f = S.flags || {};
-    const scam = S.scam && S.scam.title && !S.scam.benign && !(d && d.state === "confirmed")
-      ? `<div class="lc-n lc-scam" title="${esc(S.scam.title)}">Known scam: ${esc(S.scam.title)}</div>` : "";
-    row("lc-f-press", `<div class="lc-tags">${Object.entries(FLAGS).map(([k, l]) =>
-      `<span class="chip${f[k] ? " lc-red" : ""}" data-k="${k}"><i></i>${l}</span>`).join("")}</div>${scam}`, false);
-    for (const k of Object.keys(FLAGS)) if (f[k] && !S.popped.has(k)) {
+    const on = Object.keys(FLAGS).filter(k => f[k]);
+    const src = {fake: "keyword rules", sie: "Superlinked SIE"}[f.source] || f.source;
+    const cls = S.flags ? `Classifier: ${src}${f.latency_ms ? `, ${f.latency_ms} ms` : ""}${f.risk != null ? `, risk ${Math.round(f.risk * 100)}%` : ""}` : "";
+    let scam = "";
+    const sm = S.scam;
+    if (sm && sm.title && !(d && d.state === "confirmed")) {
+      const how = {vector: "Superlinked embeddings + SingleStore vector search", fulltext: "SingleStore full-text search"}[sm.method] || "keyword stand-in";
+      const pct = Number.isFinite(+sm.score) ? ` · ${Math.round(sm.score * 100)}%` : "";
+      const lat = sm.latency_ms != null ? ` · ${sm.latency_ms} ms` : "";
+      const t = sm.benign ? `Looks like: ${sm.title}${pct} · ${how}${lat}` : `Matches a known scam script: ${sm.title}${pct} · ${how}${lat}`;
+      scam = `<div class="lc-n lc-one${sm.benign ? "" : " lc-scam"}" title="${esc(t)}">${esc(t)}</div>`;
+    }
+    const tags = on.length ? `<div class="lc-tags">${on.map(k => `<span class="lc-tag" data-k="${k}">${FLAGS[k]}</span>`).join("")}</div>`
+                           : `<div class="lc-v">${S.flags ? "No warning signs" : "Listening"}</div>`;
+    row("lc-f-press", tags + scam + (cls ? `<div class="lc-n lc-one lc-meta">${esc(cls)}</div>` : ""), !on.length && !scam);
+    for (const k of on) if (!S.popped.has(k)) {
       S.popped.add(k);
       const c = document.querySelector(`#lc-f-press [data-k="${k}"]`); if (c) c.classList.add("lc-pop");
     }
 
+    // The question on the real person's phone, with its status as on the audience screen's phone.
     if (S.ping) {
-      const chs = (S.ping.channels || ["telegram"]).map(c => { const hit = S.first && S.first.channel === c;
-        return `<span class="chip${hit ? " on" : ""}"><i></i>${esc(chLabel(c))}${hit ? ", answered" : ""}</span>`; }).join("");
-      row("lc-f-ping", `${Q(S.ping.text)}<div class="lc-tags">${chs}</div>`, false);
-    } else if (S.notice) row("lc-f-ping", `${Q(S.notice.text)}<div class="lc-tags"><span class="chip on"><i></i>Heads-up only</span></div>`, false);
-    else if (d) row("lc-f-ping", V(S.expected ? "Not needed: this call was expected" : {
-      lookup: `Nobody to ask: not in ${O}'s circle`, expected_but_money: `Nobody to ask: not in ${O}'s circle`,
-      repeat_attempt: "Not asked again: already denied today", ping_cap: "Not asked: too many attempts today",
-      credential: "Not needed: a verified agent is calling"}[d.by] || "No question sent"), true);
-    else row("lc-f-ping", V("Not yet"), true);
+      const f1 = S.first;
+      let st;
+      if (f1 && f1.by === "tap") st = `Tapped ${f1.state === "confirmed" ? "Yes" : "No"} after ${secsBetween(S.ping.at, f1.at)} s`;
+      else if (f1 && f1.by === "stepup") st = `Tapped Yes; identity check ${f1.state === "confirmed" ? "passed" : "failed"}`;
+      else if (S.stepup) st = "Tapped Yes. Identity check sent.";
+      else if (f1 && f1.by === "timeout") st = `No answer in ${secsBetween(S.ping.at, f1.at)} s`;
+      else if (f1) st = `Not answered: decided by ${human(f1.by)}`;
+      else st = S.ping.timeout_s != null ? `Waiting for a tap, ${Math.max(0, Math.ceil(S.ping.timeout_s - (now() - S.ping.at) / 1000))} s left`
+                                         : `Waiting for a tap, ${Math.max(0, (now() - S.ping.at) / 1000).toFixed(0)} s`;
+      const via = (S.ping.channels || ["telegram"]).map(c => S.decision && S.decision.channel === c ? `${chLabel(c)} (answered)` : chLabel(c)).join(", ");
+      row("lc-f-ping", `${Q(S.ping.text)}<div class="lc-n lc-one">${esc(`${via}. ${st}`)}</div>`, false);
+    } else {
+      const quiet = S.notice ? "Not asked: a heads-up was sent instead" : !d ? "No message yet" : S.expected ? "Not needed: this call was expected." : {
+        lookup: `Nobody to ask: the caller isn't in ${O}'s circle.`, expected_but_money: `Nobody to ask: the caller isn't in ${O}'s circle.`,
+        repeat_attempt: "Not asked again: this number was already denied today.", ping_cap: "Not asked: too many attempts today.",
+        credential: "Not needed: a verified agent is calling."}[d.by] || "No message sent.";
+      row("lc-f-ping", V(quiet), true);
+    }
+    $("lc-f-notice").hidden = !S.notice;
+    if (S.notice) {
+      const st = S.late ? `Tapped Not me after ${secsBetween(S.notice.at, S.late)} s` : "Heads-up only. The call already went through.";
+      row("lc-f-notice", `${Q(S.notice.text)}<div class="lc-n lc-one">${esc(`${chans(S.notice)}. ${st}`)}</div>`, false);
+    }
+
+    // What the protected person was told.
+    if (S.told) row("lc-f-told", Q(S.told), false);
+    else if (d && /confirmed|verified/.test(d.state)) row("lc-f-told", V("No warning needed: the call went through."), true);
+    else row("lc-f-told", V("Nothing yet"), true);
 
     if (d) {
-      const [cls, word] = outcome();
+      const [c, word] = outcome();
       const how = cap(byText(d)) + (S.ping && d.by === "tap" ? ` after ${secsBetween(S.ping.at, d.at)} s`
         : d.seconds_to_decide != null ? `, ${d.seconds_to_decide} s into the call` : "");
-      row("lc-f-dec", `<div class="lc-v lc-st-${cls}" style="color:var(--lc-c)">${esc(word)}</div><div class="lc-n lc-one" title="${esc(how)}">${esc(how)}</div>`, false);
-    } else row("lc-f-dec", V(S.ping ? "Waiting for the answer" : "Not yet"), true);
+      row("lc-f-dec", `<div class="lc-v lc-st-${c}"><span class="lc-dot"></span>${esc(word)}</div><div class="lc-n lc-one">${esc(how)}</div>`, false);
+    } else row("lc-f-dec", V(S.ping ? `Waiting for ${n}` : "Not yet"), true);
   }
   function renderPanels() {
     const ph = phase(), has = $("lc-convo").children.length > 0;
     $("lc-convo").hidden = !has; $("lc-talk-empty").hidden = has;
     $("lc-onair").classList.toggle("on", ph === "live" && !!S && !S.ended);
-    $("lc-talk-note").textContent = ph === "last" ? "Last call" : "";
+    $("lc-talk-note").textContent = ph === "last" ? "Last call" : ph === "live" && S && !S.ended ? "Live" : "";
     const steps = $("lc-steps").children.length > 0;
     $("lc-steps").hidden = !steps; $("lc-tl-empty").hidden = steps;
   }
@@ -2184,28 +2348,91 @@ $("xform").addEventListener("submit", async e => {
     if (a) a.classList.toggle("lc-on", active);
     banner.hidden = !active || location.hash === "#live";
     if (active) $("lc-banner-word").textContent = outcome()[1];
+    applyPresent();
   }
   function render() {
     renderGlobal();
     if (!onLive()) return;
-    renderHero(); renderFacts(); renderPanels();
+    renderScenes(); renderHero(); renderFacts(); renderPanels();
   }
 
-  // ---------- polling: fast while watched or a call is on, slow otherwise, none while the tab is hidden ----------
+  // ---------- stage mode: no rail, no header; kept in the address as ?present ----------
+  function applyPresent() {
+    const on = onLive() && params().has("present");
+    document.body.classList.toggle("lc-present", on);
+    const b = $("lc-present");
+    b.setAttribute("aria-pressed", String(on));
+    b.textContent = on ? "Leave presenting" : "Present";
+  }
+  function setPresent(on) {
+    const q = params();
+    if (on) q.set("present", "1"); else q.delete("present");
+    setQuery(q); applyPresent();
+  }
+  $("lc-present").addEventListener("click", () => setPresent(!document.body.classList.contains("lc-present")));
+  addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("lc-present")) setPresent(false); });
+
+  // ---------- test calls: the audience screen's scenes ----------
+  function scenes() {
+    const O = owner();
+    const GREET = `Hello, this is ${O}'s assistant. Who is calling, and what is it about?`, HOLD = "One moment, I am trying to reach her.";
+    const SCAM = [`${O}, it's me, I'm in trouble.`, "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
+    return {
+      scam_no: {label: "Scam, tap No", claimed_name: "Jakob", caller_number: "+15550999999", lines: SCAM, agent_lines: {0: GREET, 3: HOLD}, tap: "no", tap_after_s: 4},
+      real_yes: {label: "Real, tap Yes", claimed_name: "Jakob", caller_number: "+15550100002", lines: [`Hi ${O}, it's Jakob.`, "Can you pick me up at five?"], agent_lines: {0: GREET, 2: HOLD}, tap: "yes", tap_after_s: 4},
+      scam_none: {label: "Scam, no answer", claimed_name: "Jakob", caller_number: "+15550999999", lines: SCAM, agent_lines: {0: GREET, 3: HOLD}, tap: null, tap_after_s: 0},
+      delivery: {label: "Delivery driver, expected", caller_number: "+15550440001", lines: ["Hi, I'm the driver with your desk lamp, are you home?"], agent_lines: {0: GREET}},
+      delivery_fee: {label: "Fake delivery fee", caller_number: "+15550440002", lines: ["I'm calling from the parcel service about your desk lamp delivery.", "There is a small customs fee of $4.99 to pay. What is your card number?", "I'll process that payment now."], agent_lines: {0: GREET, 2: "My card number is 4111 1111 1111 1111."}},
+    };
+  }
+  function renderScenes() {
+    const nav = $("lc-scenes"), show = !!(simKey() || CONFIG.fake);
+    nav.hidden = !show;
+    if (!show || nav.children.length) return;
+    nav.innerHTML = '<button type="button" data-scene="reset">Reset demo</button>' +
+      Object.entries(scenes()).map(([k, s]) => `<button type="button" data-scene="${k}">${esc(s.label)}</button>`).join("");
+  }
+  $("lc-scenes").addEventListener("click", async ev => {
+    const b = ev.target.closest("button[data-scene]");
+    if (!b) return;
+    const btns = [...$("lc-scenes").querySelectorAll("button")];
+    btns.forEach(x => x.disabled = true);
+    try {
+      await sim("/sim/reset");
+      if (b.dataset.scene === "reset") { dropBacklog = true; clearCall(); render(); }
+      else { const {label, ...body} = scenes()[b.dataset.scene]; await sim("/sim/call", body); }
+      pollEvents();
+    } catch (e) { say(`The test call didn't start: ${e.message}`); }
+    finally { btns.forEach(x => x.disabled = false); }
+  });
+
+  // ---------- polling: one /events request at a time; fast while watched or a call is on, slow otherwise, none while hidden ----------
   const fast = () => onLive() || phase() === "live";
   async function pollEvents() {
     clearTimeout(timer);
     if (ME && !document.hidden && !busy) {
       busy = true;
       try {
-        const evs = await api("/events?since=" + since);
-        for (const e of evs) { handle(e, primed); since = e.id; }
+        let evs = await api("/events?since=" + since);
+        if (dropBacklog) { // after "Reset demo": skip what happened before it
+          dropBacklog = false;
+          for (const e of evs) seen.add(e.id);
+          if (evs.length) since = evs[evs.length - 1].id;
+          clearCall(); evs = []; primed = true;
+        }
+        if (!primed && evs.length) { // first load: only the most recent call matters
+          let i = evs.length - 1;
+          while (i > 0 && evs[i].type !== "call.started") i--;
+          for (const e of evs.slice(0, i)) since = Math.max(since, e.id);
+          evs = evs.slice(i);
+        }
+        for (const e of evs) { handle(e, primed); since = Math.max(since, e.id); }
         primed = true;
         if (evs.length) quiet = 0;
         else if (since > 0 && ++quiet % 10 === 0) {
           // The server was restarted if even our last event is gone: start over.
           const last = await api("/events?since=" + (since - 1));
-          if (!last.length) { since = 0; primed = false; S = null; $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = ""; }
+          if (!last.length) { since = 0; primed = false; seen.clear(); clearCall(); }
         }
       } catch (_) {}
       busy = false;
@@ -2215,25 +2442,9 @@ $("xform").addEventListener("submit", async e => {
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pollEvents(); });
   addEventListener("hashchange", () => {
+    if (location.hash !== "#live" && params().has("present")) setPresent(false);
     render();
     if (onLive()) { $("lc-convo").scrollTop = $("lc-convo").scrollHeight; pollEvents(); }
-  });
-  $("lc-try").addEventListener("click", async ev => {
-    const b = ev.target.closest("button[data-test]");
-    if (!b) return;
-    // Same payloads as the audience screen's scene buttons.
-    const O = owner();
-    const GREET = `Hello, this is ${O}'s assistant. Who is calling, and what is it about?`, HOLD = "One moment, I am trying to reach her.";
-    const body = b.dataset.test === "scam"
-      ? {claimed_name: "Jakob", caller_number: "+15550999999", lines: [`${O}, it's me, I'm in trouble.`, "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."],
-         agent_lines: {0: GREET, 3: HOLD}, tap: "no", tap_after_s: 4}
-      : {claimed_name: "Jakob", caller_number: "+15550100002", lines: [`Hi ${O}, it's Jakob.`, "Can you pick me up at five?"],
-         agent_lines: {0: GREET, 2: HOLD}, tap: "yes", tap_after_s: 4};
-    const btns = [...$("lc-try").querySelectorAll("button")];
-    btns.forEach(x => x.disabled = true);
-    try { await api("/sim/reset", {method: "POST"}); await api("/sim/call", {method: "POST", body}); pollEvents(); }
-    catch (e) { say(`The test call didn't start: ${e.message}`); }
-    finally { btns.forEach(x => x.disabled = false); }
   });
   setInterval(pollLive, 200);
   setInterval(() => { if (S && onLive() && !document.hidden) tick(); }, 250);
