@@ -10,7 +10,7 @@ A personal phone agent that beats voice-clone scams: when a caller claims to be 
 
 A cloned voice can sound exactly like your son, your boss or your best friend. KinCheck never judges the voice: it asks the real person.
 
-**Live call.** A Vapi agent answers, transcribes with Deepgram nova-3 boosted on your contacts' names, and holds the caller through tool calls. Superlinked's serverless inference (GLiNER decisions and extraction) catches the identity claim, money, urgency and secrecy in about 150 ms. Cognee's knowledge graph turns "your teammate from the hackathon" into a real contact. KinCheck asks that person "Is this you?" on their own channels at once: WhatsApp via Beeper, Telegram, email via Resend.
+**Live call.** A Vapi agent answers, transcribes with Deepgram nova-3 boosted on your contacts' names, and holds the caller through tool calls. Superlinked's serverless inference (GLiNER decisions and extraction) catches the identity claim, money, urgency and secrecy in about 150 ms. Cognee's knowledge graph turns "your teammate from the hackathon" into a real contact. KinCheck asks that person "Is this you?" on their own channels at once: WhatsApp via Beeper and Telegram.
 
 **One decision.** SingleStore holds every call: one atomic update lets exactly one answer win, No ends the call, Yes forwards it, and the audit trail shows every step. SingleStore vector search over Superlinked bge-m3 embeddings names known scam scripts in the warning.
 
@@ -28,14 +28,13 @@ A cloned voice can sound exactly like your son, your boss or your best friend. K
 - **Vapi:** Answers and holds live calls, delivers transcripts and verification tool calls, and applies the server's call actions.
 - **Deepgram via Vapi:** Transcribes with nova-3 boosted on contacts' names and relationships to help the guard understand who is calling.
 - **OpenAI GPT-4.1:** Runs the phone agent's conversation and calls verification tools while code applies decisions.
-- **Beeper / WhatsApp:** Sends questions to contacts' own WhatsApp chats and receives typed Yes/No replies through the Desktop API.
+- **Beeper / WhatsApp:** Sends questions to contacts' own WhatsApp chats and receives typed replies through the Desktop API.
 - **Telegram:** Sends questions with signed answer buttons, owner warnings and "Not me" notices.
-- **Resend:** Sends email questions with signed answer links and a confirmation form.
-- **ElevenLabs:** Generates cloned-voice scam clips for the call demonstration.
+- **ElevenLabs:** Generates pre-recorded cloned-voice clips; a consented cloned-voice call started from the dashboard plays them into the guard agent as the caller.
 
 ## How a decision is made
 
-Only a real person's answer, the 20-second timeout, a valid code word or a matching expected call decides a call. The model can talk, but it cannot hang up or forward; code applies the outcome. SingleStore runs `UPDATE calls ... WHERE state='pending'`, so competing answers on WhatsApp, Telegram and email have exactly one winner, and later answers are told "already decided". A No that arrives after the timeout still ends the call.
+Only a real person's answer, the 20-second timeout, a valid code word or a matching expected call decides a call. The model can talk, but it cannot hang up or forward; code applies the outcome. SingleStore runs `UPDATE calls ... WHERE state='pending'`, so competing answers on WhatsApp and Telegram have exactly one winner, and later answers are told "already decided". A No that arrives after the timeout still ends the call.
 
 ## Rules
 
@@ -57,7 +56,7 @@ You can add a delivery, callback or appointment in the app. A mailbox scan finds
 
 KinCheck is a demo for one owner and a configured circle. The account app uses shared local storage. Screen scenes script both lines and answers. Fake mode makes no external calls. Drill scores measure classifier behavior on our set, not live voice calls or general scam detection; four scam texts without identity claims are counted separately from the 18 impersonations and 12 genuine callers.
 
-Live calls need configured phone and message services and a transfer destination. Some service failures fall back to local state or simulated actions. Channel labels show selected deliveries, not receipts. A named contact calling from a known number can pass without a sensitive request; a relationship resolved through memory still needs a question. Repeat attempts and daily question limits also affect decisions.
+Email questions via Resend are built, not switched on. Live calls need configured phone and message services and a transfer destination. Some service failures fall back to local state or simulated actions. Channel labels show selected deliveries, not receipts. A named contact calling from a known number can pass without a sensitive request; a relationship resolved through memory still needs a question. Repeat attempts and daily question limits also affect decisions.
 
 Persona runs in sandbox, at sign-up only. Hosted completion can trust the redirect when the API lookup is unavailable. Contact editing currently requires sign-in, without a separate Persona verification gate.
 

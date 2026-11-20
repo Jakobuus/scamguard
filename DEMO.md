@@ -14,8 +14,8 @@ Target: 2:00 including the close: start the dashboard sweep during the scam resu
 |---|---|---|---|
 | 0:00 to 0:15 | Jakob | "Voices can be cloned. KinCheck never judges the voice, never offers a name, never agrees to pay. No model output hangs up or forwards. It asks the real person." | Open the live view. |
 | 0:15 to 0:30 | Jakob | "My guard, my trusted contacts, and how to reach them." Optional: "Persona checks identity once at set-up." | Show `/app`: Jakob's guard and Erick's channels. TODO: only if the Persona check is live, say the optional sentence. Return to the live view. |
-| 0:30 to 1:15 | Erick, then Jakob | Erick: "Hi, it's your teammate from the hackathon." Jakob: "Memory works out who that means. The question goes to Erick's own phone." Erick: "Yes." Jakob, answering: "I'm at a hackathon, I can't talk." | Erick calls the guard on speaker from a number not saved as his. Show the conversation. TODO: the live views do not yet render the memory match or its facts; use the account knowledge graph for cached facts and `GET /memory` for learned outcomes until that display exists. Erick answers Yes on WhatsApp or Telegram. Fallback: he says the code word. The call goes through; Jakob's phone rings. Laugh, hang up. |
-| 1:15 to 1:45 | Scam clip, Erick, Jakob | Clip: "Hey Jakob, it's Erick. I'm in trouble, I need two thousand dollars in gift cards right now. Please don't tell anyone." Erick: "That's not me." Jakob: "First answer wins, exactly once, one atomic update in SingleStore." | Play `teammate_scam_short` into a second phone calling the guard. Show Superlinked flags and "matches a known scam script: family emergency, gift cards" from Superlinked embeddings and SingleStore vector search. Erick answers No on his phone. The call dies; Jakob gets the warning. Fallback: Scam scene, subject to the limitation below. |
+| 0:30 to 1:15 | Erick, then Jakob | Erick: "Hi, it's your teammate from the hackathon." Jakob: "Memory works out who that means. The question goes to Erick's own phone." Erick: "Yes." Jakob, answering: "I'm at a hackathon, I can't talk." | Erick calls the guard on speaker from a number not saved as his. Show the conversation. TODO: the live views do not yet render the memory match or its facts; use the account knowledge graph for cached facts and `GET /memory` for learned outcomes until that display exists. Erick answers Yes on WhatsApp. Fallback: he says the code word. The call goes through; Jakob's phone rings. Laugh, hang up. |
+| 1:15 to 1:45 | Scam clip, Erick, Jakob | Clip: "Hey Jakob, it's Erick. I'm in trouble, I need two thousand dollars in gift cards right now. Please don't tell anyone." Erick: "That's not me." Jakob: "First answer wins, exactly once, one atomic update in SingleStore." | Play `teammate_scam_short` into a second phone calling the guard. Show Superlinked flags and "matches a known scam script: family emergency, gift cards" from Superlinked embeddings and SingleStore vector search. Erick answers No on WhatsApp. The call dies; Jakob gets the warning. Fallback: Scam scene, subject to the limitation below. |
 | 1:45 to 2:00 | Jakob | "Cognee learns from both calls. Expected deliveries pass; money blocks that. Amplitude records each call with four rule checks. Our own drill found two misses and one false alarm. We fixed the rules: 18 of 18 scam callers caught, zero false alarms on our drill set." | Sweep the knowledge graph and analytics. Begin this narration during the scam result to reach the close by 1:55. These spoken figures are from our own drill set. |
 | 2:00 to 2:10 | Jakob | "Voices can't be trusted. So KinCheck asks the real person." | Aim to say this at 1:55 and finish at 2:00. With phone delays, use this reserved slot; stop by 2:20. |
 
@@ -35,7 +35,7 @@ A late No after the wait still ends the call. The code-word notice also lets Eri
 ## Before going on stage
 
 - [ ] Beeper Desktop running on the laptop.
-- [ ] WhatsApp and Telegram open on Erick's phone; both receive a test question addressed to him.
+- [ ] WhatsApp open on Erick's phone; it receives a test question addressed to him.
 - [ ] Second phone ready with `teammate_scam_short` and speaker volume tested.
 - [ ] Account live view at `/app#live` open in Present mode and reset.
 - [ ] Jakob's phone on loud; transfer destination tested.
@@ -68,5 +68,5 @@ Stage reference, not additional spoken lines. Service paths depend on configurat
 - **Our drill:** local text scenarios scored against the classifier: 16 of 18 scams caught and 1 of 12 false alarms before the rule fix, 18 of 18 and 0 of 12 after.
 - **Persona:** identity check at sign-up through Persona's hosted flow (sandbox). Mention on stage only if it is shown.
 - **Vapi:** phone conversation, transcripts and call control.
-- **Beeper / WhatsApp, Telegram, Resend:** the question on each contact's configured channels.
+- **Beeper / WhatsApp, Telegram:** the question on each contact's configured channels. Email via Resend is built, not switched on.
 - **ElevenLabs:** cloned-voice clips prepared before the call.

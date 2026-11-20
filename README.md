@@ -4,11 +4,11 @@ A personal phone agent that beats voice-clone scams: when a caller claims to be 
 
 ## What happens on a call
 
-A teammate calls and says, "It's your teammate from the hackathon." KinCheck never offers a name or judges the voice. Cognee memory resolves the relationship to a trusted contact. The question goes to his own phone through his enabled channels: WhatsApp via Beeper, Telegram and email via Resend. He answers Yes. SingleStore records the decision, and code puts him through.
+A teammate calls and says, "It's your teammate from the hackathon." KinCheck never offers a name or judges the voice. Cognee memory resolves the relationship to a trusted contact. The question goes to his own WhatsApp, through Beeper; Telegram works the same way for contacts who use it. He answers Yes, and the call is forwarded to the protected person's phone. SingleStore records the decision, and code puts him through.
 
 Then the same voice, cloned, asks for gift cards. KinCheck holds the call and asks the real person, "Is this you?" He answers No. Code ends the call and sends you a warning. The familiar voice never decides the outcome.
 
-If nobody answers within 20 seconds, the call becomes unverified and the agent asks for the code word. A late No still ends it. Expected deliveries, callbacks and appointments can pass without a question when the caller matches and makes no sensitive request. A mailbox scan adds them from orders, shipping notices and appointments; the demo runs on a sample mailbox.
+If nobody answers within 20 seconds, the call becomes unverified and the agent asks for the code word. A late No still ends it. Expected deliveries, callbacks and appointments can pass without a question when the caller matches and makes no sensitive request. A mailbox scan adds them from orders, shipping notices and appointments; the demo runs on a sample mailbox. A consented cloned-voice call started from the dashboard plays pre-recorded ElevenLabs clips into the guard agent as the caller.
 
 ## Built with our partners
 
@@ -22,10 +22,9 @@ If nobody answers within 20 seconds, the call becomes unverified and the agent a
 | Vapi | Answers and holds the live call, delivers transcripts and tool calls, and applies the server's call actions. | [guard/vapi.py](guard/vapi.py), [scripts/vapi_setup.py](scripts/vapi_setup.py) |
 | Deepgram via Vapi | Transcribes with nova-3 and boosts contacts' names and relationships so the guard can understand whom the caller claims to be. | [scripts/vapi_setup.py](scripts/vapi_setup.py) |
 | OpenAI GPT-4.1 | Runs the Vapi agent's conversation and calls the verification tools while code controls the outcome. | [scripts/vapi_setup.py](scripts/vapi_setup.py) |
-| Beeper / WhatsApp | Sends the question to the contact's own WhatsApp chat and accepts typed Yes/No replies through the Desktop API. | [guard/channels.py](guard/channels.py) |
+| Beeper / WhatsApp | Sends the question to the contact's own WhatsApp chat and accepts typed replies through the Desktop API. | [guard/channels.py](guard/channels.py) |
 | Telegram | Sends questions with signed answer buttons, owner warnings and "Not me" notices. | [guard/telegram.py](guard/telegram.py), [guard/channels.py](guard/channels.py) |
-| Resend | Sends email questions with signed answer links and a confirmation form. | [guard/channels.py](guard/channels.py) |
-| ElevenLabs | Generates cloned-voice scam clips for the call demonstration. | [scripts/make_clips.py](scripts/make_clips.py) |
+| ElevenLabs | Generates the pre-recorded cloned-voice clips used as the caller in the demonstration. | [scripts/make_clips.py](scripts/make_clips.py) |
 
 ## How it works
 
@@ -37,7 +36,9 @@ Memory and scam-script matches can choose whom to ask and what to warn about. Th
 
 ## Try it
 
-Open https://kincheck-caller.lovable.app/, or run locally with Python 3.12+ and uv:
+Team: Jakob Volbracht and Erick Julyan. Demo video: to follow.
+
+Open https://kincheck-caller.lovable.app/ (a serverless copy with sample data and replayed calls), or run locally with Python 3.12+ and uv:
 
 ```sh
 FAKE=1 make dev
@@ -56,7 +57,7 @@ Amplitude Agent Analytics records each call as a session with four rule evals: n
 
 KinCheck is a demo for one owner and a configured circle. The app uses shared local storage. Screen scenes script both lines and answers; the drill figures measure classifier behavior on our set, not live voice calls or general scam detection.
 
-Live calls need configured phone and message services and a transfer destination. Service failures can fall back to local state or simulated actions. Channel labels show selected deliveries, not receipts. A known number can pass a named contact without a sensitive request; memory-resolved contacts still get a question.
+Email questions via Resend are built, not switched on. Live calls need configured phone and message services and a transfer destination. Service failures can fall back to local state or simulated actions. Channel labels show selected deliveries, not receipts. A known number can pass a named contact without a sensitive request; memory-resolved contacts still get a question.
 
 Persona runs in sandbox, at sign-up only. Hosted completion can trust the redirect when the API lookup is unavailable. Contact editing currently requires sign-in, without a separate Persona verification gate.
 
