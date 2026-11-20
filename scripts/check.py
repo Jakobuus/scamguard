@@ -941,5 +941,39 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert any(e["type"] == "ping.sent" for e in ev)
         assert any(e["type"] == "decision" and e["data"]["by"] == "tap" and e["data"]["state"] == "denied" for e in ev)
     ok("addressee is never the claimed name; stage scam scene asks Jakob and ends on his No")
+    # Amplitude Agent Analytics mapping: no network, events collected in telemetry._sink
+    from guard import telemetry
+    telemetry._sink = []
+    telemetry._calls.clear()
+    amp_id, _ = run(c, "Amplitude scam scene", {
+        "claimed_name": "Lena", "caller_number": "+15550100001",
+        "lines": ["Hi Mum, this is Lena, I'm in trouble.", "Please wire $2000 right now, don't tell dad."],
+        "agent_lines": {"0": "Hello, who is calling?", "2": "One moment while I check."},
+        "word_s": 0.001, "tap": "no", "tap_after_s": 0.5}, "denied", ["decision", "call.ended"])
+    time.sleep(0.5)
+    sent = [e for e in telemetry._sink if amp_id in e["insert_id"]]
+    names = [e["event_type"] for e in sent]
+    tools = [e["event_properties"]["[Agent] Tool Name"] for e in sent if e["event_type"] == "[Agent] Tool Call"]
+    for want in ("classify", "verify_caller", "lookup", "ask", "decide", "act"):
+        assert want in tools, (want, tools)
+    assert tools.index("classify") < tools.index("verify_caller") < tools.index("lookup") < tools.index("ask") < tools.index("decide") < tools.index("act")
+    assert "[Agent] User Message" in names and "[Agent] AI Response" in names and names[-1] == "[Agent] Session End"
+    scores = {e["event_properties"]["[Agent] Score Name"]: e["event_properties"] for e in sent if e["event_type"] == "[Agent] Score"}
+    assert set(scores) == {"eval_never_offered_a_name", "eval_never_agreed_to_pay",
+                           "eval_only_verified_actions", "eval_asked_real_person"}, scores
+    assert all(p["passed"] is True and p["[Agent] Score Value"] == 1 for p in scores.values()), scores
+    assert all(isinstance(e["event_properties"].get("$llm_message", {}), dict) for e in sent)
+    assert all(e["event_properties"]["[Agent] Agent ID"] for e in sent if e["event_type"].startswith("[Agent]"))
+    assert len({e["insert_id"] for e in sent}) == len(sent)
+    blob = json.dumps(sent)
+    assert "4111" not in blob and "+1555" not in blob and all(
+        c.challenge_answer.lower() not in blob.lower() for c in contacts._all() if c.challenge_answer)
+    assert any(e["event_type"] == "Call Outcome" and e["event_properties"]["outcome"] == "denied" for e in sent)
+    # a failing rule is reported, not hidden
+    bad = telemetry._st("bad", 0)
+    bad["agent_lines"] = ["Sure, I'll send the money now."]
+    assert not dict((n, p) for n, p, _ in telemetry.evals(bad, "bad"))["eval_never_agreed_to_pay"]
+    telemetry._sink = None
+    ok("amplitude: agent events, tool trace order, four evals pass, no code word or card number")
 _timer.cancel()
 print("ALL OK")
