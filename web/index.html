@@ -74,7 +74,8 @@ async function poll() {
   $("timer").textContent = s.toFixed(1) + " s";
 }
 function scene(k) {
-  fetch("/sim/call", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(SCENES[k])});
+  const key = new URLSearchParams(window.location.search).get("key");
+  fetch("/sim/call" + (key !== null ? "?key=" + encodeURIComponent(key) : ""), {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(SCENES[k])});
 }
 setFlags({});
 setInterval(poll, 500);

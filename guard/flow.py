@@ -15,7 +15,8 @@ def spawn(coro) -> None:
 
 def start_call(caller_number, call_id=None) -> str:
     call = state.create_call(caller_number, call_id)
-    state.emit(call.call_id, "call.started", {"caller_number": caller_number})
+    digits = "".join(c for c in (caller_number or "") if c.isdigit())
+    state.emit(call.call_id, "call.started", {"caller_number": f"•••• {digits[-4:]}" if digits else None})
     return call.call_id
 
 

@@ -77,7 +77,11 @@ def _fallback(method):
             if self.available:
                 try:
                     return method(self, *args, **kwargs)
-                except Exception:
+                except httpx.TransportError:
+                    self._disable()
+                except httpx.HTTPStatusError as exc:
+                    if not 500 <= exc.response.status_code < 600:
+                        raise
                     self._disable()
             return getattr(super(SingleStoreBackend, self), method.__name__)(*args, **kwargs)
     return run
@@ -116,7 +120,11 @@ class SingleStoreBackend(MemoryBackend):
             rows = self._rows("SELECT MAX(id) AS id FROM events")
             self.last_event_id = int(rows[0]["id"] or 0) if rows else 0
             self.available = True
-        except Exception:
+        except httpx.TransportError:
+            self._disable()
+        except httpx.HTTPStatusError as exc:
+            if not 500 <= exc.response.status_code < 600:
+                raise
             self._disable()
 
     def _disable(self):
@@ -130,6 +138,8 @@ class SingleStoreBackend(MemoryBackend):
     def _request(self, endpoint, sql, args):
         response = self.client.post(f"/api/v2/{endpoint}", json={
             "sql": sql, "args": list(args), "database": self.database})
+        if 400 <= response.status_code < 500:
+            logging.getLogger(__name__).warning("SingleStore rejected request (HTTP %s)", response.status_code)
         response.raise_for_status()
         return response.json()
 
@@ -138,6 +148,12 @@ class SingleStoreBackend(MemoryBackend):
 
     def _rows(self, sql, *args):
         return self._request("query/rows", sql, args)["results"][0]["rows"]
+
+    @staticmethod
+    def _bounded(field, value):
+        limit = {"claimed_name": 80, "caller_number": 20, "call_id": 64,
+                 "contact_id": 40, "decided_by": 20, "type": 40}.get(field)
+        return value[:limit] if limit and isinstance(value, str) else value
 
     @staticmethod
     def _value(value):
@@ -157,6 +173,8 @@ class SingleStoreBackend(MemoryBackend):
 
     @_fallback
     def create_call(self, caller_number, call_id=None) -> Call:
+        call_id = self._bounded("call_id", call_id)
+        caller_number = self._bounded("caller_number", caller_number)
         call = Call(call_id=call_id or uuid.uuid4().hex[:12], state="screening",
                     caller_number=caller_number, started_at=_now())
         self._exec("INSERT INTO calls (call_id, state, caller_number, started_at) VALUES (?, ?, ?, ?)",
@@ -166,6 +184,7 @@ class SingleStoreBackend(MemoryBackend):
 
     @_fallback
     def get_call(self, call_id) -> Call | None:
+        call_id = self._bounded("call_id", call_id)
         rows = self._rows("SELECT * FROM calls WHERE call_id=?", call_id)
         if not rows:
             self.calls.pop(call_id, None)
@@ -182,6 +201,8 @@ class SingleStoreBackend(MemoryBackend):
 
     @_fallback
     def update_call(self, call_id, **fields) -> None:
+        call_id = self._bounded("call_id", call_id)
+        fields = {key: self._bounded(key, value) for key, value in fields.items()}
         if not fields:
             return
         # Only contract fields (and the schema's private control URL) can become SQL identifiers.
@@ -195,6 +216,8 @@ class SingleStoreBackend(MemoryBackend):
 
     @_fallback
     def set_pending(self, call_id, contact_id) -> bool:
+        call_id = self._bounded("call_id", call_id)
+        contact_id = self._bounded("contact_id", contact_id)
         won = self._exec("UPDATE calls SET state='pending', contact_id=? "
                          "WHERE call_id=? AND state='screening'", contact_id, call_id) == 1
         if won and call_id in self.calls:
@@ -205,6 +228,8 @@ class SingleStoreBackend(MemoryBackend):
 
     @_fallback
     def decide(self, call_id, state, by) -> bool:
+        call_id = self._bounded("call_id", call_id)
+        by = self._bounded("decided_by", by)
         condition = "state='pending'"
         if state == "agent_verified":
             condition = "(state='pending' OR state='screening')"
@@ -218,6 +243,8 @@ class SingleStoreBackend(MemoryBackend):
 
     @_fallback
     def emit(self, call_id, type, data) -> Event:
+        call_id = self._bounded("call_id", call_id)
+        type = self._bounded("type", type)
         # HACK: time-based ids assume one app writer and a sane system clock.
         event_id = max(time.time_ns() // 1000, self.last_event_id + 1)
         event = Event(id=event_id, call_id=call_id, ts=_now(), type=type, data=data)

@@ -1,12 +1,23 @@
 import asyncio
+import hmac
+import os
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from guard import flow
+from guard import flow, settings
 
-router = APIRouter()
+def _authorize(req: Request) -> None:
+    if settings.FAKE:
+        return
+    secret = os.environ.get("APP_SECRET", "")
+    keys = (req.query_params.get("key", ""), req.headers.get("X-Sim-Key", ""))
+    if not secret or not any(hmac.compare_digest(key.encode(), secret.encode()) for key in keys):
+        raise HTTPException(403, "Invalid sim key")
+
+
+router = APIRouter(dependencies=[Depends(_authorize)])
 _sim_calls: set[str] = set()  # /sim/tap may only decide calls that /sim/call started, never a real one
 
 

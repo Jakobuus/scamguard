@@ -62,6 +62,9 @@ def main() -> int:
                                     "<redacted>" if os.environ.get("VAPI_SERVER_SECRET") else "")
         print(json.dumps(preview, indent=2))
         return 0
+    if not os.environ.get("VAPI_SERVER_SECRET"):
+        log.warning("Vapi setup needs VAPI_SERVER_SECRET; use --dry-run for a preview")
+        return 1
     if not settings.REAL_VAPI or settings.FAKE:
         log.warning("Vapi setup disabled; set REAL_VAPI=1 and FAKE=0 or use --dry-run")
         return 1

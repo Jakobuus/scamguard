@@ -2,6 +2,7 @@ import hmac
 import json
 import logging
 import os
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
@@ -68,6 +69,8 @@ def add_message(call_id: str, text: str) -> None:
 
 def _authorize(req: Request) -> None:
     secret = os.environ.get("VAPI_SERVER_SECRET")
+    if settings.REAL_VAPI and not settings.FAKE and not secret:
+        raise HTTPException(status_code=503, detail="Vapi server secret is not configured")
     if secret and not hmac.compare_digest(
         req.headers.get("X-Vapi-Secret", "").encode(), secret.encode()
     ):
@@ -88,7 +91,19 @@ async def _message(req: Request) -> dict:
 
 def _remember_control(call_id: str, call: dict) -> None:
     url = _dict(call.get("monitor")).get("controlUrl")
-    if isinstance(url, str) and url:
+    if url is None:
+        return
+    try:
+        parsed = urlsplit(url) if isinstance(url, str) else None
+        valid = (parsed is not None and parsed.scheme == "https"
+                 and parsed.hostname is not None and parsed.hostname.endswith(".vapi.ai")
+                 and not parsed.username and not parsed.password)
+    except ValueError:
+        valid = False
+    if not valid:
+        log.warning("Vapi control URL rejected")
+        return
+    if call_id not in _control_urls:
         _control_urls[call_id] = url
         if "control_url" in Call.model_fields and state.get_call(call_id) is not None:
             state.update_call(call_id, control_url=url)
