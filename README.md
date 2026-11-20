@@ -26,4 +26,4 @@ The repo is split into three lanes:
 
 ## Config
 
-Copy `.env.example` to `.env` and fill in the keys you have. Fake mode needs no keys at all. Never commit `.env`.
+Copy `env.example` to `.env` and fill in the keys you have. Fake mode needs no keys at all. Never commit `.env`.
