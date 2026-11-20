@@ -15,16 +15,21 @@ def _sim_key(secret: str) -> str:
     return hmac.new(secret.encode(), b"sim-key", "sha256").hexdigest()[:20]
 
 
-def _authorize(req: Request) -> None:
+def key_ok(req: Request) -> bool:
     if settings.FAKE:
-        return
+        return True
     secret = os.environ.get("APP_SECRET", "")
     key = req.headers.get("X-Sim-Key", "")
-    if not secret or not hmac.compare_digest(key.encode(), _sim_key(secret).encode()):
+    return bool(secret) and hmac.compare_digest(key.encode(), _sim_key(secret).encode())
+
+
+def _authorize(req: Request) -> None:
+    if not key_ok(req):
         raise HTTPException(403, "Invalid sim key")
 
 
 router = APIRouter(dependencies=[Depends(_authorize)])
+public = APIRouter()  # no key: only says whether a feature exists
 _sim_calls: set[str] = set()  # /sim/tap may only decide calls that /sim/call started, never a real one
 
 
@@ -119,11 +124,21 @@ async def _scam_running(client: httpx.AsyncClient) -> bool:
         return True
 
 
+@public.get("/sim/scam-call")
+def scam_call_available():
+    """The dashboard shows its cloned-voice button only when this is not 404."""
+    if settings.FAKE or not settings.REAL_VAPI or not os.environ.get("VAPI_SCAM_PHONE_ID"):
+        raise HTTPException(404, "not available")
+    return {"available": True, "running": bool(_scam) and time.time() - _scam["t"] < SCAM_MAX_S}
+
+
 @router.post("/sim/scam-call")
 async def scam_call():
     if settings.FAKE or not settings.REAL_VAPI:
         return {"started": False, "reason": "fake mode"}
-    missing = [n for n in ("VAPI_API_KEY", "VAPI_PHONE_NUMBER_ID", "VAPI_SCAM_PHONE_ID") if not os.environ.get(n)]
+    if not os.environ.get("VAPI_SCAM_PHONE_ID"):
+        return {"started": False, "reason": "no caller number"}
+    missing = [n for n in ("VAPI_API_KEY", "VAPI_PHONE_NUMBER_ID") if not os.environ.get(n)]
     if missing:
         return {"started": False, "reason": "missing " + ", ".join(missing)}
     try:
