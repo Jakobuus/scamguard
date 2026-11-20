@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone
 
 from guard import channels, credential, settings, state, telegram, vapi
-from guard.brain import classify, contacts, context
+from guard.brain import classify, contacts, context, scripts
 from guard.brain.redact import redact
 
 _tasks: set = set()
@@ -27,6 +27,7 @@ def reset_demo() -> None:
     _pings.clear()
     _cap_notified.clear()
     _caller_text.clear()
+    scripts.reset()
 
 
 def _normalize(text):
@@ -143,6 +144,7 @@ async def on_transcript(call_id, role, text) -> None:
         f = classify.flags(_caller_text[call_id])
         state.update_call(call_id, flags=f)
         state.emit(call_id, "flags", f.model_dump())
+        spawn(scripts.on_text(call_id, _caller_text[call_id]))  # fire-and-forget, never blocks the call
 
 
 async def _expected_call(call_id, found) -> bool:
@@ -370,5 +372,7 @@ async def _act(call_id, new_state) -> None:
 
 
 async def _notify(call_id, text) -> None:
+    if not text.startswith("Expected:"):
+        text += scripts.warning(call_id)
     telegram.notify_owner(text)
     state.emit(call_id, "owner.notified", {"text": text})

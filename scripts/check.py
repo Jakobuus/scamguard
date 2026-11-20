@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from guard.app import app  # noqa: E402
 from guard import channels, settings, flow, persona, state, telegram
-from guard.brain import classify, contacts  # noqa: E402
+from guard.brain import classify, contacts, scripts  # noqa: E402
 
 _last = ["start (nothing finished yet)"]
 
@@ -869,5 +869,30 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert roles == ["agent", "caller", "agent"], roles
     assert len(grew) >= 2 and all("Hello there friend".startswith(t) for t in grew), grew
     ok("live words: masked partials in memory, cleared on final or silence, sim plays both sides")
+    # scam-script match: shows up as an event, rides along in the owner warning, never changes a decision
+    gift = {"claimed_name": "Jakob", "caller_number": "+15550999111", "tap": "no", "tap_after_s": 0.5,
+            "lines": ["Mum, it's me, I need $2000 in gift cards now, don't tell dad"]}
+    flow._pings.clear()
+    _, gift_events = run(c, "scam script match", gift, "denied", BASE + ["script.match", "owner.notified", "call.ended"])
+    gm = next(e["data"] for e in gift_events if e["type"] == "script.match")
+    assert gm["script_id"] == "grandparent_giftcards" and not gm["benign"] and gm["method"] == "keyword", gm
+    assert any("This matches a known scam: family emergency, gift cards." in e["data"]["text"]
+               for e in gift_events if e["type"] == "owner.notified")
+    _, drv_events = run(c, "delivery line, no scam match", {"caller_number": "+15550440077",
+        "lines": ["Hi, this is the delivery driver, I have a parcel for you, which door should I use?"]},
+        "unverified", ["decision", "action", "owner.notified"])
+    dm = [e["data"] for e in drv_events if e["type"] == "script.match"]
+    assert all(m["benign"] for m in dm), dm
+    assert all("known scam" not in e["data"]["text"] for e in drv_events if e["type"] == "owner.notified")
+    for label, bad in (("raises", lambda t: 1 / 0), ("hangs", lambda t: time.sleep(3))):
+        flow._pings.clear()  # the daily ping cap is not under test here
+        with patch.object(scripts, "match", bad):
+            t1 = time.time()
+            _, bad_events = run(c, "matcher " + label, {**gift, "caller_number": "+1555099922" + str(len(label))}, "denied",
+                                BASE + ["owner.notified", "call.ended"])
+            assert time.time() - t1 < 2.5, "matcher must not delay the call"
+        assert not any(e["type"] == "script.match" for e in bad_events)
+        assert all("known scam" not in e["data"]["text"] for e in bad_events if e["type"] == "owner.notified")
+    ok("scam script match: event, owner warning, benign case, raising and hanging matcher change nothing")
 _timer.cancel()
 print("ALL OK")

@@ -53,6 +53,8 @@
   .chip.on i{background:#FF5468}
   @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
   #clsrc{flex-basis:100%;font-size:18px;color:var(--muted);margin-left:4px}
+  #scam{flex-basis:100%;font-size:18px;color:var(--muted);margin-left:4px}
+  #scam.warn{color:var(--bad,#c0392b);font-weight:600}
 
   /* 4. Audit trail */
   #trail{grid-column:1;grid-row:3;min-height:0;display:flex;flex-direction:column}
@@ -159,7 +161,7 @@
   <section id="claim">
     <span class="lab">Claims to be</span><span id="who" class="val dim">No call yet</span>
     <span class="lab">Asks for</span><span id="ask" class="val dim">No call yet</span>
-    <div id="chiprow"><span id="chips" style="display:contents"></span><span id="clsrc"></span></div>
+    <div id="chiprow"><span id="chips" style="display:contents"></span><span id="clsrc"></span><span id="scam" hidden></span></div>
   </section>
 
   <section id="talk" aria-live="off">
@@ -222,7 +224,7 @@ let since = 0, S = null, skew = Infinity;
 function reset(e) {
   S = {id: e.call_id, t0: ms(e.ts), number: e.data.caller_number, lookup: null, flags: null, claim: null,
        ping: null, notice: null, decision: null, late: 0, stepup: false, codeFailed: false,
-       askedName: false, expected: null, cred: null, ended: false};
+       askedName: false, scam: null, expected: null, cred: null, ended: false};
   $("steps").innerHTML = "";
   $("convo").innerHTML = '<div class="quiet" id="c-quiet">The conversation shows here, word by word, while a call is on.</div>';
   talk.live = {}; talk.awaiting = {}; talk.signal = Date.now();
@@ -310,6 +312,7 @@ function apply(e) {
     case "transcript": addFinal(d.role, d.text); break;
     case "claim": S.claim = d; break;
     case "flags": S.flags = d; break;
+    case "script.match": S.scam = d; break;
     case "contact.lookup": S.lookup = d; break;
     case "ping.sent": S.ping = {...d, at: ms(e.ts)}; break;
     case "notice.sent": S.notice = {...d, at: ms(e.ts)}; break;
@@ -450,6 +453,15 @@ function renderClaim() {
   }
   const src = {fake: "keyword rules", sie: "Superlinked SIE"}[f.source] || f.source;
   $("clsrc").textContent = S.flags ? `Classifier: ${src}${f.latency_ms ? `, ${f.latency_ms} ms` : ""}${f.risk != null ? `, risk ${Math.round(f.risk * 100)}%` : ""}` : "";
+  const m = S && S.scam, sc = $("scam");
+  if (!m || !m.title) { sc.hidden = true; sc.textContent = ""; }
+  else {
+    const how = {vector: "Superlinked embeddings + SingleStore vector search", fulltext: "SingleStore full-text search"}[m.method] || "keyword stand-in";
+    const pct = Number.isFinite(+m.score) ? ` · ${Math.round(m.score * 100)}%` : "";
+    const ms = m.latency_ms != null ? ` · ${m.latency_ms} ms` : "";
+    sc.textContent = m.benign ? `Looks like: ${m.title}${pct} · ${how}${ms}` : `Matches a known scam script: ${m.title}${pct} · ${how}${ms}`;
+    sc.className = m.benign ? "" : "warn"; sc.hidden = false;
+  }
 }
 
 // ---------- 3. the real person's phone ----------
@@ -602,7 +614,7 @@ async function resetDemo() {
   S = null;
   $("who").textContent = $("ask").textContent = "No call yet";
   $("who").className = $("ask").className = "val dim";
-  $("clsrc").textContent = "";
+  $("clsrc").textContent = ""; $("scam").hidden = true;
   $("owner-of").textContent = "The real person's phone";
   $("chips").innerHTML = Object.values(FLAGS).map(l => `<span class="chip"><i></i>${l}</span>`).join("");
   render();
