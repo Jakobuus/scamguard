@@ -204,7 +204,7 @@ function buildScenes(owner, who) {
                       : [`Hey ${owner}, it's ${who.name}. Do you have a minute?`, "I wanted to show you something."];
   // The assistant's side of the scripted scenes: key i is said before caller line i, key = number of lines after the last.
   const GREET = `Hello, this is ${owner}'s assistant. Who is calling, and what is it about?`;
-  const HOLD = `One moment, I am trying to reach ${owner === "Mum" ? "her" : "them"}.`;
+  const HOLD = `One moment, I am trying to reach ${owner}.`;
   const claimed_name = who.name;
   // One line per scene. `label` is the button text and is not sent to the server.
   return {

@@ -16,10 +16,11 @@ log = logging.getLogger(__name__)
 _control_urls: dict[str, str] = {}
 _ended: set[str] = set()
 _partial_seen: set[str] = set()  # calls whose partials were logged once or looked up after a restart
-_TOOL_RESULT = ("Checking now. Say ONE short sentence: you are trying to reach her, and if they cannot use "
-                "their phone they can say the family code word. Then stay quiet and wait for the caller or a "
-                "system message. Do not say you are checking again. Do not call verify_caller again. If the "
-                "caller says a code word, call check_code_word with exactly what they said.")
+def _tool_result() -> str:
+    return (f"Checking now. Say ONE short sentence: you are trying to reach {settings.OWNER_NAME}, and if they cannot "
+            "use their phone they can say the code word. Then stay quiet and wait for the caller or a "
+            "system message. Do not say you are checking again. Do not call verify_caller again. If the "
+            "caller says a code word, call check_code_word with exactly what they said.")
 
 
 def _control(call_id: str, payload: dict) -> bool:
@@ -62,7 +63,7 @@ def forward(call_id: str) -> None:
             return
     else:
         log.warning("Vapi transfer: no destination; using callback message")
-    say(call_id, "You are verified. She will call you right back.", end_after=True)
+    say(call_id, f"You are verified. {settings.OWNER_NAME} will call you right back.", end_after=True)
 
 
 def add_message(call_id: str, text: str) -> None:
@@ -197,7 +198,7 @@ async def verify_caller(req: Request):
         # Return before verification can touch Telegram or any other network service.
         flow.verification_started(call_id)
         flow.spawn(_verify(call_id, _dict(args).get("claimed_name"), _dict(args).get("reason")))
-        results.append({"toolCallId": tc.get("id"), "result": _TOOL_RESULT})
+        results.append({"toolCallId": tc.get("id"), "result": _tool_result()})
     return {"results": results}
 
 

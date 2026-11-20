@@ -567,7 +567,7 @@ async def _act(call_id, new_state) -> None:
     elif new_state == "unverified":
         if c.decided_by == "code_word":
             return  # on_code_word handles the final failure.
-        q = ("No answer from the real person yet. Say: 'I could not reach her. If you know the family code "
+        q = ("No answer from the real person yet. Say: 'I could not reach them. If you know the code "
              "word, please say it now.' Then listen, and pass exactly what the caller says to check_code_word. "
              "Do not hint at the word."
              if contact else "Who are you and why are you calling?")
