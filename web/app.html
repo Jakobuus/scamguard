@@ -302,7 +302,7 @@
   .sb-leg li.zero,.sb-leg li.zero b{color:var(--mg-text-2);font-weight:400}
   /* pressure tactics and who answered */
   .tac{display:flex;flex-direction:column;width:100%;min-height:0;flex:1}
-  .tac-list{display:flex;flex-direction:column;gap:9px}
+  .tac-list{display:flex;flex-direction:column;gap:7px}
   .tac-row{display:flex;flex-direction:column;gap:4px}
   .tac-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
   .tac-name{font-size:16px;color:var(--mg-text);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -314,21 +314,13 @@
   .tac-fil{height:100%;width:0;background:var(--mg-accent-bar);border-right:2px solid var(--mg-accent);border-radius:3px 0 0 3px;transition:width .6s ease}
   .tac-row.zero .tac-fil{border-right-width:0}
   .ov-div{height:1px;background:var(--mg-line-soft);margin:12px 0 10px;flex:none}
-  .ans-grid{display:grid;margin-top:6px;flex:1;align-items:center;min-height:0}
-  .ans-grid.wrap{row-gap:8px}
-  .ans-item{display:flex;flex-direction:column;gap:4px;padding-right:14px;min-width:0}
-  .ans-item+.ans-item{padding-left:16px;padding-right:14px;border-left:1px solid var(--mg-line-soft)}
-  .ans-item:last-child{padding-right:0}
-  .ans-grid.wrap .ans-item{padding:0 12px 0 0}
-  .ans-grid.wrap .ans-item:nth-child(2n){padding:0 0 0 14px;border-left:1px solid var(--mg-line-soft)}
-  .ans-grid.wrap .ans-item:nth-child(odd){border-left:0}
-  .ans-head{display:flex;align-items:center;gap:6px;font-size:15px;color:var(--mg-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px;margin-top:6px;flex:none}
+  .ans-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:6px;min-width:0;font-variant-numeric:tabular-nums}
+  .ans-head{display:flex;align-items:center;gap:6px;font-size:16px;color:var(--mg-text);white-space:nowrap;min-width:0}
+  .ans-head span{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .ans-head svg{width:16px;height:16px;color:var(--mg-text-2);flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-  .ans-valrow{display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
-  .ans-cnt{font-size:28px;font-weight:400;letter-spacing:-.02em;line-height:1.06;color:var(--mg-text)}
+  .ans-cnt{font-size:16px;font-weight:500;color:var(--mg-text);min-width:18px;text-align:right}
   .ans-pct{font-size:var(--mg-fs-cap);color:var(--mg-text-2)}
-  .ans-bar{width:100%;height:5px;background:var(--mg-track);border-radius:3px;overflow:hidden;margin-top:1px}
-  .ans-bar i{display:block;height:100%;background:var(--mg-bar-neutral);border-radius:3px}
   .ans-empty{margin-top:10px;font-size:15px;color:var(--mg-text-2);line-height:1.45}
   /* recent attempts */
   .rhead,.rr{display:grid;grid-template-columns:72px minmax(0,1.45fr) minmax(0,1fr) minmax(0,1.3fr) 178px minmax(0,1.55fr);gap:18px;align-items:center}
@@ -784,7 +776,13 @@
   }
 
   /* === expected calls === */
-  #v-expected .vhead{align-items:center;margin-bottom:18px}
+  #v-expected{display:flex;flex-direction:column;overflow:hidden}
+  #v-expected .vhead{align-items:center;margin-bottom:18px;flex:none;flex-wrap:wrap}
+  #v-expected .xrule{min-width:0;margin-bottom:0}
+  .xactions{display:flex;align-items:center;gap:10px;flex:none}
+  #x-scan-result{font-size:14px;overflow-wrap:anywhere}
+  #v-expected .xlist{min-height:0;overflow:auto}
+  #v-expected .xhead,#v-expected .xr{flex:none}
   .xrule{max-width:74ch;flex:1}
   .xrule b{color:var(--mg-text);font-weight:500}
   .xrule .g-note{display:block;margin-top:4px;color:var(--mg-text-2)}
@@ -1066,9 +1064,12 @@
     <!-- Expected calls -->
     <section class="view" id="v-expected" data-title="Expected calls" hidden>
       <div class="vhead">
-        <p class="lede xrule">When a caller mentions something you're expecting, the guard puts them through without asking anyone. <b>Never without a check when they ask for money:</b> a "delivery fee" gets no shortcut.<span class="g-note" id="expected-sponsor"></span></p>
+        <p class="lede xrule">When a caller mentions something you're expecting, the guard puts them through without asking anyone. <b>Never without a check when they ask for money:</b> a "delivery fee" gets no shortcut.<span class="g-note" id="x-scan-result" role="status" hidden></span><span class="g-note" id="expected-sponsor"></span></p>
         <span class="xpassed" id="x-passed" hidden></span>
-        <button class="btn btn-solid" type="button" id="x-add" style="flex:none"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Expect a call</button>
+        <div class="xactions">
+          <button class="btn btn-ghost" type="button" id="x-scan" hidden>Scan Gmail</button>
+          <button class="btn btn-solid" type="button" id="x-add" style="flex:none"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Expect a call</button>
+        </div>
       </div>
       <div class="xlist" id="x-list">
         <div class="card xempty"><h3>Nothing expected right now</h3><p class="sub">Tell the guard about a delivery, a callback or an appointment, so matching calls can get through without a question unless they ask for money.</p></div>
@@ -1887,18 +1888,16 @@ function ovTactics(s) {
   const byKey = Object.fromEntries((s.tactics || []).map(t => [t.key, t]));
   const list = TACTIC_KEYS.map((k, idx) => ({key: k, label: (byKey[k] && byKey[k].label) || TACTIC_NAME[k], count: (byKey[k] && byKey[k].count) || 0, idx}))
     .sort((a, b) => (b.count - a.count) || (a.idx - b.idx));
-  const ans = (s.channels_answered || []).filter(a => a.count > 0);
+  const ans = (s.channels_answered || []).filter(a => a.count > 0).sort((a, b) => b.count - a.count);
   const ansTotal = ans.reduce((a, x) => a + x.count, 0);
   const ansMeta = ansTotal ? `${ansTotal} ${ansTotal === 1 ? "reply" : "replies"}` : "";
-  const ansCols = ans.length > 3 ? 2 : Math.max(1, ans.length);
   const ansBody = ans.length
-    ? `<div class="ans-grid${ans.length > 3 ? " wrap" : ""}" style="grid-template-columns:repeat(${ansCols},minmax(0,1fr))">${ans.map(a => {
+    ? `<div class="ans-grid">${ans.map(a => {
         const pct = Math.round(a.count / ansTotal * 100);
         const ico = OV_CH_SVG[a.kind] || OV_CH_SVG.none;
         return `<div class="ans-item">
           <div class="ans-head"><svg viewBox="0 0 18 18" aria-hidden="true">${ico}</svg><span>${esc(a.label || a.kind)}</span></div>
-          <div class="ans-valrow"><span class="ans-cnt">${a.count}</span><span class="ans-pct">${pct}%</span></div>
-          <div class="ans-bar"><i style="width:${(a.count / ansTotal * 100).toFixed(1)}%"></i></div>
+          <span class="ans-pct">${pct}%</span><span class="ans-cnt">${a.count}</span>
         </div>`;
       }).join("")}</div>`
     : `<div class="ans-empty">Nobody had to be asked yet.</div>`;
@@ -2257,14 +2256,48 @@ async function loadExpected() {
   $("x-passed").hidden = !n;
   $("x-passed").textContent = `${n} expected ${n === 1 ? "call" : "calls"} passed without a question`;
 }
-addEventListener("hashchange", () => { if (ME && location.hash === "#expected") loadExpected(); });
+async function xProbeGmail() {
+  const button = $("x-scan");
+  try {
+    const response = await fetch("/api/gmail/status", {credentials: "same-origin"});
+    button.hidden = response.status === 404;
+    button.title = "Scan mailbox for expected calls and facts";
+    if (button.hidden) return;
+    let status = null;
+    try { status = await response.json(); } catch (_) {}
+    if (status && typeof status === "object") {
+      const hints = Object.entries(status).filter(([key, value]) =>
+        /source|connected|mailbox|mode/i.test(key) && ["string", "boolean"].includes(typeof value));
+      if (hints.length) button.title += ": " + hints.map(([key, value]) => `${key}: ${value}`).join("; ");
+    }
+  } catch (_) { button.hidden = true; }
+}
+addEventListener("hashchange", () => {
+  if (location.hash === "#expected") { xProbeGmail(); if (ME) loadExpected(); }
+});
+xProbeGmail();
+$("x-scan").onclick = async () => {
+  const button = $("x-scan"), result = $("x-scan-result");
+  if (button.disabled) return;
+  button.disabled = true; button.textContent = "Scanning…"; result.hidden = true;
+  try {
+    const scan = await api("/api/gmail/scan", {method: "POST"});
+    const count = value => Array.isArray(value) ? value.length : typeof value === "number" ? value : 0;
+    const source = scan.source === "sample" ? " (sample mailbox)" : scan.source === "gmail" ? " (Gmail)" : "";
+    result.textContent = `Scanned ${count(scan.scanned)} emails: ${count(scan.expected)} expected calls, ${count(scan.facts)} facts, ${count(scan.suspicious)} suspicious, ${count(scan.ignored)} ignored${source}`;
+    result.hidden = false;
+    await loadExpected();
+    if (typeof gRefresh === "function") await gRefresh();
+  } catch (e) { say(e.message); }
+  finally { button.disabled = false; button.textContent = "Scan Gmail"; }
+};
 function xRowHTML(x) {
   const on = !!x.expected, kw = (x.keywords || []).map(k => `<span class="chip kw">${esc(k)}</span>`).join("");
   return `<article class="xr${on ? "" : " off"}${xFresh === x.id ? " fresh" : ""}" data-id="${esc(x.id)}">
     <span class="xk"><span class="tile">${xIcon(x.kind)}</span>${esc((XKINDS[x.kind] || [x.kind])[0])}</span>
     <div style="min-width:0"><div class="xwho">${esc(capFirst(x.who))}</div>${x.note ? `<div class="xnote">${esc(x.note)}</div>` : ""}
       ${xFresh === x.id ? '<div class="xok">The guard lets this call through, unless it asks for money.</div>' : ""}</div>
-    <div class="xkw">${kw || '<span class="cc-empty">No words yet</span>'}</div>
+    <div class="xkw">${kw || '<span class="cc-empty">No words yet</span>'}${String(x.id).startsWith("gmail-") ? '<span class="chip">from Gmail</span>' : ""}</div>
     <div class="xact"><span class="saved">Saved</span><span class="xst">${on ? "Expected" : "Off"}</span>
       <button class="sw" type="button" role="switch" aria-checked="${on}" aria-label="Expect ${esc(x.who)}" data-xact="toggle"></button>
       ${x.builtin ? '<span class="xbuilt"></span>' : `<button class="xbtn" type="button" data-xact="remove" aria-label="Remove ${esc(x.who)}">${XMARK}</button>`}</div>
