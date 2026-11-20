@@ -54,6 +54,7 @@ class MemoryBackend:
             c = self.calls.get(call_id)
             ok = c is not None and (
                 c.state == "pending" or (c.state == "unverified" and state == "confirmed" and by == "code_word")
+                or (c.state == "unverified" and state == "denied" and by == "tap")
                 or (c.state == "screening" and (
                     state == "agent_verified" or (state == "confirmed" and by == "known_number"))))
             if ok:
@@ -235,6 +236,8 @@ class SingleStoreBackend(MemoryBackend):
         condition = "state='pending'"
         if state == "confirmed" and by == "code_word":
             condition = "state IN ('pending','unverified')"
+        if state == "denied" and by == "tap":
+            condition = "state IN ('pending','unverified')"  # a late No still ends the call
         if state == "agent_verified":
             condition = "(state='pending' OR state='screening')"
         won = self._exec("UPDATE calls SET state=?, decided_at=NOW(6), decided_by=? "

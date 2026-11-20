@@ -8,7 +8,7 @@ import re
 import httpx
 from fastapi import APIRouter, Request
 
-from guard import settings
+from guard import settings, state
 from guard.contracts import Call, Contact
 from guard.brain import contacts
 
@@ -144,18 +144,24 @@ async def webhook(request: Request = None):
         secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
         supplied = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
         if secret and not hmac.compare_digest(secret.encode(), supplied.encode()):
+            log.warning("webhook rejected: secret mismatch")
             return {"ok": True}
         update = await request.json()
         query = update.get("callback_query")
         if not isinstance(query, dict):
+            log.warning("webhook ignored: not a callback (keys: %s)", ",".join(sorted(map(str, update))) if isinstance(update, dict) else "?")
             return {"ok": True}
         verified = verify_callback(query.get("data", ""))
         if verified is None:
+            log.warning("webhook rejected: bad signature")
             return {"ok": True}
         action, call_id = verified
         from guard import flow
 
         won = await flow.on_tap(call_id, "yes" if action == "y" else "no")
+        _call = state.get_call(call_id)
+        log.warning("webhook tap %s call %s -> %s (state %s)", "yes" if action == "y" else "no", call_id,
+                    "won" if won else "too late", _call.state if _call else "unknown")
         text = ("Thanks. Putting the call through." if action == "y" else "Thanks. Call ended.") if won else "Too late, already decided."
         # Attempt both operations even if answering the callback fails.
         failed = False

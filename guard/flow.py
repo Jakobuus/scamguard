@@ -273,7 +273,9 @@ async def on_tap(call_id, answer) -> bool:
         vapi.hangup(call_id)
         await _notify(call_id, text)
         return True
-    if call.state != "pending":
+    # HACK: a No that arrives after the timeout still ends the call (unless the code-word path already hung up).
+    late_no = answer == "no" and call.state == "unverified" and call.decided_by == "timeout"
+    if call.state != "pending" and not late_no:
         return False
     if answer == "yes" and call_id in _stepups:
         return False

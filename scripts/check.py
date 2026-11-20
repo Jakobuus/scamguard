@@ -375,6 +375,13 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert any(e.data.get("kind") == "code_word_failed" for e in events(cid))
 
         cid = await matched()
+        await flow._resolve(cid, "unverified", "timeout")
+        assert not await flow.on_tap(cid, "yes")
+        assert await flow.on_tap(cid, "no")
+        assert state.get_call(cid).state == "denied" and state.get_call(cid).decided_by == "tap"
+        assert not await flow.on_tap(cid, "no")
+
+        cid = await matched()
         await flow.on_tap(cid, "no")
         before = len(events(cid))
         assert await flow.on_code_word(cid, "Bruno") == "failed"
