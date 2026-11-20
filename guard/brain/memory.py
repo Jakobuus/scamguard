@@ -52,8 +52,9 @@ def scrub(text: str, secrets: list[str] = (), limit: int = 180) -> str:
 
 def _search(query: str, timeout: float = 2.5) -> str:
     with _client(timeout) as http:
-        r = http.post("/api/v1/search", json={"query": query, "search_type": "GRAPH_COMPLETION",
-                                              "datasets": [DATASET]})
+        # No `datasets` field: Cognee fails the whole request on a name it can't resolve,
+        # and a family tenant holds one dataset. The server searches everything we own.
+        r = http.post("/api/v1/search", json={"query": query, "search_type": "GRAPH_COMPLETION"})
         r.raise_for_status()
         body = r.json()
     if isinstance(body, list) and body:
@@ -132,6 +133,12 @@ def seed_texts() -> list[str]:
     return [scrub(t, limit=2000) for t in texts]
 
 
+def _detail(e: Exception) -> str:
+    """Server error text for the CLI only (a response body never contains our key)."""
+    r = getattr(e, "response", None)
+    return f": {r.status_code} {r.text[:300]}" if r is not None else ""
+
+
 def _main(argv: list[str]) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     cmd = argv[1] if len(argv) > 1 else "preview"
@@ -147,14 +154,14 @@ def _main(argv: list[str]) -> int:
             print(f"Seeded {len(seed_texts())} facts into dataset '{DATASET}' and cognified.")
             return 0
         except Exception as e:
-            print(f"Cognee seed failed ({type(e).__name__}).")
+            print(f"Cognee seed failed ({type(e).__name__}){_detail(e)}.")
             return 1
     if cmd == "ask":
         try:
             print(_search(" ".join(argv[2:]) or "Who is in the family?", timeout=30))
             return 0
         except Exception as e:
-            print(f"Cognee search failed ({type(e).__name__}).")
+            print(f"Cognee search failed ({type(e).__name__}){_detail(e)}.")
             return 1
     print(__doc__)
     return 2
