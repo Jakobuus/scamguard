@@ -65,12 +65,11 @@ Expected calls use stored records, the user's list and a mailbox scan; the scan 
 
 ## Team and links
 
-Jakob and Erick [SURNAME]
+Jakob and Erick Julyan
 
 Product: https://kincheck-caller.lovable.app/
 
 Repository: https://github.com/Jakobuus/scamguard
 
-Demo video: [VIDEO LINK]
+Demo video: to follow
 
-Contact: [EMAILS]
