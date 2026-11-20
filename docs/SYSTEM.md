@@ -5,13 +5,21 @@ you want. A seam changes only after you tell the team (one line in the group cha
 
 ## 1. The trick: a running skeleton with fakes, from minute one
 
-The repo starts as a complete, running app where every outside service is a fake behind its final function
-signature. `FAKE=1` (default) needs no keys, no phone, no network. Each task is then "replace one fake with the
-real thing, keep the signature". Main always runs; nobody waits for anybody.
+Outside services sit behind stable function signatures. `FAKE=1` (default) needs no keys, no phone,
+no network. Real integrations use the same seams as their fakes.
 
 - Fake a whole call without a phone: `POST /sim/call` (see 5). Neither lane needs Vapi to test.
 - Per-service switches in `.env`: `REAL_VAPI`, `REAL_TELEGRAM`, `REAL_DB`, `REAL_SIE`, `REAL_COGNEE`,
-  `REAL_PERSONA`, `REAL_SENSO` (each `0`/`1`). `FAKE=1` forces all to 0.
+  `REAL_PERSONA`, `REAL_SENSO`, `REAL_BEEPER`, `REAL_EMAIL` (each `0`/`1`). `FAKE=1` disables real
+  services; configured WhatsApp/email channels can still appear as fake questions.
+- WhatsApp needs `BEEPER_ACCESS_TOKEN` and `BEEPER_CHAT_ID`; `BEEPER_BASE_URL` defaults to
+  `http://localhost:23373`. Email needs `RESEND_API_KEY`, `PING_EMAIL_TO`, `PUBLIC_BASE_URL` and
+  `APP_SECRET`; `PING_EMAIL_FROM` optionally overrides the Resend default sender.
+- `REDACT_SIE=0` keeps redaction rules-only. `REDACT_SIE=1` also uses enabled SIE for final transcript
+  events, with a 400 ms request timeout. `REAL_AMPLITUDE` gates telemetry with `AMPLITUDE_API_KEY`.
+  Other integration settings include `COGNEE_URL`, `COGNEE_DATASET`, `PERSONA_TEMPLATE_ID`,
+  `VAPI_SERVER_SECRET`, `TELEGRAM_WEBHOOK_SECRET`, `OWNER_CHAT_ID` and `TRANSFER_TO_NUMBER`.
+  `TIMEOUT_S` defaults to 20; `APP_SECRET` signs answer buttons and authorizes real-mode simulations.
 - `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed), trust-gap scenes, code-word recovery, daily ping-cap and expected-call scenes, and contract checks.
   **Run it before every push.** If it fails, don't push.
 
@@ -21,8 +29,8 @@ Stack: Python 3.12+, FastAPI, `uv`, one static HTML page. No frontend framework.
 
 | Lane | Owns | Delivers |
 |---|---|---|
-| **A Call path and demo** | `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`, `guard/brain/context.py`, `guard/brain/classify.py`, `web/`, `scripts/`, `README.md` | Call handling, flags, claim extraction, expected calls, verification taps, the audience screen and the demo checks |
-| **B Brains** | `guard/brain/contacts.py`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/` | Contact matching and learning, drill score, identity step-up, scoped credentials and telemetry |
+| **A Call path and demo** | `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/channels.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`, `guard/brain/context.py`, `guard/brain/classify.py`, `web/`, `scripts/`, `README.md` | Call handling, flags, claim extraction, expected calls, verification taps, the audience screen and the demo checks |
+| **B Brains** | `guard/brain/contacts.py`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/` | Contact matching and learning, drill score, account identity verification, scoped credentials and telemetry |
 
 Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as `OWNER_NAME` live in
 `guard/settings.py`; its default is `Mum`.
@@ -43,12 +51,12 @@ Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as 
 ## 3. The call's life (one state machine, owned by lane A)
 
 ```
-started → screening → pending ─┬─ confirmed   (Yes, optionally followed by step-up) → forward
-            │                  ├─ denied      (No, failed step-up, repeat attempt) → hang up
+started → screening → pending ─┬─ confirmed   (Yes) → forward
+            │                  ├─ denied      (No or repeat attempt) → hang up
             │                  └─ unverified  (timeout or failed lookup)           → challenge
             ├─ confirmed      (known number or expectation, no sensitive request)         → forward
             └─ agent_verified (valid credential within scope)                     → forward
-any → ended
+call.ended is an event; it does not change the stored decision state.
 ```
 
 `verify_caller` extracts a claim from the caller transcript so far, using its `claimed_name` argument
@@ -70,19 +78,25 @@ Otherwise, only a caller number already denied **by tap** for the same contact t
 Missing caller numbers never auto-deny. Earlier denied or unverified attempts as the contact add
 " (attempt <n> today)" to the next ping; timeouts count toward this warning but never auto-deny.
 
-All other matched calls enter `pending` and receive one verification ping, subject to the daily cap below.
-Exactly one decision wins; late taps and timeouts do nothing except the late denial above (also
-available after code-word confirmation). Only the winning flow
-acts on a pending call. The memory backend allows `known_number` and credential decisions directly
-from screening. For known-number decisions, the wrapper moves a call through
-`pending` before deciding, without sending a ping.
+All other matched calls enter `pending` and ask on every enabled channel at once, subject to the daily
+cap below: Telegram, WhatsApp through the Beeper Desktop API, and email through Resend.
+Telegram remains in the channel list in fake mode. WhatsApp and email require their flag and settings;
+real delivery also requires `FAKE=0`. Deliveries run in background tasks. `ping.sent.channels` lists the
+selected channels, not delivery receipts. WhatsApp polls the configured chat for up to 90 seconds and
+accepts a Yes/No reply for its latest question. Email links use signed answer data; GET only shows a
+confirmation form, and POST submits the answer. Owner warnings and heads-up notices use Telegram only.
 
-On Yes with latest flags `needs_verification`, call `persona.start(contact_id)`. A link emits `stepup`
-and leaves the call pending; `on_stepup(call_id, ok)` decides confirmed or denied by `stepup`.
-If Persona is really enabled (`REAL_PERSONA=1`, `FAKE=0`), no link or an exception resolves unverified
-by `stepup_unavailable`. With Persona off, no link confirms by `tap`. Duplicate Yes taps cannot skip
-step-up; No and the existing timeout still work. Every winning decision calls `contacts.learn(call)`;
-only confirmation by `tap` or `stepup` teaches a new number, never `known_number`.
+Every answer goes through `flow.on_tap`; the first answer wins the atomic decision and its `decision`
+event carries `channel`. Yes confirms directly; No denies and hangs up. Later answers and timeouts do
+nothing, except that a No after `unverified` by `timeout` still decides `denied` by `tap`, and the
+known-number/code-word late-denial path above remains available. A late Yes cannot reverse a timeout.
+Only the winning flow acts on a pending call. The memory backend allows `known_number` and credential
+decisions directly from screening. For known-number decisions, the SingleStore wrapper moves a call
+through `pending` before deciding, without sending a ping.
+
+Identity verification happens once when an account is created, outside the call flow. Every winning
+decision calls `contacts.learn(call)`; only confirmation by `tap` teaches a new number during calls,
+never `known_number` or `code_word`.
 
 ### Expected calls
 
@@ -139,7 +153,8 @@ only code compares it and returns an outcome.
 
 `flow.on_code_word(call_id, spoken) -> "ok" | "retry" | "failed"` accepts only a matched contact in
 `pending` or `unverified`, and allows two attempts per call. Case and punctuation are normalized;
-an answer may equal the word or contain it with whole-word boundaries. Exact equality uses
+an answer may equal the word or contain it with whole-word boundaries; one edit is allowed for words
+of five or more letters via `contacts.close`. Exact equality uses
 `hmac.compare_digest`. Empty configured words never verify. A denied call cannot be reopened.
 An exhausted call cannot try again. Success atomically decides `confirmed` by `code_word`, forwards,
 and sends `telegram.send_notice` / `notice.sent` with:
@@ -151,10 +166,9 @@ a timeout's `unverified` state may later be upgraded by the code word. Other dec
 A wrong first answer returns `retry`. A second wrong answer leaves or resolves the call `unverified`,
 emits `action` kind `code_word_failed`, hangs up, and notifies the owner:
 "Unverified caller failed the code word. Don't send money." No event stores the spoken answer.
-Timeout adds this assistant instruction:
-"No answer from the real person. Ask the caller for the family code word and pass exactly what they
-say to check_code_word. Do not hint at the word." The same recovery instruction applies to a matched
-call that cannot be pinged.
+Timeout instructs the assistant to say it could not reach the real person, invite the family code
+word, listen, and pass the exact reply to `check_code_word` without hints. The same recovery
+instruction applies to a matched call that cannot be pinged.
 
 At most five verification pings per contact per UTC day are reserved by the flow. Further matched
 calls resolve `unverified` by `ping_cap`, without a ping, and retain code-word recovery. Only the first
@@ -163,10 +177,8 @@ capped call that day notifies the owner:
 The cap and its once-per-day warning are process-local, like attempt history; restarting the process
 resets them. Known-number pass-through and repeat-denied-number blocking keep their existing priority.
 
-Build scope note: the audience screen labels a code-word confirmation "confirmed by code word".
-The requested fourth simulation scene and optional `/sim/call` `code_word` field still require editing
-`guard/sim.py`, which the build brief excludes from its allowed file list. They are not implemented;
-the recovery scenes in `scripts/check.py` drive `flow.on_code_word` and the Vapi tool directly.
+The audience screen labels a code-word confirmation "Verified by code word". `/sim/call` has no
+`code_word` field; recovery checks drive `flow.on_code_word` and the Vapi tool directly.
 
 ## 4. Shapes (`guard/contracts.py`, pydantic)
 
@@ -222,7 +234,7 @@ class Call:
     started_at: datetime
     decided_at: datetime | None
     decided_by: str | None            # tap | timeout | credential | lookup |
-                                      # known_number | repeat_attempt | stepup | stepup_unavailable | code_word | ping_cap | expected | expected_but_money
+                                      # known_number | repeat_attempt | code_word | ping_cap | expected | expected_but_money
 
 class Event:
     id: int                           # increasing
@@ -249,29 +261,30 @@ Functions (Python, same process):
 | `contacts.lookup(claimed_name, caller_number) -> Lookup` | B | Compatible name lookup; missing match returns `contact=None`. Cognee may enrich notes but never decides. |
 | `contacts.attempts_today(contact_id, caller_number=None) -> int` | B | Count today's denied and unverified attempts (UTC in the fake), restricted to that contact/number pair when a number is supplied. |
 | `contacts.denied_today(contact_id, caller_number) -> bool` | B | Whether this contact/number pair was denied by a tap today; missing number returns False. |
-| `contacts.learn(call: Call) -> None` | B | Fake keeps an in-memory attempt list. Only calls confirmed by `tap` or `stepup` add new numbers to the matched contact in memory. Denied/unverified calls record attempts and never teach numbers or identities. No disk writes. |
+| `contacts.learn(call: Call) -> None` | B | Fake keeps an in-memory attempt list. Only calls confirmed by `tap` add new numbers during calls to the matched contact in memory. Denied/unverified calls record attempts and never teach numbers or identities. No disk writes. |
 | `credential.check(token) -> dict \| None` | B | Valid token returns `{agent, principal, scope: list[str]}`. Demo scope is `["scheduling"]`; invalid returns None. |
-| `persona.start(contact_id) -> str \| None` | B | Link for step-up after Yes, or None (fake). |
-| `telemetry.on_event(event: Event) -> None` | B | Fake does nothing. Future sponsor telemetry consumes the same event seam. |
+| `telemetry.on_event(event: Event) -> None` | B | Fake does nothing. With `REAL_AMPLITUDE=1`, `FAKE=0` and a key, queues events for Amplitude in a background thread; strips contact details and replaces transcript text with role and character count. |
 | `state.subscribe(fn)` | A | Every `state.emit` passes the emitted Event to each subscriber; failure logs one line and other subscribers continue. App startup subscribes `telemetry.on_event`. |
-| `state.emit(call_id, type, data)` | A | The only way anything reaches the screen or telemetry. |
+| `state.emit(call_id, type, data)` | A | Redacts event data before storage and subscriber delivery; the event path to the screen and telemetry. |
+| `channels.send_ping(call, contact, claim=None)` | A | Starts all selected channel deliveries and returns their names. |
 | `telegram.send_ping(call, contact, claim=None)` | A | Text: "Someone is calling <OWNER_NAME> as you, asking for <amount> in <method>. Is this you?" Omit request details when absent; include available amount/method. Append " (attempt <n> today)" for earlier denied/unverified attempts. Fake logs the same text. |
 | `telegram.send_notice(call, contact)` | A | Known-number or code-word heads-up with one signed `n` / "Not me" button; real delivery runs in the background. |
 | `flow.on_transcript(call_id, role, text)` | A | Async; emits transcript and latest flags from accumulated caller text. |
 | `flow.verify_caller(call_id, claimed_name)` | A | Async; claim → candidates → name question, known-number decision, repeat block or ping (see 3). |
 | `flow.on_code_word(call_id, spoken)` | A | Async; compare in code only; two tries, pending/unverified matched callers only; returns `ok`, `retry` or `failed`. |
-| `flow.on_tap(call_id, answer)` | A | Async; Yes/No, with optional step-up (see 3). |
-| `flow.on_stepup(call_id, ok: bool)` | A | Async; only a pending step-up may decide by `stepup`. |
+| `flow.on_tap(call_id, answer, channel="telegram")` | A | Async; Yes confirms, No denies; returns whether the answer won (see 3). |
 | `flow.on_credential(call_id, token)` | A | Async; money requests require `payment` in scope. Otherwise emit `out_of_scope`, return False, and continue normal verification. Accepted credentials decide `agent_verified`. |
 
-HTTP (all JSON):
+HTTP (JSON unless noted):
 
 | Route | Owner | Body → result |
 |---|---|---|
 | `POST /vapi/webhook` | A | Vapi status, transcript and end events |
 | `POST /vapi/tool/verify_caller` | A | `{claimed_name}` → holding response; may ask a name before pinging |
 | `POST /vapi/tool/check_code_word` | A | `{spoken: str}` in the same authenticated Vapi tool envelope as `verify_caller`; returns only next-speech instructions, never the expected word. |
-| `POST /telegram/webhook` | A | Verification button taps |
+| `POST /telegram/webhook` | A | Signed verification button taps → `flow.on_tap` with channel `telegram` |
+| `GET /answer?d=<signed-data>` | A | HTML confirmation form only; never decides |
+| `POST /answer` | A | URL-encoded `d` → `flow.on_tap` with channel `email`; HTML result |
 | `POST /sim/call` | A | `{claimed_name, caller_number, lines: [str], agent_lines: {int: str}, tap: "yes"\|"no"\|null, tap_after_s: float, credential: str\|null, word_s: float\|null}` → `{call_id}`; same flow, no phone. Out-of-scope credentials continue verification. See "Live conversation" below. |
 | `POST /sim/tap` | A | `{call_id, answer: "yes"\|"no"}` |
 | `GET /calls/{call_id}` | A | `Call` |
@@ -282,24 +295,31 @@ HTTP (all JSON):
 | `GET /` | A | Audience screen |
 | `GET /health` | A | Which services are real or fake |
 
-`on_stepup` is a function seam only; this skeleton adds no public callback endpoint.
-
 ## 6. Event types (the screen's whole vocabulary)
 
 | type | data |
 |---|---|
-| `call.started` | `{caller_number}` (masked on the screen) |
+| `call.started` | `{caller_number}` (masked to its last four digits before emission) |
 | `transcript` | `{role: "caller"\|"agent", text}` |
+| `claim` | `Claim` plus `asks_for`, the shared question/display wording |
 | `flags` | `Flags`, including `needs_verification` |
-| `context.expected` | `Expectation`; emitted only for a safe matched call, never a circle claim asking for money |
+| `context.expected` | `Expectation`; emitted for matched expectations whether allowed or blocked; never for circle claims |
 | `contact.lookup` | `{contact: {id, name, relationship} \| null, number_known, note}`; never numbers, emails or chat ids |
-| `ping.sent` | `{contact_id, channels: ["telegram"], text}`; text includes available claim amount/method and the configured owner label |
-| `notice.sent` | `{contact_id, channels: ["telegram"], text}`; non-blocking known-number or code-word heads-up |
-| `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide}`; `by` is one of the documented `decided_by` values |
-| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial"\|"code_word_failed"\|"expected_but_money"\|"take_message", text}` or `{kind: "stepup", link}` or `{kind: "code_word_failed"\|"expected_but_money"}` |
-| `owner.notified` | `{text}`; expected-call reason when forwarded, or a warning not to send money and the third-attempt warning when blocked |
+| `ping.sent` | `{contact_id, channels, timeout_s, text}`; selected channels are `telegram`, `whatsapp`, `email`; text includes available claim amount/method and the configured owner label |
+| `notice.sent` | `{contact_id, channels: ["telegram"], timeout_s: null, text}`; non-blocking known-number or code-word heads-up |
+| `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide, channel?}`; tap decisions carry the answer channel; `by` is one of the documented `decided_by` values |
+| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial"\|"code_word_failed"\|"expected_but_money"\|"take_message", text}` or `{kind: "code_word_failed"\|"expected_but_money"}` |
+| `owner.notified` | `{text}`; expected-call reason when forwarded, or a warning not to send money when blocked |
 | `credential.verified` | `{agent, principal, scope}`; only emitted after the scope check passes |
 | `call.ended` | `{}` |
+
+`state.emit` calls `guard/brain/redact.py` before events reach either backend or any subscriber.
+Free text is copied and masked with typed placeholders such as `[phone number]`, `[card number]`,
+`[bank account number]`, `[one-time code]`, `[password]` and `[address]`; metadata fields are preserved.
+Changed payloads carry `redacted`, a list of detected types. Rules always run; optional SIE extraction
+runs only for final transcript events when `REDACT_SIE=1` and SIE is enabled. Errors fall back to rules.
+This boundary redacts events, not Call records or the raw call API. Live partials use rules-only
+redaction, including unfinished numeric and email fragments, before entering live memory.
 
 New event types are free to add; never rename or remove one.
 
@@ -313,11 +333,14 @@ events(id BIGINT AUTO_INCREMENT, call_id VARCHAR(64), ts DATETIME(6), type VARCH
        PRIMARY KEY (id, call_id), SHARD KEY (call_id))
 ```
 
-Decide: `UPDATE calls SET state=?, decided_at=NOW(6), decided_by=? WHERE call_id=? AND state='pending' RETURNING state`.
-For `confirmed` by `code_word` only, the atomic update instead uses
-`WHERE call_id=? AND state IN ('pending','unverified')`.
+Decide: `UPDATE calls SET state=?, decided_at=NOW(6), decided_by=? WHERE call_id=? AND state='pending'`.
+For `confirmed` by `code_word` or `denied` by `tap`, the atomic update instead uses
+`WHERE call_id=? AND state IN ('pending','unverified')`. The flow limits late tap denial to timeout
+recovery. Credential decisions also allow `screening`.
 One affected row = you won, act on the call. Zero rows = someone already decided, do nothing.
-Fake mode keeps both tables in memory with the same functions.
+Fake mode keeps both tables in memory with the same functions. SingleStore uses the HTTPS Data API
+and a memory shadow; transport errors and server errors switch the process to memory. Other HTTP
+errors propagate. Only calls and events seen by this process survive that fallback.
 
 ## 8. Working rules
 
@@ -325,8 +348,6 @@ Fake mode keeps both tables in memory with the same functions.
 - `make check` green before every push. A broken `main` is the only real failure.
 - Secrets only in `.env`. Never paste a key into chat, code or an issue.
 - Stuck for 15 minutes on an outside service: keep its fake, say so in the chat, move on.
-- Sync points: **12:15** each lane has one real piece behind its seam · **13:30** real call end to end ·
-  **15:00** sponsors wired · **15:30** freeze.
 
 ## Audience event data and demo reset
 
@@ -334,7 +355,7 @@ Fake mode keeps both tables in memory with the same functions.
 `claimed_name`, `relationship`, `amount`, `method`, and `quote`, plus `asks_for`: the shared
 Telegram/display wording (for example `$2,000 in gift cards` or `$2,000 by wire`). Plain numeric
 amounts gain a dollar sign and thousands separators. Cash uses `in cash`; absent methods add no
-suffix. The screen prefers this event and retains its older fallbacks.
+suffix. The screen prefers this event, with ping text and transcript fallbacks.
 
 Expected-call paths emit `contact.lookup` with a null contact and note `Not someone from the circle.`
 before `context.expected`. Matched expectations emit context in both allowed and blocked cases.
