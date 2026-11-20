@@ -100,6 +100,107 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert "no longer valid" in c.post("/answer", data={"d": signed + "bad"}).text
     flow.reset_demo()
     ok("channels: fan-out, first answer wins, scanner-safe email confirmation")
+    async def contact_channels():
+        import asyncio
+        import httpx
+        import tempfile
+        from urllib.parse import unquote
+        from guard.contracts import Contact
+
+        # Catch global-target routing and replies deciding a different contact's call.
+        first = Contact(id="first", name="First", relationship="friend", challenge_question="Code?",
+                        challenge_answer="demo", whatsapp_chat_id="!first", telegram_chat_id="101",
+                        email="first@example.invalid")
+        assert getattr(first, "whatsapp_chat_id", None) == "!first"
+        second = first.model_copy(update={"id": "second", "name": "Second", "whatsapp_chat_id": "!second"})
+        with tempfile.TemporaryDirectory() as tmp, patch.object(channels, "ACCOUNT_PATH", Path(tmp) / "account.json"), patch.dict(
+            os.environ, {"REAL_BEEPER": "1", "REAL_EMAIL": "1", "BEEPER_ACCESS_TOKEN": "test",
+                         "BEEPER_CHAT_ID": "!fallback", "TELEGRAM_CHAT_ID": "999", "RESEND_API_KEY": "test",
+                         "PING_EMAIL_TO": "fallback@example.invalid", "PUBLIC_BASE_URL": "https://guard.example",
+                         "APP_SECRET": "channel-test"}):
+            assert channels.targets(first) == {"telegram": "101", "whatsapp": "!first", "email": "first@example.invalid"}
+            bare = first.model_copy(update={"telegram_chat_id": None, "whatsapp_chat_id": None, "email": None})
+            fallback = {"telegram": "999", "whatsapp": "!fallback", "email": "fallback@example.invalid"}
+            assert channels.targets(bare) == fallback
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"first": {"channels": [
+                {"kind": "whatsapp", "handle": "!override", "enabled": True},
+                {"kind": "telegram", "handle": "-100123", "enabled": True},
+                {"kind": "email", "handle": "override@example.invalid", "enabled": True}]}}}))
+            assert channels.targets(first) == {"telegram": "-100123", "whatsapp": "!override", "email": "override@example.invalid"}
+            delivered = []
+            def target_http(request):
+                delivered.append(json.loads(request.content))
+                return httpx.Response(200, json={"ok": True, "result": {}, "id": "email"})
+            cid = flow.start_call(None)
+            with httpx.Client(transport=httpx.MockTransport(target_http)) as client, patch.object(
+                settings, "REAL_EMAIL", True), patch.object(settings, "REAL_TELEGRAM", True), patch.dict(
+                os.environ, {"TELEGRAM_BOT_TOKEN": "test", "BEEPER_CHAT_ID": "", "PING_EMAIL_TO": ""}), patch.object(
+                channels.httpx, "post", client.post):
+                assert channels.enabled(first) == ["telegram", "whatsapp", "email"]
+                await channels._deliver("telegram", state.get_call(cid), first, None)
+                await channels._deliver("email", state.get_call(cid), first, None)
+            assert delivered[0]["chat_id"] == "-100123"
+            assert delivered[1]["to"] == ["override@example.invalid"]
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"first": {"channels": [
+                {"kind": "whatsapp", "handle": "+15550000000", "enabled": True},
+                {"kind": "telegram", "handle": "@unresolved", "enabled": True}]}}}))
+            assert channels.targets(first)["whatsapp"] == "!first"
+            assert channels.targets(first)["telegram"] == "101"
+            for broken in ('{', '[]', '{"contacts": []}', '{"contacts":{"first":[]}}',
+                           '{"contacts":{"first":{"channels":{}}}}'):
+                channels.ACCOUNT_PATH.write_text(broken)
+                assert channels.targets(bare) == fallback
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"first": {"channels": [
+                {"kind": kind, "handle": "", "enabled": False} for kind in ("telegram", "whatsapp", "email")]}}}))
+            assert channels.enabled(first) == []
+            channels.ACCOUNT_PATH.unlink()
+            flow.reset_demo()
+            calls = []
+            for contact in (first, second):
+                cid = flow.start_call(None)
+                state.update_call(cid, state="pending", contact_id=contact.id)
+                calls.append(state.get_call(cid))
+            sent = {"!first": [], "!second": []}
+            release = asyncio.Event()
+            def beeper_http(request):
+                chat = unquote(request.url.path).split("/")[3]
+                if request.method == "POST":
+                    sent[chat].append(json.loads(request.content)["text"])
+                    return httpx.Response(200, json={"chatID": chat, "pendingMessageID": "~pending"})
+                items = []
+                if sent[chat]:
+                    items = [{"id": "question", "text": sent[chat][0], "isSender": True},
+                             {"id": "confirmation", "text": "Thanks. Call ended.", "isSender": True}]
+                    if chat == "!first" or release.is_set():
+                        items.insert(0, {"id": "reply", "text": "YES", "isSender": False})
+                return httpx.Response(200, json={"items": items, "hasMore": False})
+            with httpx.Client(transport=httpx.MockTransport(beeper_http)) as client, patch.object(
+                settings, "REAL_BEEPER", True), patch.object(channels.httpx, "request", client.request):
+                tasks = [asyncio.create_task(channels._deliver("whatsapp", call, contact, None))
+                         for call, contact in zip(calls, (first, second))]
+                await asyncio.wait_for(tasks[0], 3)
+                assert state.get_call(calls[0].call_id).state == "confirmed" and state.get_call(calls[1].call_id).state == "pending"
+                assert len(sent["!first"]) == 2 and len(sent["!second"]) == 1
+                release.set()
+                await asyncio.wait_for(tasks[1], 3)
+                assert state.get_call(calls[1].call_id).state == "confirmed"
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"lena": {"channels": [
+                {"kind": "whatsapp", "handle": "!disabled", "enabled": False}]}}}))
+            cid = await channel_question()
+            ping = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "ping.sent")
+            assert ping["channels"] == ["telegram", "email"]
+            await flow.on_tap(cid, "no")
+            channels.ACCOUNT_PATH.write_text('{')
+            cid = await channel_question()
+            ping = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "ping.sent")
+            assert ping["channels"] == ["telegram", "whatsapp", "email"]
+            await flow.on_tap(cid, "no")
+            flow.reset_demo()
+        assert channels._why(RuntimeError("private detail")) == "RuntimeError"
+        assert channels._why(httpx.HTTPStatusError("private detail", request=httpx.Request("GET", "https://example.invalid"),
+                                                 response=httpx.Response(500))) == "HTTPStatusError"
+    c.portal.call(contact_channels)
+    ok("channels: contact targets, account preferences, separate chats and other-person replies")
     async def channel_transports():
         import asyncio
         import httpx
@@ -216,6 +317,46 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         flow.reset_demo()
     c.portal.call(channel_transports)
     ok("channels: Resend payload and signed links, Beeper requests and own-account replies")
+    # Catch setup overwriting a full contact with only its new chat id.
+    import contextlib
+    import io
+    import tempfile
+    from scripts import beeper_setup
+    with tempfile.TemporaryDirectory() as tmp:
+        builtin, overlay = Path(tmp) / "contacts.json", Path(tmp) / "contacts.local.json"
+        record = {"id": "friend", "name": "Friend", "relationship": "friend", "challenge_question": "Code?",
+                  "challenge_answer": "demo", "telegram_chat_id": "123"}
+        builtin.write_text(json.dumps([record]))
+        with patch.object(beeper_setup, "CONTACTS_PATH", builtin), patch.dict(os.environ, {"BEEPER_ACCESS_TOKEN": ""}):
+            for chat in ("!first", "!second"):
+                output = io.StringIO()
+                with patch.object(sys, "argv", ["beeper_setup", "--set-contact", "friend", chat]), contextlib.redirect_stdout(output):
+                    beeper_setup.main()
+                assert output.getvalue().strip() == f"friend {len(chat)}"
+                assert json.loads(overlay.read_text()) == [{**record, "whatsapp_chat_id": chat}]
+        pages = iter([{"items": [{"title": "Other", "network": "WhatsApp", "type": "single", "id": "!other"}],
+                       "hasMore": True, "oldestCursor": "next"},
+                      {"items": [{"title": "Demo Friend", "network": "WhatsApp", "type": "single", "id": "!friend"}],
+                       "hasMore": False}])
+        def chats(method, path, **kwargs):
+            assert method == "GET" and path == "/v1/chats"
+            return next(pages)
+        output = io.StringIO()
+        with patch.object(beeper_setup, "beeper_request", chats), patch.dict(os.environ, {"BEEPER_ACCESS_TOKEN": "test"}), patch.object(
+            sys, "argv", ["beeper_setup", "--find", "FRIEND"]), contextlib.redirect_stdout(output):
+            beeper_setup.main()
+        assert output.getvalue().strip() == "Demo Friend\tWhatsApp\tsingle\t!friend"
+    ok("Beeper setup: find chats across pages and preserve full contact overlays without a token")
+    # A half-written overlay must not break contact loading.
+    from guard.brain import contacts as brain_contacts
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "contacts.json"
+        base.write_text(json.dumps([record]))
+        for broken in ("{", "{}", '[{"name": "no id"}]', '[{"id": "friend", "relationship": 5}]'):
+            (Path(tmp) / "contacts.local.json").write_text(broken)
+            with patch.object(brain_contacts, "_PATH", base), patch.object(brain_contacts, "_contacts", None):
+                assert [x.id for x in brain_contacts._all()] == ["friend"]
+    ok("contacts: bad overlay file is ignored")
     async def audience_claims():
         for method, display in (("gift cards", "$2,000 in gift cards"), ("wire", "$2,000 by wire")):
             cid = flow.start_call("+15550990001")

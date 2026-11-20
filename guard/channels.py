@@ -1,10 +1,13 @@
 """Non-blocking question delivery; all answers share the flow's atomic decision."""
 import asyncio
 import html
+import json
 import logging
 import os
+import re
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import parse_qs, quote, urlencode
 
 import httpx
@@ -17,14 +20,53 @@ log = logging.getLogger("guard.channels")
 router = APIRouter()
 
 
-def enabled() -> list[str]:
+ACCOUNT_PATH = Path(__file__).resolve().parent.parent / "data" / "account.local.json"
+
+
+def targets(contact=None) -> dict[str, str | None]:
+    resolved = {
+        "telegram": getattr(contact, "telegram_chat_id", None) or os.environ.get("TELEGRAM_CHAT_ID"),
+        "whatsapp": getattr(contact, "whatsapp_chat_id", None) or os.environ.get("BEEPER_CHAT_ID"),
+        "email": getattr(contact, "email", None) or os.environ.get("PING_EMAIL_TO"),
+    }
+    if contact is None:
+        return resolved
+    try:
+        data = json.loads(ACCOUNT_PATH.read_text())
+        entries = data["contacts"][contact.id]["channels"]
+        if not isinstance(entries, list):
+            return resolved
+        disabled = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            kind, handle = entry.get("kind"), entry.get("handle")
+            if not isinstance(kind, str) or kind not in resolved:
+                continue
+            if entry.get("enabled") is False:
+                disabled.add(kind)
+            elif isinstance(handle, str):
+                handle = handle.strip()
+                if ((kind == "whatsapp" and handle.startswith("!"))
+                        or (kind == "telegram" and re.fullmatch(r"-?[0-9]+", handle))
+                        or (kind == "email" and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", handle))):
+                    resolved[kind] = handle
+        for kind in disabled:
+            resolved.pop(kind, None)
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return resolved
+
+
+def enabled(contact=None, *, resolved=None) -> list[str]:
+    resolved = targets(contact) if resolved is None else resolved
     # HACK: Telegram keeps its existing fake ping even without bot configuration.
-    names = ["telegram"]
+    names = ["telegram"] if "telegram" in resolved else []
     for name, flag, required in (
-        ("whatsapp", "REAL_BEEPER", ("BEEPER_ACCESS_TOKEN", "BEEPER_CHAT_ID")),
-        ("email", "REAL_EMAIL", ("RESEND_API_KEY", "PING_EMAIL_TO", "PUBLIC_BASE_URL", "APP_SECRET")),
+        ("whatsapp", "REAL_BEEPER", ("BEEPER_ACCESS_TOKEN",)),
+        ("email", "REAL_EMAIL", ("RESEND_API_KEY", "PUBLIC_BASE_URL", "APP_SECRET")),
     ):
-        if settings._flag(flag) and all(os.environ.get(key) for key in required):
+        if resolved.get(name) and settings._flag(flag) and all(os.environ.get(key) for key in required):
             names.append(name)
     return names
 
@@ -78,19 +120,15 @@ def _own_line(text):
 
 def _why(e):
     # Never log URLs, headers or HTTP bodies: they can carry credentials.
-    if isinstance(e, httpx.HTTPStatusError):
-        return f"{type(e).__name__} status {e.response.status_code}"
-    if isinstance(e, httpx.HTTPError):
-        return type(e).__name__
-    return f"{type(e).__name__}: {e}"
+    return type(e).__name__
 
 
-async def _whatsapp(call, text):
+async def _whatsapp(call, text, chat_id=None):
     if not settings.REAL_BEEPER:
         log.info("fake whatsapp ping (call %s): %s", call.call_id, text)
         return
     try:
-        chat_id = os.environ["BEEPER_CHAT_ID"]
+        chat_id = chat_id or os.environ["BEEPER_CHAT_ID"]
         path = message_path(chat_id)
         # One line: the listed text of a multi-line message comes back with <br>.
         question = text + " Reply NO or YES."
@@ -125,6 +163,10 @@ async def _whatsapp(call, text):
                     if mid in seen:
                         continue
                     seen.add(mid)
+                    # In a chat with someone else, only the other person's messages count;
+                    # in the owner's own chat everything is "ours", so the text filter decides.
+                    if message.get("isSender") and chat_id != os.environ.get("BEEPER_CHAT_ID"):
+                        continue
                     if (_own_line(body) or message.get("isDeleted")
                             or message.get("type", "TEXT") != "TEXT"):
                         continue
@@ -143,7 +185,7 @@ async def _whatsapp(call, text):
         log.warning("WhatsApp question failed: %s", _why(e))
 
 
-def _email(call, text):
+def _email(call, text, recipient=None):
     if not settings.REAL_EMAIL:
         log.info("fake email ping (call %s): %s", call.call_id, text)
         return
@@ -156,28 +198,31 @@ def _email(call, text):
                           headers={"Authorization": "Bearer " + os.environ["RESEND_API_KEY"],
                                    "User-Agent": "curl/8.7.1"},
                           json={"from": os.environ.get("PING_EMAIL_FROM") or "Call Guard <onboarding@resend.dev>",
-                                "to": [os.environ["PING_EMAIL_TO"]], "subject": text,
+                                "to": [recipient or os.environ["PING_EMAIL_TO"]], "subject": text,
                                 "html": f"<p>{html.escape(text)}</p>" + "".join(links)})
     response.raise_for_status()
 
 
-async def _deliver(name, call, contact, claim):
+async def _deliver(name, call, contact, claim, target=None):
+    if target is None:
+        target = targets(contact).get(name)
     try:
         if name == "telegram":
-            await asyncio.to_thread(telegram.send_ping, call, contact, claim)
+            await asyncio.to_thread(telegram.send_ping, call, contact.model_copy(update={"telegram_chat_id": target}), claim)
         elif name == "whatsapp":
-            await _whatsapp(call, telegram.ping_text(contact, claim))
+            await _whatsapp(call, telegram.ping_text(contact, claim), target)
         else:
-            await asyncio.to_thread(_email, call, telegram.ping_text(contact, claim))
+            await asyncio.to_thread(_email, call, telegram.ping_text(contact, claim), target)
     except Exception as e:
         log.warning("Question delivery failed on %s: %s", name, _why(e))
 
 
 def send_ping(call, contact, claim=None):
     from guard import flow
-    names = enabled()
+    resolved = targets(contact)
+    names = enabled(contact, resolved=resolved)
     for name in names:
-        flow.spawn(_deliver(name, call, contact, claim))
+        flow.spawn(_deliver(name, call, contact, claim, resolved[name]))
     return names
 
 
