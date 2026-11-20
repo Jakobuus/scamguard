@@ -152,7 +152,7 @@
   .badge.todo:hover{background:#F9E2D2}
   .who{display:flex;align-items:center;gap:10px;font-weight:400;font-size:16px}
   .avatar{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;
-          background:var(--mg-subtle);color:var(--mg-text-2);font-size:var(--mg-fs-cap);font-weight:500;line-height:1;letter-spacing:.02em}
+          background:var(--mg-accent-soft);color:var(--mg-accent);font-size:var(--mg-fs-cap);font-weight:500;line-height:1;letter-spacing:.02em}
   .avatar img{width:100%;height:100%;object-fit:cover}
   .avatar.big{width:72px;height:72px;font-size:26px}
   .iconbtn{border:0;background:transparent;color:var(--mg-text-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
@@ -1064,6 +1064,8 @@ function renderMe() {
   avatar($("avatar"), me); avatar($("p-avatar"), me);
   $("p-name").textContent = me.name || "";
   $("p-email").textContent = me.email || "";
+  $("p-email").hidden = !me.email;
+  $("logout").hidden = !!CONFIG.demo_login && me.id === "demo";
   renderBadge(); renderVerify(); // both in the contacts, numbers, profile block
 }
 function renderConfig() {
@@ -1302,6 +1304,7 @@ function renderProfile(p) { // called by loadData() and after every save
   PROFILE = p;
   if (p.guard_number) { $("guard-num").textContent = fmtNum(p.guard_number); $("rail-guard").textContent = p.guard_number; }
   const owner = p.owner_name || CONFIG.owner_name || "";
+  if (ME && ME.id === "demo" && ME.name !== owner) { ME.name = owner; renderMe(); }
   for (const id of ["p-owner", "flow-owner", "owner-say"]) $(id).textContent = owner || "You";
   if (document.activeElement !== $("owner-in")) $("owner-in").value = owner;
   const nums = p.numbers || [];
@@ -1352,7 +1355,7 @@ function renderBadge(flip) {
   }
   $("p-verified").textContent = me.verified ? (me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)") +
     (me.verified_at ? `, ${when(me.verified_at)}` : "") : "Not verified yet";
-  $("p-via").textContent = me.id === "demo" ? "Demo sign-in" : "Google";
+  $("p-via").textContent = me.id === "demo" ? "Signed in as the owner of this guard" : "Google";
 }
 const VSTEPS = [["Photo ID", "Hold up a driver's license or passport."], ["Selfie", "A quick picture of your face."], ["Match", "The face on the ID matches yours."]];
 function renderVerify() {
@@ -1383,11 +1386,15 @@ function renderVerify() {
 }
 async function startVerify() {
   if (ME.verified || VSTATE !== "idle") return;
+  const checkTab = CONFIG.persona_mode === "hosted" ? window.open("about:blank", "_blank") : null;
+  if (checkTab) checkTab.opener = null;
   let r;
   try { r = await api("/api/verify/start", {method: "POST"}); }
-  catch (e) { return say(`Couldn't start the identity check: ${e.message}`); }
+  catch (e) { if (checkTab) checkTab.close(); return say(`Couldn't start the identity check: ${e.message}`); }
   if (r.mode === "hosted" && r.url) {
-    vUrl = r.url; VSTATE = "waiting"; window.open(r.url, "_blank", "noopener"); renderVerify();
+    vUrl = r.url; VSTATE = "waiting";
+    if (checkTab) checkTab.location.href = r.url; else window.open(r.url, "_blank", "noopener");
+    renderVerify();
     clearInterval(vPoll);
     vPoll = setInterval(async () => {
       if (VSTATE !== "waiting") return clearInterval(vPoll);
@@ -1395,6 +1402,7 @@ async function startVerify() {
     }, 3000);
     return;
   }
+  if (checkTab) checkTab.close();
   VSTATE = "demo"; demoStep = 0; renderVerify();
   const tick = () => {
     demoStep++; renderVerify();
@@ -2493,12 +2501,22 @@ $("xform").addEventListener("submit", async e => {
   try { CONFIG = await api("/api/config"); }
   catch (e) { CONFIG = {}; say(e.status ? "Couldn't load the app settings." : "Couldn't reach the server."); }
   renderConfig();
-  setupSignin();
-  try { signedIn(await api("/api/me")); }
+  if (!CONFIG.demo_login) setupSignin();
+  try {
+    let me;
+    try { me = await api("/api/me"); }
+    catch (e) {
+      if (e.status !== 401 || !CONFIG.demo_login) throw e;
+      // HACK: enter as the owner for the demo; Persona remains the identity check.
+      me = await api("/api/auth/demo", {method: "POST"});
+    }
+    signedIn(me);
+  }
   catch (e) {
     if (e.status && e.status !== 401) say(`Couldn't check your sign-in: ${e.message}`);
     else if (!e.status) say("Couldn't reach the server.");
-    showSignin();
+    if (!CONFIG.demo_login) showSignin();
+    else say(`Couldn't open your guard: ${e.message}`);
   }
 })();
 </script>

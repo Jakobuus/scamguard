@@ -200,7 +200,9 @@ def auth_demo(request: Request, response: Response):
     if not _demo_login():
         raise HTTPException(403, "Demo sign-in is switched off.")
     _claim("demo")
-    u = _upsert_user("demo", name="Margaret Example", email="margaret@example.com", picture=None)
+    with _LOCK:
+        owner_name = _profile_out(_load())["owner_name"]
+    u = _upsert_user("demo", name=owner_name, email="", picture=None)
     _set_cookie(request, response, "demo")
     return _me_out(u)
 
@@ -299,6 +301,8 @@ def put_profile(body: dict, request: Request):
         data = _load()
         data["profile"] = {"owner_name": str(body.get("owner_name") or settings.OWNER_NAME).strip(),
                            "numbers": numbers}
+        if "demo" in data["users"]:
+            data["users"]["demo"]["name"] = _profile_out(data)["owner_name"]
         _save(data)
         return _profile_out(data)
 

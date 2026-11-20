@@ -53,17 +53,21 @@ try:
     ok(call(c, "get", "/app").status_code == 200, "app page")
     me = call(c, "post", "/api/auth/demo").json()
     ok(me["id"] == "demo" and not me["verified"], "demo sign-in")
+    ok(me["name"] == cfg.json()["owner_name"] and me["email"] == "", "demo uses owner identity")
     ok(call(c, "get", "/api/me").json()["name"] == me["name"], "me")
     ok(call(c, "post", "/api/verify/start").json()["mode"] == "demo", "verify start")
     done = call(c, "post", "/api/verify/complete", json={}).json()
     ok(done["verified"] and done["verified_via"] == "demo", "verify complete")
     prof = call(c, "get", "/api/profile").json()
     ok(len(prof["numbers"]) == 1, "profile default")
-    put = call(c, "put", "/api/profile", json={"owner_name": "Margaret", "numbers": [
+    put = call(c, "put", "/api/profile", json={"owner_name": "Mum", "numbers": [
         {"label": "Home", "number": "+1 (555) 010-0142", "protected": True},
         {"label": "Mobile", "number": "+1 (555) 010-0150", "protected": False}]}).json()
-    ok(put["owner_name"] == "Margaret" and all(n["id"] for n in put["numbers"]), "profile put")
+    ok(put["owner_name"] == "Mum" and all(n["id"] for n in put["numbers"]), "profile put")
     ok(call(c, "get", "/api/profile").json() == put, "profile round trip")
+    ok(call(c, "get", "/api/me").json()["name"] == put["owner_name"], "demo name follows owner name")
+    me = call(c, "post", "/api/auth/demo").json()
+    ok(me["name"] == put["owner_name"] and me["email"] == "", "demo sign-in keeps owner identity")
 
     body = {"name": "Test Cousin", "relationship": "cousin", "known_numbers": ["+15550100077"],
             "channels": [{"kind": "telegram", "handle": "@cousin", "enabled": True},
