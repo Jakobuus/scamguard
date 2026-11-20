@@ -10,6 +10,7 @@ import httpx
 
 CLIPS = Path(__file__).resolve().parent.parent / "clips"
 API = "https://api.elevenlabs.io/v1"
+STOCK_SCENES = {"delivery", "deliveryfee"}
 log = logging.getLogger(__name__)
 
 
@@ -50,7 +51,7 @@ def main() -> int:
                 voice_id = None
         else:
             print("Fake clone: no upload or voice id saved")
-    elif not voice_id and real and not args.dry_run and args.only != "delivery":
+    elif not voice_id and real and not args.dry_run and args.only not in STOCK_SCENES:
         try:
             voice_id = (CLIPS / "voice_id.txt").read_text().strip() or None
         except OSError:
@@ -59,14 +60,14 @@ def main() -> int:
     for scene, lines in scenes.items():
         if args.only and scene != args.only:
             continue
-        if scene == "delivery" and not args.stock_voice_id:
-            print("Skip delivery: provide --stock-voice-id")
+        if scene in STOCK_SCENES and not args.stock_voice_id:
+            print(f"Skip {scene}: provide --stock-voice-id")
             continue
-        selected_voice = args.stock_voice_id if scene == "delivery" else voice_id
+        selected_voice = args.stock_voice_id if scene in STOCK_SCENES else voice_id
         for number, text in enumerate(lines, 1):
             target = CLIPS / f"{scene}-{number}.mp3"
             if args.dry_run:
-                voice = "stock voice" if scene == "delivery" else "caller voice"
+                voice = "stock voice" if scene in STOCK_SCENES else "caller voice"
                 print(f"Would synthesize {target.name} with {voice}: {text}")
                 continue
             if real:
