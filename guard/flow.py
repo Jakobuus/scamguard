@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from guard import channels, credential, settings, state, telegram, vapi
 from guard.brain import classify, contacts, context
+from guard.brain.redact import redact
 
 _tasks: set = set()
 _caller_text: dict[str, str] = {}
@@ -74,6 +75,7 @@ def on_partial(call_id, role, text) -> None:
     final = _last_final.get((call_id, role))
     if final and now - final[1] < 1.0 and final[0].startswith(_normalize(text)):
         return  # a late partial of the line that just became final
+    text = redact(text, rules_only=True, partial=True).text
     if not text:
         _partials.get(call_id, {}).pop(role, None)
         return

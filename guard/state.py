@@ -301,6 +301,9 @@ def subscribe(fn) -> None:
 
 
 def emit(call_id, type, data) -> Event:
+    from guard.brain.redact import redact_event
+
+    data = redact_event(data, partial="partial" in type, etype=type)
     event = backend.emit(call_id, type, data)
     for fn in tuple(_subscribers):
         try:

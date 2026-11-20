@@ -38,6 +38,8 @@ REAL_PERSONA = _real("REAL_PERSONA")
 REAL_BEEPER = _real("REAL_BEEPER") and bool(os.environ.get("BEEPER_ACCESS_TOKEN") and os.environ.get("BEEPER_CHAT_ID"))
 REAL_EMAIL = _real("REAL_EMAIL") and all(os.environ.get(k) for k in ("RESEND_API_KEY", "PING_EMAIL_TO", "PUBLIC_BASE_URL", "APP_SECRET"))
 
+REDACT_SIE = _flag("REDACT_SIE")  # off: redaction is rules-only
+
 
 def services() -> dict:
     return {
