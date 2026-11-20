@@ -645,7 +645,7 @@
   /* what the guard sees: horizontal definition list */
   .lc-facts{grid-column:2;grid-row:2;display:flex;flex-direction:column;padding:22px 24px 20px}
   .lc-rows{margin:0;flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
-  .lc-f{display:grid;grid-template-columns:138px minmax(0,1fr);gap:14px;padding:11px 0;border-bottom:1px solid var(--mg-line);align-items:baseline}
+  .lc-f{display:grid;grid-template-columns:138px minmax(0,1fr);gap:14px;padding:10px 0;border-bottom:1px solid var(--mg-line);align-items:baseline}
   .lc-f:last-child{border-bottom:0}
   .lc-f{flex-shrink:0}
   .lc-f.lc-f-top{align-items:start}
@@ -657,6 +657,8 @@
   .lc-v[class*="lc-st-"]{color:var(--lc-c)}
   .lc-n{margin-top:2px;font-size:var(--mg-fs-cap);color:var(--mg-text-2);line-height:1.4;overflow-wrap:anywhere}
   .lc-n.lc-one{display:block;white-space:normal}
+  #lc-f-memory .lc-n{margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #lc-f-learned .lc-n{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
   .lc-tags{display:flex;flex-wrap:wrap;gap:6px}
   .lc-tag{display:inline-flex;align-items:center;padding:3px 9px;font-size:var(--mg-fs-cap);font-weight:400;line-height:1.3;color:var(--mg-text);
           background:var(--mg-subtle);border:1px solid var(--mg-line);border-radius:var(--mg-r-sm)}
@@ -665,9 +667,9 @@
   .lc-match-pct{font-size:15px;font-weight:500;color:var(--mg-text);white-space:nowrap;font-variant-numeric:tabular-nums}
   .lc-match-bar{margin-top:7px;width:100%;height:4px;background:var(--mg-line);border-radius:2px;overflow:hidden}
   .lc-match-fill{height:100%;background:#7A8199;border-radius:2px;transition:width .35s ease}
-  .lc-qcard{background:var(--mg-page);border:1px solid var(--mg-line);border-radius:8px;padding:11px 13px 10px}
+  .lc-qcard{background:var(--mg-page);border:1px solid var(--mg-line);border-radius:8px;padding:4px 10px}
   .lc-q{margin:0;font-size:15px;font-weight:400;line-height:1.42;color:var(--mg-text);overflow-wrap:anywhere}
-  .lc-qfoot{margin-top:8px;padding-top:8px;border-top:1px solid var(--mg-line-subtle);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:var(--mg-fs-cap);color:var(--mg-text-2)}
+  .lc-qfoot{margin-top:4px;padding-top:4px;border-top:1px solid var(--mg-line-subtle);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:var(--mg-fs-cap);color:var(--mg-text-2)}
   .lc-qch{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .lc-qch svg{width:15px;height:15px;color:var(--mg-text-2);flex:none}
   .lc-qst{font-weight:400;color:var(--mg-text-2);white-space:nowrap}
@@ -679,13 +681,14 @@
   .lc-pbtn{margin-left:auto;font:500 var(--mg-fs-cap)/1.2 var(--mg-font);padding:6px 12px;border:1px solid var(--mg-line);border-radius:8px;background:var(--mg-surface);color:var(--mg-text)}
   .lc-pbtn:hover{background:var(--mg-subtle)}
   .lc-steps{list-style:none;margin:10px 0 0;padding:0;flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
-  .lc-steps li{flex:none;display:grid;grid-template-columns:8px minmax(0,1fr);gap:0 11px;padding:0 0 7px;position:relative}
+  .lc-steps li{flex:none;display:grid;grid-template-columns:8px minmax(0,1fr);gap:0 11px;padding:0 0 5px;position:relative}
   .lc-steps li::before{content:"";position:absolute;left:3.5px;top:14px;bottom:0;width:1px;background:var(--mg-line)}
   .lc-steps li:last-child{padding-bottom:0}
   .lc-steps li:last-child::before{display:none}
   .lc-steps .d{width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--k,var(--mg-text-3))}
   .lc-steps .t{font-size:var(--mg-fs-cap);color:var(--mg-text-2);margin-right:6px}
   .lc-steps .x{font-size:var(--mg-fs-cap);line-height:1.32;color:var(--mg-text);overflow-wrap:anywhere}
+  .lc-steps li[data-type="memory.learned"] > span:last-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #lc-tl-empty,#lc-talk-empty{flex:1}
   #v-live .empty{color:var(--mg-text-2);font-size:15px}
   .lc-controls{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding-top:10px;border-top:1px solid var(--mg-line)}
@@ -734,14 +737,14 @@
   body.lc-present .lc-said{font-size:34px;line-height:1.36;letter-spacing:-.018em}
   body.lc-present .lc-ended{margin-top:22px;padding-top:22px;font-size:16px}
   body.lc-present .lc-facts{grid-column:2;grid-row:2;border:0;border-left:1px solid var(--mg-line);border-radius:0;background:var(--mg-page);padding:40px 72px 64px 56px}
-  body.lc-present .lc-f{grid-template-columns:192px minmax(0,1fr);gap:20px;padding:15px 0}
+  body.lc-present .lc-f{grid-template-columns:192px minmax(0,1fr);gap:20px;padding:10px 0}
   body.lc-present .lc-f dt{font-size:15px}
   body.lc-present .lc-v{font-size:18px}
   body.lc-present .lc-n{font-size:15px}
   body.lc-present .lc-tag{background:var(--mg-surface);border-color:#DDE0E8;padding:4px 11px;font-size:15px}
   body.lc-present .lc-match-head{font-size:18px}
   body.lc-present .lc-match-pct{font-size:17px}
-  body.lc-present .lc-qcard{background:var(--mg-surface);padding:14px 16px 12px}
+  body.lc-present .lc-qcard{background:var(--mg-surface);padding:8px 10px}
   body.lc-present .lc-q{font-size:17px}
   body.lc-present .lc-qfoot{margin-top:10px;padding-top:10px}
   body.lc-present .lc-tl{display:none}
@@ -970,16 +973,16 @@
         <div class="lc-h"><h3>What the guard sees</h3><span class="lc-h-note" id="lc-facts-note"></span></div>
         <dl class="lc-rows">
           <div class="lc-f lc-f-top" id="lc-f-who"><dt>Says they are</dt><dd></dd></div>
-          <div class="lc-f lc-f-top" id="lc-f-memory" hidden><dt>What memory knows</dt><dd></dd></div>
-          <div class="lc-f lc-f-top" id="lc-f-learned" hidden><dt>Learned from this call</dt><dd></dd></div>
           <div class="lc-f" id="lc-f-ask"><dt>Asks for</dt><dd></dd></div>
           <div class="lc-f lc-f-top" id="lc-f-press"><dt>Pressure heard</dt><dd></dd></div>
           <div class="lc-f lc-f-top" id="lc-f-scam" hidden><dt id="lc-f-scam-dt">Matches a known scam script</dt><dd></dd></div>
-          <div class="lc-f" id="lc-f-cls" hidden><dt>Classifier</dt><dd></dd></div>
+          <div class="lc-f lc-f-top" id="lc-f-memory" hidden><dt>What memory knows</dt><dd></dd></div>
           <div class="lc-f lc-f-top" id="lc-f-ping"><dt id="lc-f-ping-dt">Question sent</dt><dd></dd></div>
           <div class="lc-f lc-f-top" id="lc-f-notice" hidden><dt>Heads-up sent</dt><dd></dd></div>
-          <div class="lc-f lc-f-top" id="lc-f-told"><dt id="lc-f-told-dt">What the owner was told</dt><dd></dd></div>
           <div class="lc-f lc-f-top" id="lc-f-dec"><dt>Decision</dt><dd></dd></div>
+          <div class="lc-f lc-f-top" id="lc-f-told"><dt id="lc-f-told-dt">What the owner was told</dt><dd></dd></div>
+          <div class="lc-f lc-f-top" id="lc-f-learned" hidden><dt>Learned from this call</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-cls" hidden><dt>Classifier</dt><dd></dd></div>
         </dl>
       </div>
       <div class="card lc-tl">
@@ -2436,7 +2439,7 @@ $("xform").addEventListener("submit", async e => {
       case "contact.lookup":
         return ["contact", d.contact ? `${d.resolved_by === "memory" ? "Worked out from memory:" : "Matched"} ${d.contact.name} (${d.contact.relationship}), ${d.number_known ? "known number" : "unknown number"}`
                                      : `No match in ${O}'s circle${d.note ? ": " + d.note : ""}`];
-      case "memory.known": return ["contact", `What memory knows: ${memoryFacts(d).join("; ")}`];
+      case "memory.known": return ["contact", `Memory knows ${d.contact && d.contact.name || n}: ${memoryFacts(d).length} facts`];
       case "memory.learned": return d.fact ? ["contact", `Learned from this call: ${d.fact}${d.pending ? " (pending)" : ""}`] : null;
       case "context.expected": return ["context", `Expected ${d.kind || "call"}${d.why ? ": " + d.why : ""}${d.source ? ` (from ${d.source})` : ""}`];
       case "ping.sent": return ["ask", `Asked ${n} on ${chans(d)}: “Is this you?”`];
@@ -2641,7 +2644,7 @@ $("xform").addEventListener("submit", async e => {
   }
   const V = (v, note) => `<div class="lc-v">${esc(v)}</div>${note ? `<div class="lc-n lc-one">${esc(note)}</div>` : ""}`;
   const Q = text => `<div class="lc-q">${esc(text)}</div>`;
-  const memoryFacts = lk => (Array.isArray(lk && lk.memory_facts) ? lk.memory_facts : []).filter(x => typeof x === "string" && x.trim()).slice(0, 3);
+  const memoryFacts = lk => [...new Set((Array.isArray(lk && lk.memory_facts) ? lk.memory_facts : []).filter(x => typeof x === "string" && x.trim()).map(x => x.trim()))].slice(0, 3);
   function renderFacts() {
     const O = owner(), n = name();
     $("lc-f-told-dt").textContent = `What ${O} was told`;
@@ -2680,8 +2683,11 @@ $("xform").addEventListener("submit", async e => {
     row("lc-f-who", `<div class="lc-v">${esc(w || "Listening")}</div>${sub ? `<div class="lc-n lc-one">${esc(sub)}</div>` : ""}`, !w);
 
     const facts = memoryFacts(lk);
-    if (facts.length) row("lc-f-memory", facts.map(fact => V(fact)).join(""), false);
-    if (S.learned.length) row("lc-f-learned", S.learned.map(x => V(x.fact, x.pending ? "pending" : "")).join(""), false);
+    if (facts.length) row("lc-f-memory", facts.map(fact => `<div class="lc-n" title="${esc(fact)}">${esc(fact)}</div>`).join(""), false);
+    if (S.learned.length) {
+      const text = S.learned.map(x => x.fact + (x.pending ? " (pending)" : "")).join("; ");
+      row("lc-f-learned", `<div class="lc-n" title="${esc(text)}">${esc(text)}</div>`, false);
+    }
 
     // Asks for: claim, then the question's text, then the caller's own words.
     let a = null, m;
