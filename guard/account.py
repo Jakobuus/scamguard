@@ -3,6 +3,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import threading
@@ -19,6 +20,7 @@ from guard import channels, settings
 from guard.brain import contacts as brain_contacts
 from guard.contracts import Contact
 
+log = logging.getLogger("guard.account")
 router = APIRouter()
 _DATA = Path(__file__).resolve().parent.parent / "data"
 ACCOUNT_PATH = _DATA / "account.local.json"
@@ -228,14 +230,47 @@ def verify_start(request: Request):
     return {"mode": "hosted", "url": "https://inquiry.withpersona.com/verify?" + urlencode(params)}
 
 
+def _persona_check(user_id: str, inquiry_id: str | None) -> bool | None:
+    """True = Persona says finished and passed, False = it says not, None = could not ask."""
+    key = os.environ.get("PERSONA_API_KEY")
+    if not key:
+        return None
+    headers = {"Authorization": "Bearer " + key, "Persona-Version": "2023-01-05"}
+    base = "https://api.withpersona.com/api/v1/inquiries"
+    try:
+        with httpx.Client(timeout=3, headers=headers) as http:
+            if inquiry_id:
+                r = http.get(f"{base}/{inquiry_id}")
+            else:  # newest first by default
+                r = http.get(base, params={"filter[reference-id]": user_id, "page[size]": 1})
+        if r.status_code != 200:
+            raise ValueError("status")
+        data = r.json()["data"]
+    except Exception:
+        log.warning("Persona lookup unavailable; trusting the redirect")  # never log the exception: it can carry the key
+        return None
+    rec = data[0] if isinstance(data, list) and data else None if isinstance(data, list) else data
+    if not rec:
+        return False
+    attrs = rec.get("attributes") or {}
+    return attrs.get("reference-id") == user_id and attrs.get("status") in ("completed", "approved")
+
+
 @router.post("/api/verify/complete")
 def verify_complete(request: Request, body: dict | None = None):
     user = _user(request)
-    # HACK: we trust the redirect; no webhook check
-    via = "persona" if _persona_template() else "demo"
-    u = _upsert_user(user["id"], verified=True, verified_via=via,
+    hosted = bool(_persona_template())
+    checked = False
+    if hosted:
+        result = _persona_check(user["id"], (body or {}).get("inquiry_id"))
+        if result is False:
+            raise HTTPException(409, "Persona has not finished the check yet.")
+        checked = result is True
+    # HACK: without a Persona API key, or when Persona cannot be reached (the account may lack API
+    # access), we trust the redirect; no webhook
+    u = _upsert_user(user["id"], verified=True, verified_via="persona" if hosted else "demo",
                      verified_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                     verified_inquiry=(body or {}).get("inquiry_id"))
+                     verified_inquiry=(body or {}).get("inquiry_id"), verified_checked=checked)
     return _me_out(u)
 
 

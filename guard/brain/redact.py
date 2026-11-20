@@ -30,6 +30,8 @@ _PATTERNS = [
     ('phone number', r'(?<![\w$])\+?\d[\d ().-]{7,}\d(?!\w)'),
 ]
 _UNIT = re.compile(r'\s*(?:dollars|bucks|euros|pounds|pm|am|minutes|hours|percent|%)(?![a-z])', re.I)
+_CARD_CTX = re.compile(r'\b(?:card|number|account|routing|iban|code|pin|password|social|ssn|phone|call me)\b', re.I)
+_AMOUNT_CTX = re.compile(r'\b(?:need|send|wire|pay|costs?|fee of|is only|for)\b', re.I)
 _RULES = [(kind, re.compile(pattern, re.I)) for kind, pattern in _PATTERNS]
 
 
@@ -115,10 +117,16 @@ def redact(text: str, *, rules_only: bool = False, partial: bool = False) -> Red
                 fragments.append((m.start(), m.end(), 'email address'))
                 continue
             digits = len(re.sub(r'\D', '', m[0]))
-            if digits < 4 or re.search(r'[$\u20ac\u00a3]\s*[\d,.]*$', result[:m.start()]) or _UNIT.match(result, m.end()):
+            before = result[:m.start()]
+            words = before.split()
+            ctx = _CARD_CTX.search(' '.join(words[-6:]))
+            if ctx or (words and words[-1][-1:].isdigit()):
+                fragments.append((m.start(), m.end(), 'number'))  # card/number context: hide from the first digit
                 continue
-            if digits < 7 and not result[m.end():].strip():
-                continue  # HACK: a short trailing run may still become an amount ("2000 dollars")
+            if digits < 4 or re.search(r'[$\u20ac\u00a3]\s*[\d,.]*$', before) or _UNIT.match(result, m.end()):
+                continue
+            if digits < 7 and not result[m.end():].strip() and _AMOUNT_CTX.search(' '.join(words[-3:])):
+                continue  # HACK: a short trailing run may still become an amount ("I need 2000 dollars")
             fragments.append((m.start(), m.end(), 'number'))
         result, extra_kinds = _replace(result, fragments)
         kinds = list(dict.fromkeys(kinds + extra_kinds))

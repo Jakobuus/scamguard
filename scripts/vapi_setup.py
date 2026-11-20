@@ -26,8 +26,13 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
                 f"You are {settings.OWNER_NAME}'s assistant. Ask who is calling and what it is about. "
                 "Never offer or confirm a name, or reveal who is in the owner's circle. "
                 "Never agree to pay, buy or send anything, or take payment details. "
-                "As soon as the caller gives their name or relationship to the owner, call "
-                "verify_caller with the name they gave (empty string for a relationship only). "
+                "As soon as the caller says who they are in any form — a name, a relationship to the owner, "
+                "or an organisation or role such as a delivery driver, courier, doctor's office, pharmacy, "
+                "shop about an order, tradesperson, or callback about an appointment — call verify_caller. "
+                "Pass the personal name they gave in claimed_name (empty string if no personal name), "
+                "and their own words about who they are and why they call in reason. "
+                "If they have not said who they are or why they call after your greeting, ask once more, briefly, "
+                "and then call verify_caller with their reply. "
                 "Call verify_caller only once per call. After it, say one short sentence that you are trying to reach "
                 "the owner and that the caller may say the family code word if they cannot use their phone, then stay "
                 "quiet until the caller speaks or a system message arrives. Never repeat that you are checking or holding. "
@@ -44,9 +49,11 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
                 "async": False,
                 "function": {
                     "name": "verify_caller",
-                    "description": "Ask the real person to verify this caller's claimed identity.",
+                    "description": "Check a caller by their stated name, relationship, organisation or role and reason for calling, including deliveries and appointments.",
                     "parameters": {"type": "object", "properties": {
-                        "claimed_name": {"type": "string"}}, "required": ["claimed_name"]},
+                        "claimed_name": {"type": "string"},
+                        "reason": {"type": "string", "description": "Caller's own words about their organisation, role or relationship and why they call."}},
+                        "required": ["claimed_name"]},
                 },
                 "server": {"url": base_url + "/vapi/tool/verify_caller",
                            "headers": headers, "timeoutSeconds": 20},

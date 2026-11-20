@@ -21,6 +21,8 @@ uv run python scripts/make_clips.py --stock-voice-id STOCK_ID --only delivery
 
 A successful clone saves `voice_id.txt`; later runs reuse it unless given a new
 sample or voice id. Delivery needs `--stock-voice-id` and is skipped otherwise.
+A second voice: `--voice-name NAME` clones (with `--sample`) or reuses a voice, saves `voice_id.NAME.txt`, and generates only the scenes bound to NAME in the `_voices` map of `lines.json`. Other scenes and voices are untouched.
+
 Real audio is saved as `<scene>-<n>.mp3`. Audio and the saved voice id are ignored
 by git. Each network request has a ten-second timeout. Fake mode is the default;
 it prints the lines without network calls or writing audio. On a service error,

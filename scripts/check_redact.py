@@ -93,6 +93,26 @@ def checks():
     assert privacy.redact('my number is 555 0100', rules_only=True).text == 'my number is [phone number]'
     assert privacy.redact('ref 123456 is ready', rules_only=True, partial=True).text == 'ref [number] is ready'
 
+    import re
+    for line in ['My card number is 4111 1111 1111 1111.', "sure, it's 4111 1111 1111 1111", 'call me back on 555 0100']:
+        words = line.split()
+        cid = flow.start_call(None)
+        flow.mark_live(cid)
+        for role in ('caller', 'agent'):
+            for i in range(1, len(words) + 1):
+                part = ' '.join(words[:i])
+                shown = privacy.redact(part, rules_only=True, partial=True).text
+                assert not re.search(r'\d\d', shown), (part, shown)
+                flow.on_partial(cid, role, part)
+                live_text = (flow.live()[role] or {}).get('text', '')
+                assert not re.search(r'\d\d', live_text), (part, live_text)
+    for line in ['I need 2000 dollars', 'I need $2,000 in gift cards right now.',
+                 'there is a small customs fee of $4.99 to pay', 'delivery at 3 pm']:
+        words = line.split()
+        for i in range(1, len(words) + 1):
+            part = ' '.join(words[:i])
+            assert privacy.redact(part, rules_only=True, partial=True).text == part, part
+
     async def integration():
         state.backend = state.MemoryBackend()
         line = "This is Jakob, your son. Card 4111 1111 1111 1111, send $2,000 in gift cards."

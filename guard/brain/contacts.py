@@ -16,8 +16,17 @@ def _all() -> list[Contact]:
         entries = {c["id"]: c for c in json.loads(_PATH.read_text())}
         local = _PATH.with_name("contacts.local.json")
         if local.exists():
-            for entry in json.loads(local.read_text()):
-                entries[entry["id"]] = {**entries.get(entry["id"], {}), **entry}
+            try:
+                overlay = json.loads(local.read_text())
+            except (OSError, ValueError):
+                overlay = []  # HACK: a half-written overlay must never break a call
+            for entry in overlay if isinstance(overlay, list) else []:
+                try:
+                    merged = {**entries.get(entry["id"], {}), **entry}
+                    Contact(**merged)
+                    entries[entry["id"]] = merged
+                except Exception:
+                    continue
         _contacts = [Contact(**c) for c in entries.values()]
         memory.warm(_contacts)  # Cognee prefetch in the background; no-op in fake mode
     return _contacts

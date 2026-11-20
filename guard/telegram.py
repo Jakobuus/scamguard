@@ -148,6 +148,18 @@ async def webhook(request: Request = None):
             return {"ok": True}
         update = await request.json()
         query = update.get("callback_query")
+        message = update.get("message") if isinstance(update, dict) else None
+        if not isinstance(query, dict) and isinstance(message, dict):
+            # Lets a teammate learn his chat id by writing to the bot.
+            try:
+                chat_id = str(message["chat"]["id"])
+                log.warning("webhook message from chat id of length %d", len(chat_id))
+                if str(message.get("text") or "").lstrip().startswith(("/start", "/id")):
+                    await asyncio.to_thread(_api, "sendMessage", {
+                        "chat_id": chat_id, "text": f"Call Guard is connected. Your chat id: {chat_id}"})
+            except Exception:
+                pass
+            return {"ok": True}
         if not isinstance(query, dict):
             log.warning("webhook ignored: not a callback (keys: %s)", ",".join(sorted(map(str, update))) if isinstance(update, dict) else "?")
             return {"ok": True}

@@ -17,3 +17,5 @@ clips/*.m4a
 clips/*.wav
 clips/*.txt
 !clips/README.md
+
+data/expected.local.json

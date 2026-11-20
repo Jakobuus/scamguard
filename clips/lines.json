@@ -20,5 +20,22 @@
   ],
   "deliveryfee": [
     "I'm calling from the parcel service about your desk lamp delivery. There is a small customs fee of $4.99 to pay. What is your card number?"
-  ]
+  ],
+  "teammate_scam": [
+    "Hey Jakob, it's Erick.",
+    "Listen, I'm in trouble. I need two thousand dollars in gift cards right now.",
+    "Please don't tell anyone. Can you just do it?",
+    "I lost my phone, that's why I'm calling from this number."
+  ],
+  "teammate_scam_short": [
+    "Hey Jakob, it's Erick. I'm in trouble, I need two thousand dollars in gift cards right now. Please don't tell anyone."
+  ],
+  "teammate_codeword_fail": [
+    "The code word? Uh... is it hackathon?"
+  ],
+  "_voices": {
+    "teammate_scam": "teammate",
+    "teammate_scam_short": "teammate",
+    "teammate_codeword_fail": "teammate"
+  }
 }

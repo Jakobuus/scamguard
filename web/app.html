@@ -1,115 +1,182 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>My Guard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light">
 <style>
+  /* === design system === */
+  /* Light, calm, hairlines, one indigo accent; colour only on outcomes. Use these instead of inventing new styles.
+     Tokens: --mg-page --mg-rail --mg-surface --mg-subtle --mg-line --mg-text --mg-text-2 --mg-text-3
+             --mg-accent --mg-accent-soft --mg-accent-line; outcomes --mg-red --mg-green --mg-amber --mg-orange --mg-teal
+             (each with a -soft tint); --mg-r (10px) --mg-r-sm (6px); type --mg-fs (17px body) --mg-fs-cap (14px)
+             --mg-fs-section (18px) --mg-fs-title (30px) --mg-fs-num (48px); --mg-font.
+     Old names (--bg --s1 --s2 --s3 --rule --text --muted --faint --c-* --display --font --r-*) are aliases.
+     Classes:
+       .m-card            white surface, 1px hairline, 10px radius, 24px padding (.m-card.flush = no padding)
+       .m-section-title   18px/500 heading inside a card or above a list; .m-caption = muted 15px text under it
+       .m-rows            list of rows separated by hairlines (put on ul/ol/div; children are rows); .m-row = one row (grid/flex freely)
+       .m-stat            stat block: .m-num (48px/400, tight, tabular) + .m-label (14px muted); .m-num.sm = 32px
+       .m-tag             small pill tag, neutral grey; modifiers .is-blocked .is-ok .is-asking .is-unverified .is-expected .is-known;
+                          add .dot for a leading coloured dot. .m-dot.is-* = bare 8px outcome dot
+       .m-btn             button base; .m-btn--primary (filled indigo) .m-btn--secondary (white + hairline) .m-btn--quiet (text only);
+                          .m-btn--sm smaller. Legacy aliases: .btn-solid = primary, .btn-ghost = secondary
+       .m-input           text input; .m-switch = small switch (button role=switch aria-checked="true|false")
+       .m-empty           empty state: muted text block, first <b> is the one-line headline
+       .m-modal           <dialog> sheet: white, hairline, soft shadow, 32px padding
+       .card .chip .empty .badge .sw .inp are kept as legacy aliases restyled to the same look. */
   :root{
-    /* Dark sibling of the audience screen: its ink becomes the ground, its state colours the accents. */
-    --bg:#0E1821; --ink:#14202B; --s1:#172533; --s2:#1E2F3F; --s3:#27394B; --rule:#2C3F52;
-    --text:#EEF2F5; --muted:#A9B5C0; --faint:#71808D;
-    /* Same meanings as the audience screen, lifted for contrast on dark. */
-    --c-denied:#FF4A62; --c-ok:#2FC27A; --c-check:#FFC425; --c-unver:#FF8A3D;
-    --c-expected:#5B9BEB; --c-known:#2DBFA0; --c-screen:#2B4A6E;
-    --display:"Avenir Next Condensed","Avenir Next","Helvetica Neue",system-ui,sans-serif;
-    --font:"Avenir Next","Helvetica Neue",system-ui,-apple-system,"Segoe UI",sans-serif;
-    --r-xl:28px; --r-lg:22px; --r-md:14px;
+    --mg-page:#F7F8FA; --mg-rail:#F1F2F5; --mg-surface:#FFFFFF; --mg-subtle:#F4F5F8; --mg-line:#E4E6EC;
+    --mg-text:#1B1D2A; --mg-text-2:#5C6070; --mg-text-3:#9498A6;
+    --mg-accent:#5266EB; --mg-accent-soft:#EEF0FD; --mg-accent-line:#C9D0F8;
+    --mg-red:#D03B3B; --mg-red-soft:#FBECEC; --mg-green:#1F8A5B; --mg-green-soft:#E7F4ED;
+    --mg-amber:#B7791F; --mg-amber-soft:#FBF3E3; --mg-orange:#C2570C; --mg-orange-soft:#FCEEE3;
+    --mg-teal:#0F766E; --mg-teal-soft:#E4F2F0;
+    --mg-r:10px; --mg-r-sm:6px;
+    --mg-fs:17px; --mg-fs-cap:14px; --mg-fs-section:18px; --mg-fs-title:30px; --mg-fs-num:48px;
+    --mg-font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Helvetica Neue","Segoe UI",sans-serif;
+    --mg-shadow:0 12px 32px -12px rgba(27,29,42,.18);
+    /* legacy aliases */
+    --bg:var(--mg-page); --ink:var(--mg-text); --s1:var(--mg-surface); --s2:var(--mg-subtle); --s3:#E9EBF0; --rule:var(--mg-line);
+    --text:var(--mg-text); --muted:var(--mg-text-2); --faint:var(--mg-text-3);
+    --c-denied:var(--mg-red); --c-ok:var(--mg-green); --c-check:var(--mg-amber); --c-unver:var(--mg-orange);
+    --c-expected:var(--mg-accent); --c-known:var(--mg-teal); --c-screen:var(--mg-accent);
+    --display:var(--mg-font); --font:var(--mg-font);
+    --r-xl:var(--mg-r); --r-lg:var(--mg-r); --r-md:8px;
   }
+  .m-card{background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:24px;min-width:0}
+  .m-card.flush{padding:0}
+  .m-section-title{font-size:var(--mg-fs-section);font-weight:500;color:var(--mg-text);margin:0;letter-spacing:-.005em}
+  .m-caption{font-size:15px;color:var(--mg-text-2);margin:2px 0 0}
+  .m-rows{list-style:none;margin:0;padding:0}
+  .m-rows>*{border-top:1px solid var(--mg-line)}
+  .m-rows>*:first-child{border-top:0}
+  .m-row{padding:14px 0}
+  .m-stat{display:flex;flex-direction:column;gap:4px}
+  .m-num{font-size:var(--mg-fs-num);font-weight:400;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums lining-nums;color:var(--mg-text)}
+  .m-num.sm{font-size:32px}
+  .m-label{font-size:var(--mg-fs-cap);color:var(--mg-text-2)}
+  .m-tag{display:inline-flex;align-items:center;gap:6px;font-size:var(--mg-fs-cap);font-weight:500;line-height:1.2;padding:3px 10px;
+         border-radius:999px;background:var(--mg-subtle);color:var(--mg-text-2);white-space:nowrap}
+  .m-tag.dot::before,.m-dot{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none;display:inline-block}
+  .is-blocked{--tc:var(--mg-red);--tb:var(--mg-red-soft)} .is-ok{--tc:var(--mg-green);--tb:var(--mg-green-soft)}
+  .is-asking{--tc:var(--mg-amber);--tb:var(--mg-amber-soft)} .is-unverified{--tc:var(--mg-orange);--tb:var(--mg-orange-soft)}
+  .is-expected{--tc:var(--mg-accent);--tb:var(--mg-accent-soft)} .is-known{--tc:var(--mg-teal);--tb:var(--mg-teal-soft)}
+  .m-tag[class*="is-"]{color:var(--tc);background:var(--tb)}
+  .m-dot[class*="is-"]{background:var(--tc)}
+  .m-btn,.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:8px;cursor:pointer;
+       font:500 16px/1.2 var(--mg-font);padding:10px 16px;transition:background .12s,border-color .12s,color .12s;text-decoration:none;white-space:nowrap}
+  .m-btn svg.i,.btn svg.i{font-size:16px}
+  .m-btn--primary,.btn-solid{background:var(--mg-accent);color:#fff}
+  .m-btn--primary:hover,.btn-solid:hover{background:#4356D6}
+  .m-btn--secondary,.btn-ghost{background:var(--mg-surface);color:var(--mg-text);border-color:var(--mg-line)}
+  .m-btn--secondary:hover,.btn-ghost:hover{border-color:#CDD0D8;background:var(--mg-subtle)}
+  .m-btn--quiet{background:transparent;color:var(--mg-text-2);padding-left:8px;padding-right:8px}
+  .m-btn--quiet:hover{color:var(--mg-text);background:var(--mg-subtle)}
+  .m-btn--sm,.btn-sm{font-size:15px;padding:6px 12px}
+  .m-btn[disabled],.btn[disabled]{opacity:.5;cursor:default}
+  .m-input{font:400 var(--mg-fs)/1.3 var(--mg-font);color:var(--mg-text);background:var(--mg-surface);border:1px solid var(--mg-line);
+           border-radius:8px;padding:9px 12px;width:100%}
+  .m-input:focus{outline:none;border-color:var(--mg-accent);box-shadow:0 0 0 3px var(--mg-accent-soft)}
+  .m-input::placeholder{color:var(--mg-text-3)}
+  .m-switch{position:relative;width:36px;height:20px;border-radius:10px;border:0;padding:0;background:#D5D8E0;cursor:pointer;flex:none;transition:background .15s}
+  .m-switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;
+                   box-shadow:0 1px 2px rgba(27,29,42,.25);transition:transform .15s}
+  .m-switch[aria-checked="true"]{background:var(--mg-accent)}
+  .m-switch[aria-checked="true"]::after{transform:translateX(16px)}
+  .m-empty{color:var(--mg-text-3);font-size:15px;line-height:1.45}
+  .m-empty b{display:block;color:var(--mg-text-2);font-weight:500;font-size:var(--mg-fs)}
+  .m-modal{border:1px solid var(--mg-line);border-radius:12px;padding:32px;background:var(--mg-surface);color:var(--mg-text);box-shadow:var(--mg-shadow)}
+  .m-modal::backdrop{background:rgba(27,29,42,.28)}
+
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
-  body{background:var(--bg);color:var(--text);font:500 21px/1.4 var(--font);font-variant-numeric:tabular-nums;
+  body{background:var(--mg-page);color:var(--mg-text);font:400 var(--mg-fs)/1.45 var(--mg-font);font-variant-numeric:tabular-nums;
        -webkit-font-smoothing:antialiased}
   button{font:inherit;color:inherit}
-  a{color:var(--c-expected)}
-  :focus-visible{outline:3px solid var(--c-check);outline-offset:3px}
+  a{color:var(--mg-accent)}
+  :focus-visible{outline:2px solid var(--mg-accent);outline-offset:2px}
   svg.i{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   [hidden]{display:none!important}
 
   /* Nothing shows until we know whether someone is signed in: no flash of the wrong screen. */
   body.booting #signin, body.booting #app{display:none}
 
-  .mark{display:flex;align-items:center;gap:14px;font:700 34px/1 var(--display);letter-spacing:-.01em}
-  .mark .shield{width:44px;height:48px;flex:none}
+  /* Shell (part of the design system): mark, sign-in frame, rail, header, legacy aliases */
+  .mark{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:500;letter-spacing:-.01em;color:var(--mg-text)}
+  .mark .shield{width:22px;height:24px;flex:none}
 
   /* ---------- Sign-in ---------- */
-  #signin{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;
-          gap:0 80px;padding:56px 96px 48px;
-          background:radial-gradient(1200px 700px at 18% 60%,rgba(43,74,110,.55),transparent 70%),var(--bg)}
+  #signin{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;
+          gap:0 96px;padding:40px 120px 40px;background:var(--mg-surface)}
   #signin .mark{grid-column:1/-1}
   .si-left{align-self:center}
-  .si-q{font:800 156px/.92 var(--display);letter-spacing:-.025em;margin:0}
-  .si-q span{display:block;color:var(--c-check)}
-  .si-lede{font-size:28px;line-height:1.38;color:var(--muted);max-width:38ch;margin:34px 0 0}
-  .si-lede b{color:var(--text);font-weight:600}
+  .si-kick{font-size:20px;color:var(--mg-text-2);margin:0 0 12px}
+  .si-q{font-size:84px;font-weight:400;line-height:1.02;letter-spacing:-.035em;margin:0;color:var(--mg-text)}
+  .si-q span{display:block}
+  .si-lede{font-size:20px;line-height:1.5;color:var(--mg-text-2);max-width:44ch;margin:24px 0 0}
+  .si-lede b{color:var(--mg-text);font-weight:500}
   .si-right{align-self:center}
-  .ping{background:var(--s1);border:1.5px solid var(--rule);border-radius:var(--r-xl);padding:40px 44px 44px;
-        box-shadow:0 40px 80px -40px rgba(0,0,0,.7)}
-  .ping h2{font:700 44px/1.05 var(--display);margin:0 0 10px}
-  .ping p{margin:0 0 30px;color:var(--muted)}
-  .auth{display:flex;flex-direction:column;gap:16px}
-  #g-btn{min-height:52px;display:flex;align-items:center}
-  .g-note{font-size:18px;color:var(--faint);margin:0}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;border:0;border-radius:999px;cursor:pointer;
-       font-weight:600;font-size:21px;padding:14px 28px;transition:background .15s,color .15s}
-  .btn-solid{background:var(--text);color:var(--ink)}
-  .btn-solid:hover{background:#fff}
-  .btn-ghost{background:transparent;color:var(--text);box-shadow:inset 0 0 0 2px var(--rule)}
-  .btn-ghost:hover{box-shadow:inset 0 0 0 2px var(--muted)}
-  .btn[disabled]{opacity:.5;cursor:default}
-  .or{display:flex;align-items:center;gap:14px;color:var(--faint);font-size:17px}
-  .or::before,.or::after{content:"";flex:1;height:1.5px;background:var(--rule)}
-  .after{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:40px;padding-top:28px;
-         border-top:1.5px solid var(--rule)}
-  .after div{display:flex;gap:16px;align-items:flex-start;color:var(--muted);font-size:20px;line-height:1.35}
-  .after b{display:block;color:var(--text);font-weight:600;font-size:22px}
-  .after svg.i{font-size:30px;color:var(--c-check);margin-top:2px}
+  .ping{background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:12px;padding:36px 36px 32px;box-shadow:var(--mg-shadow);max-width:460px}
+  .ping h2{font-size:22px;font-weight:500;margin:0 0 6px;letter-spacing:-.01em}
+  .ping p{margin:0 0 24px;color:var(--mg-text-2);font-size:16px}
+  .auth{display:flex;flex-direction:column;gap:12px}
+  .auth .btn{width:100%;padding:12px 16px}
+  #g-btn{min-height:44px;display:flex;align-items:center}
+  .g-note{font-size:14px;color:var(--mg-text-3);margin:0}
+  .or{display:flex;align-items:center;gap:12px;color:var(--mg-text-3);font-size:14px}
+  .or::before,.or::after{content:"";flex:1;height:1px;background:var(--mg-line)}
+  .after{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:40px;margin-top:32px;padding-top:24px;border-top:1px solid var(--mg-line)}
+  .after div{display:flex;gap:12px;align-items:flex-start;color:var(--mg-text-2);font-size:15px;line-height:1.45}
+  .after b{display:block;color:var(--mg-text);font-weight:500;font-size:16px}
+  .after svg.i{font-size:20px;color:var(--mg-text-3);margin-top:1px;stroke-width:1.6}
 
   /* ---------- Signed-in app ---------- */
-  #app{height:100vh;display:grid;grid-template-columns:316px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
-  #rail{grid-row:1/3;background:var(--ink);border-right:1.5px solid var(--rule);display:flex;flex-direction:column;padding:34px 22px 28px}
-  #rail .mark{padding:0 12px 40px}
-  #nav{display:flex;flex-direction:column;gap:6px}
-  #nav a{display:flex;align-items:center;gap:16px;padding:14px 18px;border-radius:var(--r-md);color:var(--muted);
-         text-decoration:none;font-weight:600;font-size:22px;position:relative;white-space:nowrap}
-  #nav a svg.i{font-size:26px}
-  #nav a:hover{background:var(--s1);color:var(--text)}
-  #nav a[aria-current="page"]{background:var(--s2);color:var(--text)}
-  #nav a[aria-current="page"]::before{content:"";position:absolute;left:-22px;top:12px;bottom:12px;width:5px;border-radius:0 4px 4px 0;background:var(--c-check)}
-  .rail-foot{margin-top:auto;padding:18px;border-radius:var(--r-lg);background:var(--s1);font-size:17px;color:var(--muted);line-height:1.35}
-  .rail-foot b{display:block;font:700 26px/1.15 var(--display);color:var(--text);margin-top:4px;letter-spacing:.01em}
+  #app{height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  #rail{grid-row:1/3;background:var(--mg-rail);border-right:1px solid var(--mg-line);display:flex;flex-direction:column;padding:26px 14px 22px}
+  #rail .mark{padding:0 10px 28px}
+  #nav{display:flex;flex-direction:column;gap:2px}
+  #nav a{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:8px;color:var(--mg-text-2);
+         text-decoration:none;font-weight:400;font-size:16px;position:relative;white-space:nowrap}
+  #nav a svg.i{font-size:18px;stroke-width:1.7}
+  #nav a:hover{background:#E9EBF0;color:var(--mg-text)}
+  #nav a[aria-current="page"]{background:#E4E6EC;color:var(--mg-text);font-weight:500}
+  #nav a[aria-current="page"]::before{content:"";position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--mg-accent)}
+  .rail-foot{margin-top:auto;padding:0 12px;font-size:13px;color:var(--mg-text-3);line-height:1.4}
+  .rail-foot b{display:block;font-size:15px;font-weight:500;color:var(--mg-text-2);margin-top:2px;letter-spacing:0}
 
-  #top{display:flex;align-items:center;gap:22px;padding:30px 48px 22px}
-  #title{font:700 52px/1 var(--display);letter-spacing:-.01em;margin:0;flex:1;min-width:0}
-  .badge{display:inline-flex;align-items:center;gap:10px;border-radius:999px;padding:9px 18px 9px 14px;font-size:19px;font-weight:600;border:0}
-  .badge svg.i{font-size:22px}
-  .badge.ok{background:rgba(47,194,122,.16);color:var(--c-ok)}
-  .badge.todo{background:rgba(255,196,37,.14);color:var(--c-check);cursor:pointer;box-shadow:inset 0 0 0 2px rgba(255,196,37,.45)}
-  .badge.todo:hover{background:rgba(255,196,37,.24)}
-  .who{display:flex;align-items:center;gap:14px;font-weight:600}
-  .avatar{width:52px;height:52px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;
-          background:var(--c-screen);color:#fff;font:700 22px/1 var(--display);letter-spacing:.02em}
+  #top{display:flex;align-items:center;gap:16px;padding:26px 40px 18px}
+  #title{font-size:var(--mg-fs-title);font-weight:500;line-height:1.1;letter-spacing:-.02em;margin:0;flex:1;min-width:0}
+  .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 12px 4px 10px;font-size:14px;font-weight:500;border:0}
+  .badge svg.i{font-size:15px}
+  .badge.ok{background:var(--mg-green-soft);color:var(--mg-green)}
+  .badge.todo{background:var(--mg-orange-soft);color:var(--mg-orange);cursor:pointer}
+  .badge.todo:hover{background:#F9E2D2}
+  .who{display:flex;align-items:center;gap:10px;font-weight:400;font-size:16px}
+  .avatar{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;
+          background:#E3E6F4;color:#3B4699;font-size:13px;font-weight:500;line-height:1;letter-spacing:.02em}
   .avatar img{width:100%;height:100%;object-fit:cover}
-  .avatar.big{width:112px;height:112px;font-size:46px}
-  .iconbtn{border:0;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:8px;
-           padding:10px 14px;border-radius:12px;font-size:18px;font-weight:600}
-  .iconbtn:hover{background:var(--s1);color:var(--text)}
-  .iconbtn svg.i{font-size:22px}
+  .avatar.big{width:72px;height:72px;font-size:26px}
+  .iconbtn{border:0;background:transparent;color:var(--mg-text-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+           padding:6px 8px;border-radius:8px;font-size:15px;font-weight:400}
+  .iconbtn:hover{background:var(--mg-subtle);color:var(--mg-text)}
+  .iconbtn svg.i{font-size:16px;stroke-width:1.7}
 
-  main{min-height:0;overflow:auto;padding:4px 48px 40px}
+  main{min-height:0;overflow:auto;padding:4px 40px 32px}
   .view{height:100%;min-height:0}
-  .lede{color:var(--muted);margin:0 0 26px;max-width:70ch;font-size:22px}
+  .lede{color:var(--mg-text-2);margin:0 0 20px;max-width:80ch;font-size:16px;line-height:1.5}
 
-  .card{background:var(--s1);border-radius:var(--r-xl);padding:28px 32px;min-height:0;position:relative;overflow:hidden}
-  .card h3{font:700 30px/1.1 var(--display);margin:0 0 6px;letter-spacing:.005em}
-  .card .sub{color:var(--muted);font-size:18px;margin:0}
-  .empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;color:var(--faint);
-         font-size:20px;line-height:1.4;flex:1;min-height:0}
-  .empty b{color:var(--muted);font-weight:600}
-  .chip{display:inline-flex;align-items:center;gap:8px;font-size:17px;font-weight:600;padding:4px 14px 4px 11px;border-radius:999px;
-        border:2px solid var(--rule);color:var(--muted)}
-  .chip i{width:10px;height:10px;border-radius:50%;background:var(--faint)}
-  .chip.on{border-color:transparent;background:var(--s3);color:var(--text)}
-  .chip.on i{background:var(--c-ok)}
-  .chip.off i{background:var(--faint)}
+  /* legacy aliases, same look as .m-card / .m-empty / .m-tag */
+  .card{background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:24px;min-height:0;position:relative;overflow:hidden}
+  .card h3{font-size:var(--mg-fs-section);font-weight:500;line-height:1.3;margin:0 0 2px;letter-spacing:-.005em}
+  .card .sub{color:var(--mg-text-2);font-size:15px;margin:0}
+  .empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;color:var(--mg-text-3);
+         font-size:15px;line-height:1.45;flex:1;min-height:0}
+  .empty b{color:var(--mg-text-2);font-weight:500;font-size:var(--mg-fs)}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:500;padding:3px 10px;border-radius:999px;
+        border:0;background:var(--mg-subtle);color:var(--mg-text-2);white-space:nowrap}
+  .chip i{width:7px;height:7px;border-radius:50%;background:var(--mg-text-3)}
+  .chip.on{background:var(--mg-subtle);color:var(--mg-text)}
+  .chip.on i{background:var(--mg-green)}
+  .chip.off i{background:var(--mg-text-3)}
 
   /* Overview */
   #v-overview{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto minmax(0,1fr) minmax(0,1fr);gap:24px}
@@ -154,6 +221,120 @@
   .graph-cap{position:absolute;left:40px;bottom:36px;max-width:62ch}
   .graph-cap h3{font-size:34px}
 
+  /* === overview and graph === */
+  :root{--c-other:#B8BCC8;--ov-blk-bar:color-mix(in srgb,var(--mg-red) 55%,#fff)}
+  #v-overview{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto minmax(0,1fr) minmax(0,1.15fr);gap:20px}
+  #v-overview>.m-card{display:flex;flex-direction:column;min-height:0;padding:22px 26px}
+  #v-overview .ov-a{grid-column:1/5;grid-row:2}
+  #v-overview .ov-b{grid-column:5/10;grid-row:2}
+  #v-overview .ov-d{grid-column:10/13;grid-row:2}
+  #v-overview .ov-c{grid-column:1/-1;grid-row:3}
+  #v-overview .ov-empty{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px}
+  /* The live-call banner sits above the views; keep both views inside one screen while it shows. */
+  main:has(> #lc-banner:not([hidden])) :is(#v-overview,#v-graph){height:calc(100% - var(--lc-h,66px))}
+  .ovb{flex:1;min-height:0;display:flex;margin-top:14px}
+  .m-caption .key{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 7px 0 0;background:var(--mg-accent-line)}
+  .m-caption .key.blk{background:var(--ov-blk-bar);margin-left:16px}
+  /* quiet number strip */
+  #v-overview .heads{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;
+    background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r)}
+  .ov-num{display:flex;flex-direction:column;gap:6px;padding:20px 26px 22px;border-left:1px solid var(--mg-line);min-width:0}
+  .ov-num:first-child{border-left:0}
+  .ov-num .l{font-size:var(--mg-fs-cap);color:var(--mg-text-2);white-space:nowrap}
+  .ov-num .n{font-size:var(--mg-fs-num);font-weight:400;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+  .ov-num.blk .n{color:var(--mg-red)}
+  .ov-num .n.dim{color:var(--mg-text-3)}
+  /* how calls ended: one stacked bar and a plain legend table */
+  .sb{display:flex;flex-direction:column;width:100%;min-width:0}
+  .sb-total{display:flex;align-items:baseline;gap:8px;color:var(--mg-text-2);font-size:15px}
+  .sb-total b{font-size:32px;font-weight:400;letter-spacing:-.02em;color:var(--mg-text)}
+  .sb-bar{display:flex;gap:2px;height:12px;margin:12px 0 14px;border-radius:3px;overflow:hidden;background:var(--mg-subtle)}
+  .sb-bar i{height:100%;width:0;flex:none;transition:width .7s ease}
+  .sb-leg{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;column-gap:28px}
+  .sb-leg li{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--mg-line);font-size:15px;color:var(--mg-text-2);white-space:nowrap}
+  .sb-leg li:nth-child(-n+2){border-top:0}
+  .sb-leg li span{overflow:hidden;text-overflow:ellipsis}
+  .sb-leg li i{width:8px;height:8px;border-radius:50%}
+  .sb-leg li b{font-weight:500;color:var(--mg-text)}
+  .sb-leg li.zero{color:var(--mg-text-3)}
+  .sb-leg li.zero b{color:var(--mg-text-3);font-weight:400}
+  /* bars over time */
+  .bars{flex:1;display:flex;flex-direction:column;min-width:0}
+  .bars .plot{flex:1;min-height:0;display:flex;align-items:stretch;gap:10px;border-bottom:1px solid var(--mg-line)}
+  .bars .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-width:0}
+  .bars .val{text-align:center;font-size:15px;line-height:1;margin-bottom:6px;color:var(--mg-text)}
+  .bars .val.z{visibility:hidden}
+  .bars .bar{background:var(--mg-accent-soft);border-top:2px solid var(--mg-accent);border-radius:2px 2px 0 0;height:0;transition:height .7s ease;
+             display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+  .bars .blk{background:var(--ov-blk-bar);height:0;transition:height .7s ease}
+  .bars .bar.z{border-top-width:0}
+  .bars .labels{display:flex;gap:10px;margin-top:8px}
+  .bars .labels span{flex:1;text-align:center;color:var(--mg-text-3);font-size:13px;white-space:nowrap;min-width:0}
+  /* tactics */
+  .tac{display:flex;flex-direction:column;width:100%}
+  .tac-row{display:grid;grid-template-columns:minmax(0,1fr) 72px 30px;gap:12px;align-items:center;font-size:15px;color:var(--mg-text);padding:7px 0;border-top:1px solid var(--mg-line)}
+  .tac-row:first-child{border-top:0}
+  .tac-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tac-row .trk{height:4px;border-radius:2px;background:var(--mg-subtle);overflow:hidden}
+  .tac-row .fil{height:100%;width:0;background:var(--mg-text-3);transition:width .7s ease}
+  .tac-row b{font-weight:500;text-align:right}
+  .tac-row.zero,.tac-row.zero b{color:var(--mg-text-3);font-weight:400}
+  .answered{margin-top:auto;padding-top:10px;font-size:14px;color:var(--mg-text-2);line-height:1.5}
+  .answered b{font-weight:500;color:var(--mg-text)}
+  /* recent attempts */
+  .rhead,.rr{display:grid;grid-template-columns:72px minmax(0,1.15fr) minmax(0,1fr) minmax(0,1.2fr) 150px minmax(0,1.35fr);gap:18px;align-items:center}
+  .rhead{margin-top:14px;padding:0 0 8px;border-bottom:1px solid var(--mg-line);font-size:var(--mg-fs-cap);color:var(--mg-text-3)}
+  .rlist{margin:0;flex-direction:column;overflow:hidden}
+  .rlist.ovb{margin-top:0}
+  .rr{padding:11px 0;font-size:16px;white-space:nowrap}
+  .rr>*{overflow:hidden;text-overflow:ellipsis}
+  .rr.new{animation:rrnew 2.4s ease}
+  @keyframes rrnew{0%,35%{background:var(--mg-accent-soft)}100%{background:transparent}}
+  .rr time{color:var(--mg-text-2)}
+  .rr .who b{font-weight:500}
+  .rr .rel,.rr .num{color:var(--mg-text-3);margin-left:8px}
+  .rr .want.no{color:var(--mg-text-3)}
+  .rr .scam,.rr .how{color:var(--mg-text-2);font-size:15px}
+  .rr .oc{overflow:visible}
+
+  /* knowledge graph canvas */
+  #g-box{position:absolute;inset:0}
+  #g-svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #v-graph .g-card{height:100%;position:relative;overflow:hidden}
+  .graph-empty g[fill]{fill:var(--mg-subtle)} .graph-empty g[stroke]{stroke:var(--mg-line)} .graph-empty svg>circle{fill:var(--mg-accent-soft)}
+  .g-top{position:absolute;left:28px;right:28px;top:22px;display:flex;justify-content:space-between;align-items:baseline;gap:20px;pointer-events:none}
+  .g-sum{font-size:var(--mg-fs-section);font-weight:500}
+  .g-sum span{color:var(--mg-text-2);font-size:15px;font-weight:400;margin-left:12px}
+  .g-src{color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
+  .g-foot{position:absolute;left:28px;right:28px;bottom:18px;pointer-events:none;border-top:1px solid var(--mg-line);padding-top:12px}
+  .g-legend{display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--mg-text-2);font-size:var(--mg-fs-cap)}
+  .g-legend span{display:inline-flex;align-items:center;gap:8px}
+  .g-legend svg{width:16px;height:16px;overflow:visible}
+  .g-note{margin:6px 0 0;color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
+  .gn{cursor:pointer;transition:opacity .2s}
+  .gn text{paint-order:stroke;stroke:var(--mg-surface);stroke-width:4px;stroke-linejoin:round;fill:var(--mg-text);font-family:var(--mg-font);font-weight:400;font-size:17px}
+  .gn.t-contact text{font-weight:500;font-size:20px}
+  .gn.t-owner text{font-weight:500;font-size:22px}
+  .gn.t-contact text.in{stroke:none;fill:var(--mg-text);font-weight:500;font-size:16px}
+  .gn.t-fact text{fill:var(--mg-text-2)}
+  .gn.t-attempt.blk text{fill:var(--mg-red)}
+  .ge{fill:none;stroke:#D5D8E0;stroke-width:1;transition:opacity .2s}
+  .ge.e-contact{stroke:#B9BDC9;stroke-width:1.5}
+  .ge.e-blk{stroke:var(--mg-red);stroke-dasharray:5 5;stroke-opacity:.7}
+  .ge.e-ok{stroke:var(--mg-green);stroke-opacity:.7}
+  .gel{font:400 14px var(--mg-font);fill:var(--mg-text-3);paint-order:stroke;stroke:var(--mg-surface);stroke-width:4px;stroke-linejoin:round;transition:opacity .2s}
+  #g-svg.focus .gn:not(.hl){opacity:.2}
+  #g-svg.focus .ge:not(.hl),#g-svg.focus .gel:not(.hl){opacity:.12}
+  .gn.sel .ring{stroke:var(--mg-accent);stroke-width:2}
+  #g-card{position:absolute;width:380px;background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:16px 18px 18px;
+          pointer-events:none;box-shadow:0 8px 24px -14px rgba(27,29,42,.22)}
+  #g-card .gk{display:flex;align-items:center;gap:8px;color:var(--mg-text-2);font-size:var(--mg-fs-cap)}
+  #g-card .gk i{width:8px;height:8px;border-radius:50%}
+  #g-card .gt{font-size:20px;font-weight:500;line-height:1.25;margin:6px 0}
+  #g-card .gd{color:var(--mg-text-2);font-size:16px;line-height:1.45;margin:0}
+  #g-card .go{color:var(--mg-text-2);font-size:var(--mg-fs-cap);margin-top:10px;padding-top:8px;border-top:1px solid var(--mg-line)}
+  #g-card .gp{color:var(--mg-text-3);font-size:13px;margin-top:8px}
+
   /* Profile */
   #v-profile{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:24px;align-content:start}
   .me-card{display:flex;gap:28px;align-items:center}
@@ -171,11 +352,332 @@
   .vsteps li::before{counter-increment:s;content:counter(s);flex:none;width:34px;height:34px;border-radius:50%;background:var(--s2);color:var(--text);
                      display:grid;place-items:center;font:700 19px/1 var(--display);transform:translateY(6px)}
 
+  /* === contacts, numbers, profile === */
+  .vhead{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:20px}
+  .vhead .lede{margin:0}
+  /* Trusted contacts: restrained white cards, hairline rows inside */
+  .ccards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+  .cc{background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:20px 24px 12px;display:flex;flex-direction:column;gap:14px;position:relative}
+  .cc.fresh{border-color:var(--mg-green);box-shadow:0 0 0 3px var(--mg-green-soft)}
+  .cc-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center}
+  .cc-top .avatar{width:40px;height:40px;font-size:15px;background:#E3E6F4!important;color:#3B4699}
+  .cc-name{font-size:22px;font-weight:500;line-height:1.2;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cc-rel{color:var(--mg-text-2);font-size:15px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .risk{text-align:right;min-width:150px}
+  .risk .rn{font-size:30px;font-weight:400;letter-spacing:-.02em;line-height:1;color:var(--mg-text)}
+  .risk .rl{font-size:13px;color:var(--mg-text-2);margin-top:4px}
+  .risk .bar{height:4px;border-radius:2px;background:var(--mg-subtle);margin:6px 0 0 auto;width:150px;overflow:hidden;display:flex}
+  .risk .bar b{background:var(--mg-red)} .risk .bar i{background:var(--mg-green)}
+  .risk.calm{color:var(--mg-text-3);font-size:14px;display:flex;align-items:center;gap:6px;justify-content:flex-end}
+  .risk.calm svg.i{color:var(--mg-green);font-size:15px}
+  .cc-meta{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+  .chip.num{background:transparent;padding:0;color:var(--mg-text-2);font-size:15px;font-weight:400}
+  .chip.num svg.i{font-size:14px!important}
+  .chip.cw-yes,.chip.cw-no{font-size:13px;padding:2px 9px}
+  .chip.cw-yes i{background:var(--mg-green)}
+  .chip.cw-no{background:var(--mg-orange-soft);color:var(--mg-orange)}
+  .chip.cw-no i{background:var(--mg-orange)}
+  .chans-cap{display:flex;align-items:center;gap:10px;color:var(--mg-text-3);font-size:13px;font-weight:500;margin-bottom:-6px}
+  .saved{color:var(--mg-green);font-weight:500;font-size:13px;opacity:0;transition:opacity .3s}
+  .saved.on{opacity:1}
+  .chans{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--mg-line)}
+  .chans li{display:grid;grid-template-columns:18px 20px minmax(0,1fr) auto auto;gap:12px;align-items:center;border-bottom:1px solid var(--mg-line);padding:9px 0}
+  .chans li svg.i{font-size:18px!important;stroke-width:1.7;color:var(--mg-text-2)!important}
+  .chans li.off .ch-main,.chans li.off svg.i{opacity:.45}
+  .pos{font-size:14px;color:var(--mg-text-3);text-align:center}
+  .chans li.off .pos{color:var(--mg-line)}
+  .ch-main{min-width:0;line-height:1.25;display:flex;align-items:baseline;gap:10px}
+  .ch-kind{font-weight:400;font-size:16px;white-space:nowrap}
+  .ch-handle{color:var(--mg-text-2);font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ch-note{color:var(--mg-text-3);font-size:13px;font-weight:400}
+  .arrows{display:flex;gap:2px}
+  .arr{width:28px;height:28px;border-radius:6px;border:0;background:transparent;color:var(--mg-text-2);cursor:pointer;display:grid;place-items:center}
+  .arr:hover:not([disabled]){background:var(--mg-subtle);color:var(--mg-text)}
+  .arr[disabled]{opacity:.25;cursor:default}
+  .arr svg.i{font-size:16px}
+  .sw{position:relative;width:36px;height:20px;border-radius:10px;border:0;padding:0;background:#D5D8E0;cursor:pointer;flex:none;transition:background .15s}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(27,29,42,.25);transition:transform .15s}
+  .sw[aria-checked="true"]{background:var(--mg-accent)}
+  .sw[aria-checked="true"]::after{transform:translateX(16px)}
+  .cc-foot{display:flex;align-items:center;gap:4px;min-height:36px}
+  .cc-foot .grow{flex:1;color:var(--mg-text-3);font-size:14px}
+  .cc-foot .ok{color:var(--mg-green)}
+  .cc-foot .btn-ghost{border-color:transparent;background:transparent;color:var(--mg-text-2);padding:5px 10px}
+  .cc-foot .btn-ghost:hover{background:var(--mg-subtle);color:var(--mg-text)}
+  .btn-danger{background:var(--mg-red);color:#fff}
+  .add-card.add-tile{min-height:0;height:auto;width:100%;border:1px dashed #CDD0D8;border-radius:var(--mg-r);background:transparent;padding:22px 24px;
+                     flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;color:var(--mg-text-2);font-size:15px;cursor:pointer}
+  .add-card.add-tile:hover{border-color:var(--mg-accent);color:var(--mg-text)}
+  .add-card.add-tile .plus{width:auto;height:auto;background:transparent;margin:0;font-size:18px;color:var(--mg-accent)}
+  .add-card.add-tile b{font-size:16px;font-weight:500;color:var(--mg-text);line-height:1.3}
+  .cc-empty{color:var(--mg-text-3);font-size:15px;margin:0}
+
+  dialog.sheet{border:1px solid var(--mg-line);padding:0;border-radius:12px;background:var(--mg-surface);color:var(--mg-text);width:min(760px,94vw);max-height:92vh;
+               box-shadow:var(--mg-shadow)}
+  dialog.sheet::backdrop{background:rgba(27,29,42,.28)}
+  .sheet form{padding:28px 32px 24px;display:flex;flex-direction:column;gap:16px}
+  .sheet h2{font-size:22px;font-weight:500;letter-spacing:-.01em;margin:0 0 4px}
+  .frow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .fld{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500;color:var(--mg-text-2)}
+  .fld small{font-weight:400;color:var(--mg-text-3);font-size:13px}
+  .inp{font:400 16px/1.3 var(--mg-font);color:var(--mg-text);background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:8px;padding:9px 12px;width:100%}
+  .inp:focus{border-color:var(--mg-accent);outline:none;box-shadow:0 0 0 3px var(--mg-accent-soft)}
+  .inp::placeholder{color:var(--mg-text-3)}
+  .fchans{display:flex;flex-direction:column;gap:8px;margin-top:2px}
+  .fchan{display:grid;grid-template-columns:20px 130px minmax(0,1fr) auto;gap:12px;align-items:center}
+  .fchan svg.i{font-size:18px!important;stroke-width:1.7}
+  .fchan .ch-kind{font-size:15px;color:var(--mg-text)}
+  .ferr{color:var(--mg-red);font-size:15px;margin:0}
+  .factions{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:4px}
+
+  /* My numbers */
+  #v-numbers.v2{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}
+  .ghero{display:flex;flex-direction:column;gap:4px}
+  .ghero .kick{font-size:15px;color:var(--mg-text-2)}
+  .ghero .big{font-size:52px;font-weight:400;letter-spacing:-.025em;line-height:1.05;margin:6px 0 12px;color:var(--mg-text);white-space:nowrap}
+  .ghero p{color:var(--mg-text-2);margin:0;max-width:52ch;font-size:15px;line-height:1.5}
+  #v-numbers .flow{gap:10px;font-size:14px;color:var(--mg-text-3);margin-top:16px}
+  #v-numbers .flow span{background:none;padding:0;color:var(--mg-text-2);font-weight:400}
+  #v-numbers .flow svg.i{font-size:14px}
+  .owner-row{display:flex;gap:10px;align-items:center;margin-top:14px}
+  .owner-row .inp{max-width:260px}
+  .nrows{list-style:none;padding:0;margin:14px 0 0;display:flex;flex-direction:column;border-top:1px solid var(--mg-line)}
+  .nrows li{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:14px;align-items:center;border-bottom:1px solid var(--mg-line);padding:14px 0}
+  .nrows .lbl{color:var(--mg-text-2);font-size:14px}
+  .nrows .num{font-size:24px;font-weight:400;letter-spacing:-.015em;white-space:nowrap;margin-top:2px}
+  .nrows .pt{font-size:14px;color:var(--mg-text-2);min-width:96px;text-align:right}
+  .nrows li.off .num,.nrows li.off .pt{color:var(--mg-text-3)}
+  .xbtn{width:30px;height:30px;border-radius:6px;border:0;background:transparent;color:var(--mg-text-3);cursor:pointer;display:grid;place-items:center}
+  .xbtn:hover{background:var(--mg-subtle);color:var(--mg-text)}
+  .xbtn svg.i{font-size:16px}
+  .nadd{display:grid;grid-template-columns:170px minmax(0,1fr) auto;gap:10px;margin-top:16px}
+
+  /* Profile and identity check */
+  #v-profile{gap:20px}
+  #v-profile .me-card{gap:20px}
+  #v-profile .me-card .nm{font-size:26px;font-weight:500;letter-spacing:-.015em;line-height:1.15}
+  #v-profile .me-card .em{color:var(--mg-text-2);font-size:15px;margin-top:2px}
+  #v-profile .facts{margin:24px 0 0;padding-top:16px;border-top:1px solid var(--mg-line);gap:10px 24px;font-size:16px}
+  #v-profile .facts dt{color:var(--mg-text-2);font-weight:400}
+  #verify-card{box-shadow:none}
+  #verify-card.done{box-shadow:none}
+  #verify-card.flash{animation:mg-flash 1.4s ease}
+  @keyframes mg-flash{0%,50%{box-shadow:0 0 0 3px var(--mg-accent-soft);border-color:var(--mg-accent)}}
+  .vflow{list-style:none;padding:0;margin:18px 0 22px;display:flex;flex-direction:column;border-top:1px solid var(--mg-line)}
+  .vflow li{display:flex;gap:14px;align-items:center;font-size:16px;color:var(--mg-text-2);padding:12px 0;border-bottom:1px solid var(--mg-line);transition:color .3s}
+  .vflow li b{font-weight:500;color:var(--mg-text)!important}
+  .vflow .dot{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;box-shadow:inset 0 0 0 1.5px #CDD0D8;transition:all .3s}
+  .vflow .dot svg.i{font-size:13px;opacity:0;stroke-width:2.6}
+  .vflow li.now .dot{box-shadow:inset 0 0 0 2px var(--mg-accent);animation:mg-breathe 1s ease-in-out infinite}
+  .vflow li.done .dot{background:var(--mg-green);box-shadow:none;color:#fff}
+  .vflow li.done .dot svg.i{opacity:1}
+  @keyframes mg-breathe{50%{opacity:.45}}
+  .demo-tag{display:inline-flex;font-size:13px;font-weight:500;padding:2px 9px;border-radius:999px;background:var(--mg-subtle);color:var(--mg-text-2);margin-left:10px;vertical-align:2px}
+  .vbtns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .vmsg{color:var(--mg-orange);font-size:15px;margin:0 0 14px}
+  .vok{display:flex;align-items:center;gap:16px;margin-top:20px;padding-top:18px;border-top:1px solid var(--mg-line)}
+  .vok .seal{width:40px;height:40px;border-radius:50%;background:var(--mg-green-soft);display:grid;place-items:center;color:var(--mg-green);flex:none}
+  .vok .seal svg.i{font-size:20px;stroke-width:2.4}
+  .vok b{display:block;font-size:18px;font-weight:500}
+  .vok span{color:var(--mg-text-2);font-size:15px}
+  .badge.flip{animation:mg-flip .6s cubic-bezier(.2,.8,.2,1)}
+  @keyframes mg-flip{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+  #signup{position:fixed;inset:0;z-index:20;background:rgba(27,29,42,.28);display:grid;place-items:center}
+  #signup .card{width:min(560px,92vw);padding:32px;box-shadow:var(--mg-shadow);border-radius:12px}
+  #signup h2{font-size:26px;font-weight:500;letter-spacing:-.015em;margin:4px 0 8px}
+  #signup .kick{color:var(--mg-accent);font-weight:500;font-size:14px}
+  #signup p{color:var(--mg-text-2);margin:0 0 24px;font-size:16px;line-height:1.5}
+  #v-contacts,#v-expected,#v-numbers,#v-profile{height:auto}
+  #v-numbers .chans-cap{color:var(--mg-text);margin:0}
+
+  /* === live call === */
+  /* Calm by default; the status band fills with the outcome colour only in the decisive states. Uses the design-system tokens. */
+  #v-live{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) 300px;grid-template-rows:auto minmax(0,1fr);gap:20px}
+  .lc-st-screen{--lc-c:var(--mg-accent)} .lc-st-check{--lc-c:var(--mg-amber)} .lc-st-denied{--lc-c:var(--mg-red)}
+  .lc-st-ok{--lc-c:var(--mg-green)} .lc-st-known{--lc-c:var(--mg-teal)} .lc-st-expected{--lc-c:var(--mg-accent)}
+  .lc-st-unver{--lc-c:var(--mg-orange)} .lc-st-agent{--lc-c:var(--mg-accent)}
+
+  /* status band */
+  .lc-hero{grid-column:1/3;position:relative;overflow:hidden;height:196px;padding:22px 28px 24px;border:1px solid var(--mg-line);border-radius:var(--mg-r);
+           background:var(--mg-surface);color:var(--mg-text);display:grid;grid-template-columns:minmax(0,1fr) auto;
+           grid-template-rows:auto minmax(0,1fr) auto;gap:0 32px;transition:background-color .35s ease,color .35s ease,border-color .35s ease}
+  .lc-hero.lc-live:not(.lc-st-screen){background:var(--lc-c);border-color:var(--lc-c);color:#fff}
+  .lc-top{grid-column:1;display:flex;align-items:center;gap:10px;font-size:15px;color:var(--mg-text-2);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-hero.lc-live:not(.lc-st-screen) .lc-top{color:rgba(255,255,255,.85)}
+  .lc-word{grid-column:1;align-self:end;font-size:64px;font-weight:500;line-height:1;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-idle .lc-word{color:var(--mg-text-2);font-weight:400}
+  .lc-last .lc-word{color:var(--lc-c)}
+  .lc-why{grid-column:1;margin:10px 0 0;font-size:18px;line-height:1.35;color:var(--mg-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-hero.lc-live:not(.lc-st-screen) .lc-why{color:#fff}
+  .lc-side{grid-column:2;grid-row:1/4;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;text-align:right;gap:8px}
+  .lc-secs{font-size:var(--mg-fs-num);font-weight:400;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums}
+  .lc-last .lc-secs{font-size:32px;color:var(--mg-text-2)}
+  .lc-cap{font-size:var(--mg-fs-cap);opacity:.8;margin-top:4px}
+  .lc-chans{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:380px}
+  .lc-ch{font-size:var(--mg-fs-cap);font-weight:500;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.2)}
+  .lc-ch.on{background:#fff;color:var(--lc-c)}
+  .lc-bar{position:absolute;left:0;right:0;bottom:0;height:3px}
+  .lc-bar i{display:block;height:100%;width:0;background:currentColor;opacity:.7;transition:width .25s linear}
+  .lc-onair{width:8px;height:8px;border-radius:50%;background:var(--mg-text-3);flex:none}
+  .lc-onair.on{background:var(--mg-red);animation:lc-breathe 1.6s ease-in-out infinite}
+  .lc-st-screen .lc-onair.on{background:var(--mg-accent)}
+  .lc-hero.lc-live:not(.lc-st-screen) .lc-onair.on{background:#fff}
+  @keyframes lc-breathe{50%{opacity:.35}}
+  .lc-stamp{animation:lc-stamp .35s ease}
+  @keyframes lc-stamp{from{opacity:0}to{opacity:1}}
+
+  /* transcript: a two-speaker script */
+  .lc-talk{grid-column:1;grid-row:2;display:flex;flex-direction:column;padding:20px 28px 22px}
+  .lc-h{display:flex;align-items:center;gap:10px}
+  .lc-h h3{margin:0}
+  .lc-h-note{display:inline-flex;align-items:center;gap:8px;margin-left:auto;color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
+  .lc-talk .lc-h .lc-onair{order:3}
+  .lc-talk .lc-h .lc-onair:not(.on){display:none}
+  .lc-convo{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;padding:8px 0 0;
+            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 48px);mask-image:linear-gradient(to bottom,transparent 0,#000 48px)}
+  .lc-convo::-webkit-scrollbar{display:none}
+  .lc-convo>:first-child{margin-top:auto}
+  .lc-turn{flex:none;padding:12px 0;border-top:1px solid var(--mg-line)}
+  .lc-turn:first-child{border-top:0}
+  .lc-turn.cont{border-top:0;padding-top:0}
+  .lc-who{display:block;font-size:var(--mg-fs-cap);color:var(--mg-text-3);margin:0 0 2px}
+  .lc-turn.cont .lc-who{display:none}
+  .lc-said{margin:0;font-size:26px;font-weight:400;line-height:1.35;letter-spacing:-.01em;color:var(--mg-text);overflow-wrap:anywhere}
+  .lc-turn.agent .lc-said{color:var(--mg-text-2)}
+  .lc-turn.live .lc-said{color:var(--mg-text-3)}
+  .lc-turn.live .lc-said::after{content:"";display:inline-block;width:2px;height:.9em;margin-left:4px;vertical-align:-.1em;background:currentColor;
+                                animation:lc-breathe 1.1s ease-in-out infinite}
+  .lc-mask{display:inline-block;border-radius:var(--mg-r-sm);padding:0 .35em;font-size:.72em;line-height:1.4;vertical-align:.12em;
+           background:var(--mg-subtle);color:var(--mg-text-2);border:1px solid var(--mg-line)}
+
+  /* what the guard sees: a plain definition list */
+  .lc-facts{grid-column:2;grid-row:2;display:flex;flex-direction:column;padding:20px 24px 12px}
+  .lc-rows{margin:8px 0 0;flex:1;min-height:0;overflow:hidden}
+  .lc-f{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--mg-line);padding:10px 0}
+  .lc-f:first-child{border-top:0}
+  .lc-f dt{font-size:var(--mg-fs-cap);color:var(--mg-text-3)}
+  .lc-f dd{margin:0;min-width:0}
+  .lc-v{font-size:19px;font-weight:500;line-height:1.3;color:var(--mg-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
+  .lc-f.wait .lc-v{font-weight:400;color:var(--mg-text-3)}
+  .lc-v .lc-dot{width:8px;height:8px;border-radius:50%;background:var(--lc-c);flex:none}
+  .lc-v[class*="lc-st-"]{color:var(--lc-c)}
+  .lc-n{font-size:15px;color:var(--mg-text-2);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .lc-n.lc-one{display:block;white-space:nowrap;text-overflow:ellipsis}
+  .lc-q{color:var(--mg-text);font-size:16px}
+  .lc-meta{color:var(--mg-text-3);font-size:var(--mg-fs-cap)}
+  .lc-n.lc-scam{color:var(--mg-red)}
+  .lc-tags{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0}
+  .lc-tag{display:inline-flex;font-size:var(--mg-fs-cap);font-weight:500;padding:3px 10px;border-radius:999px;background:var(--mg-red-soft);color:var(--mg-red)}
+  .lc-tag.lc-pop{animation:lc-stamp .35s ease}
+  .lc-f.fresh{animation:lc-fresh 1.4s ease}
+  @keyframes lc-fresh{from{background:var(--mg-accent-soft)}to{background:transparent}}
+
+  /* timeline */
+  .lc-tl{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;padding:20px 20px 16px}
+  .lc-pbtn{margin-left:auto;font:500 var(--mg-fs-cap)/1.2 var(--mg-font);padding:5px 10px;border:1px solid var(--mg-line);border-radius:8px;background:var(--mg-surface);color:var(--mg-text)}
+  .lc-pbtn:hover{background:var(--mg-subtle)}
+  .lc-steps{list-style:none;margin:14px 0 0;padding:0;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
+            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 48px);mask-image:linear-gradient(to bottom,transparent 0,#000 48px)}
+  .lc-steps li{flex:none;display:grid;grid-template-columns:8px minmax(0,1fr);gap:0 12px;padding:0 0 12px;position:relative}
+  .lc-steps li::before{content:"";position:absolute;left:3.5px;top:14px;bottom:0;width:1px;background:var(--mg-line)}
+  .lc-steps li:last-child{padding-bottom:0}
+  .lc-steps li:last-child::before{display:none}
+  .lc-steps .d{width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--k,var(--mg-text-3))}
+  .lc-steps .t{display:block;font-size:13px;color:var(--mg-text-3)}
+  .lc-steps .x{font-size:15px;line-height:1.35;color:var(--mg-text);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  #lc-tl-empty,#lc-talk-empty{flex:1}
+  .lc-scenes{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--mg-line)}
+  .lc-scenes button{font:400 13px/1.2 var(--mg-font);padding:5px 9px;border-radius:var(--mg-r-sm);border:1px solid var(--mg-line);background:var(--mg-surface);color:var(--mg-text-2);cursor:pointer}
+  .lc-scenes button:hover{background:var(--mg-subtle);color:var(--mg-text)}
+  .lc-scenes button[disabled]{opacity:.5;cursor:default}
+
+  /* elsewhere in the app */
+  #nav a .lc-dot{display:none;position:absolute;right:12px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--mg-red);
+                 animation:lc-breathe 1.6s ease-in-out infinite}
+  #nav a.lc-on .lc-dot{display:block}
+  #lc-banner{display:flex;align-items:center;gap:10px;margin:0 0 16px;padding:9px 16px;border:1px solid var(--mg-line);border-radius:8px;
+             background:var(--mg-surface);color:var(--mg-text);text-decoration:none;font-size:15px}
+  #lc-banner:hover{background:var(--mg-subtle)}
+  #lc-banner .lc-onair{background:var(--mg-red);animation:lc-breathe 1.6s ease-in-out infinite}
+  #lc-banner u{text-decoration:none;color:var(--mg-text-2);margin-left:auto}
+
+  /* stage mode (?present): no rail, no header, the band and transcript take the room */
+  body.lc-present #rail,body.lc-present #top{display:none}
+  body.lc-present #app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+  body.lc-present main{padding:32px 40px}
+  body.lc-present #v-live{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:24px}
+  body.lc-present .lc-hero{grid-column:1/-1;height:300px;padding:32px 44px 36px}
+  body.lc-present .lc-top{font-size:20px}
+  body.lc-present .lc-word{font-size:128px}
+  body.lc-present .lc-why{font-size:26px;margin-top:14px}
+  body.lc-present .lc-secs{font-size:88px}
+  body.lc-present .lc-cap{font-size:18px}
+  body.lc-present .lc-ch{font-size:17px;padding:4px 12px}
+  body.lc-present .lc-talk{padding:24px 36px 28px}
+  body.lc-present .lc-said{font-size:34px}
+  body.lc-present .lc-who{font-size:16px}
+  body.lc-present .lc-facts{padding:24px 32px 16px}
+  body.lc-present #lc-f-told,body.lc-present #lc-f-notice{display:none}
+  body.lc-present .lc-f{padding:16px 0}
+  body.lc-present .lc-f dt{font-size:16px}
+  body.lc-present .lc-v{font-size:26px}
+  body.lc-present .lc-n{font-size:17px}
+  body.lc-present .lc-q{font-size:19px}
+  body.lc-present .lc-tag{font-size:16px}
+  body.lc-present .lc-tl{position:fixed;right:20px;bottom:12px;padding:0;border:0;background:transparent;overflow:visible;opacity:0;transition:opacity .2s;z-index:5}
+  body.lc-present .lc-tl:hover,body.lc-present .lc-tl:focus-within{opacity:1}
+  body.lc-present .lc-tl h3,body.lc-present .lc-steps,body.lc-present #lc-tl-empty{display:none}
+  body.lc-present .lc-tl .lc-h{justify-content:flex-end}
+  body.lc-present .lc-scenes{border:0;margin:6px 0 0;padding:0;justify-content:flex-end;max-width:900px}
+
+  @media (max-width:1100px){
+    #v-live{grid-template-columns:1fr;grid-template-rows:auto;height:auto}
+    .lc-hero,.lc-talk,.lc-facts,.lc-tl{grid-column:1;grid-row:auto}
+    .lc-hero{height:auto}.lc-word{font-size:44px}.lc-why{white-space:normal}
+    .lc-talk,.lc-tl{min-height:420px}
+  }
+
+  /* === expected calls === */
+  #v-expected .vhead{align-items:center;margin-bottom:20px}
+  .xrule{max-width:80ch;flex:1}
+  .xrule b{color:var(--mg-text);font-weight:500}
+  .xpassed{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:var(--mg-accent);flex:none;line-height:1.3;
+           background:var(--mg-accent-soft);border-radius:999px;padding:4px 12px 4px 10px;white-space:nowrap}
+  .xpassed::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--mg-accent);flex:none}
+  .xlist{display:flex;flex-direction:column;background:var(--mg-surface);border:1px solid var(--mg-line);border-radius:var(--mg-r);padding:0 24px}
+  .xr{display:grid;grid-template-columns:120px minmax(0,1.5fr) minmax(0,1fr) auto;gap:24px;align-items:center;padding:18px 0;
+      border-top:1px solid var(--mg-line);transition:opacity .25s}
+  .xr:first-child{border-top:0}
+  .xr.fresh{background:linear-gradient(90deg,var(--mg-green-soft),transparent 60%);margin:0 -24px;padding-left:24px;padding-right:24px}
+  .xr.off .xk,.xr.off .xwho,.xr.off .xnote,.xr.off .xkw{opacity:.45}
+  .xk{display:flex;align-items:center;gap:10px;color:var(--mg-text-2);font-size:14px}
+  .xk .tile{width:32px;height:32px;border-radius:8px;background:var(--mg-accent-soft);display:grid;place-items:center;color:var(--mg-accent);flex:none}
+  .xk .tile svg.i{font-size:18px;stroke-width:1.7}
+  .xr.off .xk .tile{background:var(--mg-subtle);color:var(--mg-text-3)}
+  .xwho{font-size:18px;font-weight:500;line-height:1.3;letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .xnote{color:var(--mg-text-2);font-size:15px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xok{color:var(--mg-green);font-size:14px;margin-top:4px}
+  .xkw{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .xkw .lab{font-size:13px;color:var(--mg-text-3);margin-right:4px}
+  .chip.kw{color:var(--mg-text);background:var(--mg-subtle);font-size:14px;font-weight:400;padding:3px 10px;border-radius:6px}
+  .xact{display:flex;align-items:center;gap:12px}
+  .xst{font-size:14px;color:var(--mg-text-2);min-width:62px;text-align:right}
+  .xbuilt{width:30px}
+  .xlist .xempty{border:0;padding:28px 0}
+  .xkinds{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .xkind{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 12px;border-radius:8px;border:1px solid var(--mg-line);cursor:pointer;
+         background:var(--mg-surface);color:var(--mg-text-2);font-size:15px;font-weight:500}
+  .xkind svg.i{font-size:24px;stroke-width:1.6}
+  .xkind:hover{border-color:#CDD0D8;color:var(--mg-text)}
+  .xkind[aria-checked="true"]{border-color:var(--mg-accent);box-shadow:0 0 0 3px var(--mg-accent-soft);color:var(--mg-text)}
+  .xkind[aria-checked="true"] svg.i{color:var(--mg-accent)}
+
   /* Status line for failed requests */
-  #status{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--s3);color:var(--text);border-radius:999px;
-          padding:12px 22px 12px 18px;font-size:18px;font-weight:600;display:flex;gap:12px;align-items:center;
-          box-shadow:0 20px 40px -20px rgba(0,0,0,.8);z-index:10}
-  #status i{width:10px;height:10px;border-radius:50%;background:var(--c-denied)}
+  #status{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--mg-surface);color:var(--mg-text);border-radius:8px;
+          border:1px solid var(--mg-line);padding:10px 16px 10px 14px;font-size:15px;font-weight:400;display:flex;gap:10px;align-items:center;
+          box-shadow:var(--mg-shadow);z-index:10}
+  #status i{width:7px;height:7px;border-radius:50%;background:var(--mg-red)}
+  .mark .shield use{fill:var(--mg-accent)} .mark .shield path{stroke:#fff}
 
   @media (max-width:1100px){
     #signin{grid-template-columns:1fr;padding:32px}
@@ -214,7 +716,8 @@
 <section id="signin" aria-labelledby="si-title">
   <div class="mark"><svg class="shield" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield" fill="var(--c-check)" stroke="none"/><path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="#14202B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>My Guard</div>
   <div class="si-left">
-    <h1 class="si-q" id="si-title">Someone says it's you.<span>Is this you?</span></h1>
+    <p class="si-kick">Someone calls and says it's you.</p>
+    <h1 class="si-q" id="si-title">Is this you?</h1>
     <p class="si-lede">When a caller claims to be someone <b>you trust</b>, the guard doesn't judge the voice. It asks the real person on their own phone, and only puts the call through when they say yes.</p>
   </div>
   <div class="si-right">
@@ -227,7 +730,7 @@
           <p class="g-note" id="g-note" hidden></p>
         </div>
         <div class="or" id="or" hidden>or</div>
-        <button class="btn btn-ghost" id="demo-btn" type="button" hidden>Demo sign-in</button>
+        <button class="btn btn-solid" id="demo-btn" type="button" hidden>Demo sign-in</button>
         <p class="g-note" id="no-auth" hidden>Sign-in isn't set up on this server.</p>
       </div>
     </div>
@@ -245,7 +748,9 @@
     <div class="mark"><svg class="shield" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield" fill="var(--c-check)" stroke="none"/><path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="#14202B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>My Guard</div>
     <nav id="nav" aria-label="Sections">
       <a href="#overview" data-view="overview"><svg class="i" aria-hidden="true"><use href="#i-overview"/></svg><span>Overview</span></a>
+      <a href="#live" data-view="live"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h1.5M7 8.5v7M11 5v14M15 8v8M19 10.5v3M21.5 12H21"/></svg><span>Live call</span><i class="lc-dot" aria-hidden="true"></i></a>
       <a href="#contacts" data-view="contacts"><svg class="i" aria-hidden="true"><use href="#i-people"/></svg><span>Trusted contacts</span></a>
+      <a href="#expected" data-view="expected"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5Z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg><span>Expected calls</span></a>
       <a href="#numbers" data-view="numbers"><svg class="i" aria-hidden="true"><use href="#i-phone"/></svg><span>My numbers</span></a>
       <a href="#graph" data-view="graph"><svg class="i" aria-hidden="true"><use href="#i-graph"/></svg><span>Knowledge graph</span></a>
       <a href="#profile" data-view="profile"><svg class="i" aria-hidden="true"><use href="#i-id"/></svg><span>Profile</span></a>
@@ -264,52 +769,164 @@
     <!-- Overview -->
     <section class="view" id="v-overview" data-title="Overview">
       <div class="heads">
-        <div class="stat hero"><div class="row"><span class="n" id="h-blocked">0</span><span class="money" id="h-money"></span></div><div class="l" id="h-blocked-l">calls blocked</div></div>
-        <div class="stat"><span class="n" id="h-calls">0</span><span class="l">calls screened</span></div>
-        <div class="stat"><span class="n" id="h-asked">0</span><span class="l">questions asked</span></div>
-        <div class="stat"><span class="n" id="h-money2">$0</span><span class="l">asked for, not sent</span></div>
-        <div class="stat"><span class="n" id="h-secs">–</span><span class="l">typical time to decide</span></div>
+        <div class="ov-num blk"><span class="l" id="h-blocked-l">Calls blocked</span><span class="n" id="h-blocked">0</span></div>
+        <div class="ov-num"><span class="l">Asked for, not sent</span><span class="n" id="h-money2">$0</span></div>
+        <div class="ov-num"><span class="l">Calls screened</span><span class="n" id="h-calls">0</span></div>
+        <div class="ov-num"><span class="l">Questions asked</span><span class="n" id="h-asked">0</span></div>
+        <div class="ov-num"><span class="l">Typical time to decide</span><span class="n" id="h-secs">–</span></div>
       </div>
-      <div class="card ov-a"><h3>How calls ended</h3><p class="sub">Blocked, confirmed, unverified, expected.</p>
-        <div class="empty"><b>No calls yet.</b>Each screened call adds to this chart.</div></div>
-      <div class="card ov-b"><h3>Attempts over time</h3><p class="sub">Calls screened and blocked, oldest on the left.</p>
-        <div class="empty"><b>Nothing to plot yet.</b>The timeline fills in as calls come in.</div></div>
-      <div class="card ov-c"><h3>Recent attempts</h3><p class="sub">Who they claimed to be, what they wanted, what happened.</p>
-        <div class="empty"><b>No attempts so far.</b>When someone pretends to be one of your people, it shows up here.</div></div>
-      <div class="card ov-d"><h3>Pressure tactics</h3><p class="sub">Money, urgency, secrecy, a claimed relationship.</p>
-        <div class="empty"><b>None seen yet.</b>The guard notes every push it hears on a call.</div></div>
+      <div class="m-card ov-a"><h3 class="m-section-title">How calls ended</h3>
+        <div class="m-empty ov-empty" id="ov-a-empty"><b>No calls yet.</b>Each screened call adds to this chart.</div>
+        <div class="ovb" id="ov-a-body" hidden></div></div>
+      <div class="m-card ov-b"><h3 class="m-section-title">Attempts over time</h3><p class="m-caption"><i class="key"></i>Calls screened <i class="key blk"></i>Blocked</p>
+        <div class="m-empty ov-empty" id="ov-b-empty"><b>Nothing to plot yet.</b>The timeline fills in as calls come in.</div>
+        <div class="ovb" id="ov-b-body" hidden></div></div>
+      <div class="m-card ov-d"><h3 class="m-section-title">Pressure tactics</h3><p class="m-caption">Calls where the guard heard each push.</p>
+        <div class="m-empty ov-empty" id="ov-d-empty"><b>None seen yet.</b>The guard notes every push it hears on a call.</div>
+        <div class="ovb" id="ov-d-body" hidden></div></div>
+      <div class="m-card ov-c"><h3 class="m-section-title">Recent attempts</h3>
+        <div class="m-empty ov-empty" id="ov-c-empty"><b>No attempts so far.</b>When someone pretends to be one of your people, it shows up here.</div>
+        <div class="rhead" id="ov-c-head" hidden><span>Time</span><span>Claimed to be</span><span>Wanted</span><span>Scam type</span><span>Outcome</span><span>How it was decided</span></div>
+        <ol class="ovb rlist m-rows" id="ov-c-body" hidden></ol></div>
+    </section>
+
+    <!-- Live call -->
+    <section class="view" id="v-live" data-title="Live call" hidden>
+      <div class="lc-hero" id="lc-hero" aria-live="polite">
+        <div class="lc-top" id="lc-top"></div>
+        <div class="lc-word" id="lc-word">Waiting for a call</div>
+        <p class="lc-why" id="lc-why"></p>
+        <div class="lc-side">
+          <div class="lc-clock" id="lc-clock"><div class="lc-secs" id="lc-secs"></div><div class="lc-cap" id="lc-cap"></div></div>
+          <div class="lc-chans" id="lc-chans"></div>
+        </div>
+        <div class="lc-bar"><i id="lc-bar"></i></div>
+      </div>
+      <div class="card lc-talk">
+        <div class="lc-h"><span class="lc-onair" id="lc-onair" aria-hidden="true"></span><h3>Live transcript</h3><span class="lc-h-note" id="lc-talk-note"></span></div>
+        <div class="lc-convo" id="lc-convo"></div>
+        <div class="empty" id="lc-talk-empty"><b>Nobody on the line.</b>When a call comes in, every word the caller and the guard say appears here as it is spoken.</div>
+      </div>
+      <div class="card lc-facts">
+        <h3>What the guard sees</h3>
+        <dl class="lc-rows">
+          <div class="lc-f" id="lc-f-who"><dt>Says they are</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-ask"><dt>Asks for</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-press"><dt>Pressure</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-ping"><dt id="lc-f-ping-dt">Question sent</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-notice" hidden><dt>Heads-up sent</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-told"><dt id="lc-f-told-dt">What Mum was told</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-dec"><dt>Decision</dt><dd></dd></div>
+        </dl>
+      </div>
+      <div class="card lc-tl">
+        <div class="lc-h"><h3>Step by step</h3><button class="iconbtn lc-pbtn" type="button" id="lc-present" aria-pressed="false">Present</button></div>
+        <ol class="lc-steps" id="lc-steps"></ol>
+        <div class="empty" id="lc-tl-empty">Each step the guard takes lands here, in order.</div>
+        <nav class="lc-scenes" id="lc-scenes" aria-label="Test calls" hidden></nav>
+      </div>
     </section>
 
     <!-- Trusted contacts -->
     <section class="view" id="v-contacts" data-title="Trusted contacts" hidden>
-      <p class="lede">The people a caller might pretend to be. For each one, the guard knows their numbers and where to ask them "Is this you?", in your order.</p>
-      <div class="grid-cards">
-        <button class="add-card" type="button" id="add-contact"><span class="plus"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></span><b>Add someone you trust</b>Name, numbers, and how to reach them.</button>
-        <div class="ghost-card" aria-hidden="true"><div class="avatar" style="opacity:.5"></div><div style="height:22px"></div><div class="ghost-line" style="width:60%"></div><div class="ghost-line" style="width:40%"></div><div style="height:30px"></div><div class="ghost-line" style="width:80%"></div><div class="ghost-line" style="width:70%"></div><div class="ghost-line" style="width:75%"></div></div>
-        <div class="ghost-card" aria-hidden="true" style="opacity:.3"><div class="avatar" style="opacity:.5"></div><div style="height:22px"></div><div class="ghost-line" style="width:55%"></div><div class="ghost-line" style="width:35%"></div><div style="height:30px"></div><div class="ghost-line" style="width:80%"></div><div class="ghost-line" style="width:65%"></div></div>
+      <div class="vhead">
+        <p class="lede">The people a caller might pretend to be. When someone claims to be one of them, the guard asks the real person "Is this you?" on these apps, top to bottom.</p>
+        <button class="btn btn-solid" type="button" id="add-contact-top"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Add someone</button>
       </div>
+      <div class="ccards" id="ccards">
+        <button class="add-card add-tile" type="button" id="add-contact"><span class="plus"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></span><b>Add someone you trust</b>Name, numbers, and how to reach them.</button>
+      </div>
+      <dialog class="sheet" id="cform-dlg" aria-labelledby="cf-title">
+        <form id="cform" method="dialog" novalidate>
+          <h2 id="cf-title">Add someone you trust</h2>
+          <div class="frow">
+            <label class="fld">Name<input class="inp" id="cf-name" autocomplete="off" required></label>
+            <label class="fld">Relationship<input class="inp" id="cf-rel" autocomplete="off" placeholder="daughter, neighbour, doctor"></label>
+          </div>
+          <div class="frow">
+            <label class="fld">Also called<input class="inp" id="cf-nick" autocomplete="off" placeholder="Nicknames, separated by commas"></label>
+            <label class="fld">Their phone numbers<input class="inp" id="cf-nums" autocomplete="off" placeholder="+1 555 010 0000, separated by commas"></label>
+          </div>
+          <label class="fld">Family code word <small id="cf-code-hint">Asked when they can't answer in time. It is never shown again, not even to you.</small>
+            <input class="inp" id="cf-code" type="password" autocomplete="new-password"></label>
+          <div class="fld">Where to ask them, in this order <small>Leave an app empty to skip it. Turn one off to keep it but not use it.</small>
+            <div class="fchans" id="cf-chans"></div>
+          </div>
+          <p class="ferr" id="cf-err" hidden></p>
+          <div class="factions">
+            <button class="btn btn-ghost" type="button" id="cf-cancel">Cancel</button>
+            <button class="btn btn-solid" type="submit" id="cf-save">Add contact</button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+
+    <!-- Expected calls -->
+    <section class="view" id="v-expected" data-title="Expected calls" hidden>
+      <div class="vhead">
+        <p class="lede xrule">When a caller mentions something you're expecting, like your desk lamp delivery, the guard puts them through without asking anyone. <b>Never when they ask for money:</b> a "delivery fee" call is still stopped.</p>
+        <span class="xpassed" id="x-passed" hidden></span>
+        <button class="btn btn-solid" type="button" id="x-add" style="flex:none"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Expect a call</button>
+      </div>
+      <div class="xlist" id="x-list">
+        <div class="card xempty"><h3>Nothing expected right now</h3><p class="sub">Tell the guard about a delivery, a callback or an appointment, and that caller gets through without a question.</p></div>
+      </div>
+      <dialog class="sheet" id="xform-dlg" aria-labelledby="xf-title">
+        <form id="xform" method="dialog" novalidate>
+          <h2 id="xf-title">Expect a call</h2>
+          <div class="xkinds" id="xf-kinds" role="radiogroup" aria-label="What kind of call"></div>
+          <label class="fld">Who will call<input class="inp" id="xf-who" autocomplete="off" placeholder="Courier for the coffee order"></label>
+          <label class="fld">Words the caller will say <small>Separate with commas. The guard listens for at least one of them.</small>
+            <input class="inp" id="xf-words" autocomplete="off" placeholder="coffee, beans"></label>
+          <label class="fld">Note for you <small>Optional</small><input class="inp" id="xf-note" autocomplete="off" placeholder="Delivery for your coffee order."></label>
+          <p class="ferr" id="xf-err" hidden></p>
+          <div class="factions">
+            <button class="btn btn-ghost" type="button" id="xf-cancel">Cancel</button>
+            <button class="btn btn-solid" type="submit" id="xf-save">Expect this call</button>
+          </div>
+        </form>
+      </dialog>
     </section>
 
     <!-- My numbers -->
-    <section class="view" id="v-numbers" data-title="My numbers" hidden>
-      <div class="card">
-        <h3>Numbers the guard protects</h3>
-        <p class="sub">Calls from unknown numbers to these lines go to the guard first.</p>
-        <ul class="num-list" id="num-list"></ul>
-        <div class="empty" id="num-empty" style="margin-top:22px"><b>No numbers yet.</b>Add the phone lines you want screened.</div>
+    <section class="view v2" id="v-numbers" data-title="My numbers" hidden>
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <div class="card ghero">
+          <span class="kick">Forward your calls here</span>
+          <div class="big" id="guard-num">–</div>
+          <p>Set your phone to forward calls from numbers it doesn't know to this line. The guard answers, checks who is really calling, and puts the real ones through to you.</p>
+          <div class="flow"><span>Unknown caller</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span>Guard</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span id="flow-owner">You</span></div>
+        </div>
+        <div class="card">
+          <h3>Who the guard answers for</h3>
+          <p class="sub">The name the guard uses on calls: "Hello, this is <span id="owner-say">Mum</span>'s assistant."</p>
+          <form class="owner-row" id="owner-form"><input class="inp" id="owner-in" aria-label="Name the guard uses" autocomplete="off"><button class="btn btn-ghost btn-sm" type="submit">Save name</button><span class="saved" id="owner-saved">Saved</span></form>
+        </div>
       </div>
       <div class="card">
-        <h3>The guard's line</h3>
-        <p class="sub">Forward unknown callers here. The guard answers for you.</p>
-        <div class="guardnum" id="guard-num">–</div>
-        <div class="flow"><span>Unknown caller</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span>Guard</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span id="flow-owner">You</span></div>
+        <div class="chans-cap" style="justify-content:space-between"><h3 style="margin:0">Numbers the guard protects</h3><span class="saved" id="num-saved">Saved</span></div>
+        <p class="sub">Calls to these lines from unknown numbers go to the guard first.</p>
+        <ul class="nrows" id="num-list"></ul>
+        <div class="empty" id="num-empty" style="margin-top:22px" hidden><b>No numbers yet.</b>Add the phone lines you want screened.</div>
+        <form class="nadd" id="num-add">
+          <input class="inp" id="na-label" placeholder="Label, e.g. Mobile" autocomplete="off" aria-label="Label">
+          <input class="inp" id="na-number" placeholder="+1 555 010 0000" autocomplete="off" aria-label="Phone number">
+          <button class="btn btn-solid btn-sm" type="submit"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Add a number</button>
+        </form>
       </div>
     </section>
 
     <!-- Knowledge graph -->
     <section class="view" id="v-graph" data-title="Knowledge graph" hidden>
-      <div class="card">
-        <div class="graph-empty" aria-hidden="true">
+      <div class="m-card flush g-card">
+        <div id="g-box" hidden>
+          <svg id="g-svg" role="img" aria-label="Knowledge graph"></svg>
+          <div class="g-top"><div class="g-sum" id="g-sum"></div><div class="g-src" id="g-src"></div></div>
+          <div class="g-foot"><div class="g-legend" id="g-legend"></div>
+            <p class="g-note">The guard remembers only what a verified answer proved. Memory layer: Cognee. Expected calls: Senso. <span id="g-mnote"></span></p></div>
+          <div id="g-card" hidden></div>
+        </div>
+        <div class="graph-empty" id="g-empty" aria-hidden="true">
           <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
             <g fill="none" stroke="#2C3F52" stroke-width="2">
               <circle cx="800" cy="430" r="150" stroke-dasharray="4 10"/><circle cx="800" cy="430" r="290" stroke-dasharray="4 10"/><circle cx="800" cy="430" r="420" stroke-dasharray="4 10" opacity=".6"/>
@@ -319,7 +936,7 @@
             <circle cx="800" cy="430" r="58" fill="#FFC425"/>
           </svg>
         </div>
-        <div class="graph-cap"><h3>Everything the guard knows, in one picture</h3><p class="sub">You in the middle, the people you trust around you, their numbers and apps, calls you expect, and every attempt pinned to the person it pretended to be.</p></div>
+        <div class="graph-cap" id="g-cap"><h3>Everything the guard knows, in one picture</h3><p class="sub">You in the middle, the people you trust around you, their numbers and apps, calls you expect, and every attempt pinned to the person it pretended to be. <a href="#contacts">Add someone you trust</a> to start it.</p></div>
       </div>
     </section>
 
@@ -327,28 +944,27 @@
     <section class="view" id="v-profile" data-title="Profile" hidden>
       <div class="card">
         <div class="me-card"><span class="avatar big" id="p-avatar"></span><div><div class="nm" id="p-name"></div><div class="em" id="p-email"></div></div></div>
-        <dl class="facts"><dt>Identity</dt><dd id="p-verified">Not verified yet</dd><dt>Protects</dt><dd id="p-owner">–</dd></dl>
+        <dl class="facts"><dt>Identity</dt><dd id="p-verified">Not verified yet</dd><dt>Signed in with</dt><dd id="p-via">–</dd><dt>Protects</dt><dd id="p-owner">–</dd></dl>
       </div>
-      <div class="card" id="verify-card" tabindex="-1">
-        <h3 id="v-head">Verify it's you</h3>
-        <p class="sub" id="v-sub">A one-time identity check, so nobody else can change who your guard trusts.</p>
-        <ol class="vsteps" id="v-steps">
-          <li>Open the identity check in a new tab.</li>
-          <li>Show a photo ID and take a quick selfie.</li>
-          <li>Come back here: your profile shows Verified.</li>
-        </ol>
-        <button class="btn btn-solid" id="verify-btn" type="button" disabled>The identity check opens here</button>
-      </div>
+      <div class="card" id="verify-card" tabindex="-1"></div>
     </section>
   </main>
 </div>
 
 <div id="status" role="status" hidden><i></i><span id="status-text"></span></div>
+<div id="signup" role="dialog" aria-modal="true" aria-labelledby="su-title" hidden>
+  <div class="card">
+    <span class="kick">One step left</span>
+    <h2 id="su-title">Verify it's you</h2>
+    <p>A one-time identity check with a photo ID and a selfie. It makes sure nobody else can change who your guard trusts.</p>
+    <div class="vbtns"><button class="btn btn-solid" type="button" id="su-go">Verify now</button><button class="btn btn-ghost" type="button" id="su-later">Later</button></div>
+  </div>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
-const VIEWS = ["overview", "contacts", "numbers", "graph", "profile"];
+const VIEWS = ["overview", "live", "contacts", "expected", "numbers", "graph", "profile"];
 let CONFIG = {}, ME = null;
 
 // ---------- requests ----------
@@ -446,6 +1062,7 @@ function signedIn(me) {
   $("signin").hidden = true; $("app").hidden = false;
   route();
   loadData();
+  afterSignIn();
 }
 function renderMe() {
   const me = ME;
@@ -453,22 +1070,7 @@ function renderMe() {
   avatar($("avatar"), me); avatar($("p-avatar"), me);
   $("p-name").textContent = me.name || "";
   $("p-email").textContent = me.email || "";
-  const b = $("badge");
-  if (me.verified) {
-    b.outerHTML = `<span class="badge ok" id="badge">${ICON("i-shield-check")}Verified</span>`;
-    $("p-verified").textContent = me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)";
-    $("verify-card").classList.add("done");
-    $("v-head").textContent = "You're verified";
-    $("v-sub").textContent = "Your identity was checked once. Nothing more to do here.";
-    $("v-steps").hidden = true; $("verify-btn").hidden = true;
-  } else {
-    b.outerHTML = `<button class="badge todo" id="badge" type="button">${ICON("i-alert")}Not verified yet</button>`;
-    $("badge").onclick = () => {
-      location.hash = "#profile";
-      const c = $("verify-card"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); c.focus({preventScroll: true});
-    };
-    $("p-verified").textContent = "Not verified yet";
-  }
+  renderBadge(); renderVerify(); // both in the contacts, numbers, profile block
 }
 function renderConfig() {
   const gn = CONFIG.guard_number || "–";
@@ -493,27 +1095,1402 @@ async function loadData() {
   const [stats, profile] = await Promise.all([maybe("/api/stats"), maybe("/api/profile")]);
   if (stats && stats.headline) renderHeadline(stats.headline);
   if (profile) renderProfile(profile);
+  ovStart(stats);
 }
 function renderHeadline(h) {
-  const set = (id, v, dim) => { $(id).textContent = v; $(id).classList.toggle("dim", !!dim); };
-  set("h-blocked", h.blocked ?? 0);
-  $("h-blocked-l").textContent = h.blocked === 1 ? "call blocked" : "calls blocked";
-  $("h-money").textContent = h.money_not_sent ? `${money(h.money_not_sent)} kept` : "";
-  set("h-calls", h.calls_screened ?? 0);
-  set("h-asked", h.questions_asked ?? 0);
-  set("h-money2", money(h.money_not_sent));
+  const set = (id, v, fmt, dim) => { ovTween($(id), v, fmt); $(id).classList.toggle("dim", !!dim); };
+  set("h-blocked", h.blocked ?? 0, ovInt);
+  $("h-blocked-l").textContent = h.blocked === 1 ? "Call blocked" : "Calls blocked";
+  set("h-calls", h.calls_screened ?? 0, ovInt);
+  set("h-asked", h.questions_asked ?? 0, ovInt);
+  set("h-money2", +h.money_not_sent || 0, money);
   const s = h.median_seconds_to_decide;
-  set("h-secs", s == null ? "–" : `${(+s).toFixed(1)} s`, s == null);
+  if (s == null) { $("h-secs")._v = undefined; $("h-secs").textContent = "–"; $("h-secs").classList.add("dim"); }
+  else set("h-secs", +s, v => `${Math.round(v)} s`);
 }
-function renderProfile(p) {
-  if (p.guard_number) { $("guard-num").textContent = p.guard_number; $("rail-guard").textContent = p.guard_number; }
-  if (p.owner_name) { $("p-owner").textContent = p.owner_name; $("flow-owner").textContent = p.owner_name; }
+// === contacts, numbers, profile ===
+const KINDS = ["whatsapp", "telegram", "email", "call"];
+const KIND_LABEL = {whatsapp: "WhatsApp", telegram: "Telegram", email: "Email", call: "Phone call"};
+const KIND_HINT = {whatsapp: "+1 555 010 0000", telegram: "@username", email: "name@example.com", call: "+1 555 010 0000"};
+const CH_SVG = {
+  whatsapp: '<path d="M4 20l1.3-4.2A8.3 8.3 0 1 1 8.6 19Z"/><path d="M9.3 8.3c0 3.2 3 6.3 6.3 6.4l.9-1.6-2-1-.9.8a4.6 4.6 0 0 1-2.4-2.4l.8-.9-1-2Z"/>',
+  telegram: '<path d="M21 4.5 3 11.3l5.6 2L18 7.5l-7.6 7 .3 5 2.9-3.6 4.3 3.2Z"/>',
+  email: '<rect x="3" y="5.5" width="18" height="13" rx="2.2"/><path d="m3.6 7.2 8.4 6 8.4-6"/>',
+  call: '<path d="M5.2 3.8h3.4l1.6 4.1-2.1 1.4a11.5 11.5 0 0 0 6.6 6.6l1.4-2.1 4.1 1.6v3.4a1.6 1.6 0 0 1-1.7 1.6C10.4 19.8 4.2 13.6 3.6 5.5a1.6 1.6 0 0 1 1.6-1.7Z"/>',
+};
+const chIcon = (k, px = 28) => `<svg class="i" viewBox="0 0 24 24" style="font-size:${px}px;color:var(--muted)" aria-hidden="true">${CH_SVG[k] || ""}</svg>`;
+const SVG = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const UP = SVG('<path d="m6 15 6-6 6 6"/>'), DOWN = SVG('<path d="m6 9 6 6 6-6"/>'), XMARK = SVG('<path d="M6 6l12 12M18 6 6 18"/>');
+const AV_COLORS = ["#2B4A6E", "#5A3A86", "#1F6B5C", "#7A4B22", "#2F5597", "#7A2E45"];
+const avColor = s => AV_COLORS[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % AV_COLORS.length];
+const firstName = n => String(n || "").trim().split(/\s+/)[0] || "them";
+function fmtNum(s) { // display only: US numbers as +1 (555) 010-0001
+  const d = String(s || "").replace(/\D/g, "");
+  if (d.length === 11 && d[0] === "1") return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `+1 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return String(s || "");
+}
+function flashSaved(el) {
+  if (!el) return;
+  el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 1800);
+}
+const liveCh = k => !CONFIG.channels_live || CONFIG.channels_live[k] !== false;
+
+// ---------- after sign-in: identity-check return, sign-up step, contacts ----------
+async function afterSignIn() {
+  const inq = new URLSearchParams(location.search).get("inquiry-id");
+  if (inq) {
+    history.replaceState(null, "", location.pathname + location.hash);
+    location.hash = "#profile"; vInq = inq;
+    for (let k = 0; k < 5; k++) { // Persona may still be finishing: the server answers 409 until it has
+      try { ME = await api("/api/verify/complete", {method: "POST", body: {inquiry_id: inq}}); justVerified(); break; }
+      catch (e) {
+        if (e.status !== 409) { say(`Couldn't finish the identity check: ${e.message}`); break; }
+        if (k < 4) await new Promise(r => setTimeout(r, 2000));
+        else { vMsg = e.message; VSTATE = "waiting"; renderVerify(); }
+      }
+    }
+  } else if (!ME.verified && !sessionStorage.getItem("mg-later")) $("signup").hidden = false;
+  loadContacts();
+  loadExpected();
+  maybe("/api/profile").then(p => { if (p) renderProfile(p); }); // own fetch: does not depend on loadData()
+}
+addEventListener("hashchange", () => { if (ME && location.hash === "#contacts") loadContacts(); });
+$("su-later").onclick = () => { sessionStorage.setItem("mg-later", "1"); $("signup").hidden = true; };
+$("su-go").onclick = () => { $("signup").hidden = true; location.hash = "#profile"; startVerify(); };
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("signup").hidden) $("su-later").click(); });
+
+// ---------- trusted contacts ----------
+let CONTACTS = [], freshId = null, confirmId = null, savedId = null;
+async function loadContacts() {
+  const list = await maybe("/api/contacts");
+  if (Array.isArray(list)) { CONTACTS = list; renderContacts(); }
+}
+function riskHTML(c) {
+  const r = c.risk || {}, n = r.claimed || 0, first = esc(firstName(c.name));
+  if (!n) return `<div class="risk calm">${ICON("i-shield-check")}No attempts yet</div>`;
+  const pct = v => Math.round(100 * (v || 0) / n);
+  return `<div class="risk"><div class="rn">${n}</div><div class="rl">${n === 1 ? "time" : "times"} someone claimed to be ${first}</div>
+    <div class="bar"><b style="width:${pct(r.blocked)}%"></b><i style="width:${pct(r.confirmed)}%"></i></div>
+    <div class="rl">${r.blocked || 0} blocked${r.confirmed ? `, ${r.confirmed} really ${first}` : ""}</div></div>`;
+}
+function chansHTML(c) {
+  if (!c.channels.length) return `<p class="cc-empty">No apps yet. Edit ${esc(firstName(c.name))} to add where the guard should ask.</p>`;
+  let pos = 0;
+  return `<ol class="chans">${c.channels.map((ch, i) => {
+    const on = !!ch.enabled, label = KIND_LABEL[ch.kind] || ch.kind;
+    return `<li class="${on ? "" : "off"}"><span class="pos">${on ? ++pos : "–"}</span>${chIcon(ch.kind)}
+      <div class="ch-main"><div class="ch-kind">${esc(label)}${liveCh(ch.kind) ? "" : ' <span class="ch-note">not connected yet</span>'}</div>
+        <div class="ch-handle">${esc(ch.handle ? (ch.kind === "call" || ch.kind === "whatsapp" ? fmtNum(ch.handle) : ch.handle) : "No handle yet")}</div></div>
+      <button class="sw" type="button" role="switch" aria-checked="${on}" aria-label="Ask on ${esc(label)}" data-act="toggle" data-i="${i}"></button>
+      <span class="arrows"><button class="arr" type="button" data-act="up" data-i="${i}" aria-label="Ask on ${esc(label)} earlier" ${i === 0 ? "disabled" : ""}>${UP}</button><button class="arr" type="button" data-act="down" data-i="${i}" aria-label="Ask on ${esc(label)} later" ${i === c.channels.length - 1 ? "disabled" : ""}>${DOWN}</button></span></li>`;
+  }).join("")}</ol>`;
+}
+function cardHTML(c) {
+  const first = esc(firstName(c.name)), r = c.risk || {};
+  const nick = (c.nicknames || []).filter(Boolean);
+  const nums = (c.known_numbers || []).map(n => `<span class="chip num">${chIcon("call", 18)}${esc(fmtNum(n))}</span>`).join("");
+  const code = c.has_code_word ? `<span class="chip cw-yes"><i></i>Code word set</span>` : `<span class="chip cw-no"><i></i>No code word</span>`;
+  let foot;
+  if (confirmId === c.id) foot = `<span class="grow">Remove ${esc(c.name)} from the people you trust?</span>
+      <button class="btn btn-danger btn-sm" type="button" data-act="remove-yes">Yes, remove</button><button class="btn btn-ghost btn-sm" type="button" data-act="remove-no">Cancel</button>`;
+  else foot = `<span class="grow">${freshId === c.id ? `<span class="ok">The guard knows ${first} from the next call on.</span>`
+      : r.last_ts ? `Last attempt ${esc(new Date(r.last_ts).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}` : ""}</span>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="edit">Edit</button><button class="btn btn-ghost btn-sm" type="button" data-act="remove">Remove</button>`;
+  return `<article class="cc${r.claimed ? " hot" : ""}${freshId === c.id ? " fresh" : ""}" data-id="${esc(c.id)}">
+    <div class="cc-top"><span class="avatar" style="background:${avColor(c.name)}">${esc(initials(c.name))}</span>
+      <div style="min-width:0"><div class="cc-name">${esc(c.name)}</div><div class="cc-rel">${esc(c.relationship ? c.relationship.charAt(0).toUpperCase() + c.relationship.slice(1) : "Trusted contact")}${nick.length ? `, also called ${esc(nick.join(", "))}` : ""}</div></div>
+      ${riskHTML(c)}</div>
+    <div class="cc-meta">${nums}${code}</div>
+    <div class="chans-cap">The guard asks ${first} in this order<span class="saved">Saved</span></div>
+    ${chansHTML(c)}
+    <div class="cc-foot">${foot}</div></article>`;
+}
+function renderContacts() {
+  const list = CONTACTS.map((c, i) => [c, i]).sort((a, b) => ((b[0].risk || {}).claimed || 0) - ((a[0].risk || {}).claimed || 0) || a[1] - b[1]).map(x => x[0]);
+  $("ccards").innerHTML = list.map(cardHTML).join("") +
+    `<button class="add-card add-tile" type="button" data-act="add"><span class="plus">${ICON("i-plus")}</span><b>Add someone you trust</b>Name, numbers, and how to reach them.</button>`;
+  if (savedId) { const s = document.querySelector(`.cc[data-id="${CSS.escape(savedId)}"] .saved`); savedId = null; flashSaved(s); }
+}
+const contactIn = c => ({name: c.name, relationship: c.relationship, nicknames: c.nicknames || [], known_numbers: c.known_numbers || [],
+                         channels: c.channels.map(({kind, handle, enabled}) => ({kind, handle, enabled}))});
+async function saveContact(c) {
+  renderContacts();
+  try {
+    const out = await api(`/api/contacts/${encodeURIComponent(c.id)}`, {method: "PUT", body: contactIn(c)});
+    CONTACTS = CONTACTS.map(x => x.id === c.id ? out : x); savedId = c.id; renderContacts();
+  } catch (e) { say(`Couldn't save ${c.name}: ${e.message}`); loadContacts(); }
+}
+$("ccards").addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act, card = b.closest(".cc"), c = card && CONTACTS.find(x => x.id === card.dataset.id), i = +b.dataset.i;
+  if (act === "add") return openForm(null);
+  if (!c) return;
+  if (act === "toggle") { c.channels[i].enabled = !c.channels[i].enabled; return saveContact(c); }
+  if (act === "up" || act === "down") {
+    const j = act === "up" ? i - 1 : i + 1; if (j < 0 || j >= c.channels.length) return;
+    [c.channels[i], c.channels[j]] = [c.channels[j], c.channels[i]];
+    await saveContact(c);
+    const again = document.querySelector(`.cc[data-id="${CSS.escape(c.id)}"] [data-act="${act}"][data-i="${j}"]`);
+    if (again && !again.disabled) again.focus();
+    return;
+  }
+  if (act === "edit") return openForm(c);
+  if (act === "remove") { confirmId = c.id; return renderContacts(); }
+  if (act === "remove-no") { confirmId = null; return renderContacts(); }
+  if (act === "remove-yes") {
+    try { await api(`/api/contacts/${encodeURIComponent(c.id)}`, {method: "DELETE"}); CONTACTS = CONTACTS.filter(x => x.id !== c.id); }
+    catch (e) { say(`Couldn't remove ${c.name}: ${e.message}`); }
+    confirmId = null; renderContacts();
+  }
+});
+$("add-contact-top").onclick = () => openForm(null);
+
+// The add / edit form
+let editing = null;
+const splitList = s => String(s || "").split(",").map(x => x.trim()).filter(Boolean);
+function openForm(c) {
+  editing = c;
+  $("cf-title").textContent = c ? `Edit ${c.name}` : "Add someone you trust";
+  $("cf-save").textContent = c ? "Save changes" : "Add contact";
+  $("cf-name").value = c ? c.name : "";
+  $("cf-rel").value = c ? c.relationship || "" : "";
+  $("cf-nick").value = c ? (c.nicknames || []).join(", ") : "";
+  $("cf-nums").value = c ? (c.known_numbers || []).join(", ") : "";
+  $("cf-code").value = "";
+  $("cf-code").placeholder = c ? (c.has_code_word ? "Leave empty to keep the current one" : "Set a code word") : "A word only the two of you know";
+  $("cf-code-hint").textContent = c ? "Leave empty to keep the current one. It is never shown, not even to you."
+                                    : "Asked when they can't answer in time. It is never shown again, not even to you.";
+  const have = c ? c.channels.map(x => ({...x})) : [];
+  for (const k of KINDS) if (!have.some(x => x.kind === k)) have.push({kind: k, handle: "", enabled: !c});
+  $("cf-chans").innerHTML = have.map(ch => `<div class="fchan" data-kind="${ch.kind}">${chIcon(ch.kind)}
+    <span class="ch-kind">${KIND_LABEL[ch.kind]}${liveCh(ch.kind) ? "" : '<br><span class="ch-note">not connected yet</span>'}</span>
+    <input class="inp" value="${esc(ch.handle)}" placeholder="${KIND_HINT[ch.kind]}" aria-label="${KIND_LABEL[ch.kind]} handle" autocomplete="off">
+    <button class="sw" type="button" role="switch" aria-checked="${!!ch.enabled}" aria-label="Ask on ${KIND_LABEL[ch.kind]}"></button></div>`).join("");
+  $("cf-err").hidden = true;
+  $("cform-dlg").showModal();
+  $("cf-name").focus();
+}
+$("cf-chans").addEventListener("click", e => {
+  const s = e.target.closest(".sw"); if (s) s.setAttribute("aria-checked", s.getAttribute("aria-checked") !== "true");
+});
+$("cf-cancel").onclick = () => $("cform-dlg").close();
+$("cform").addEventListener("submit", async e => {
+  e.preventDefault();
+  const body = {
+    name: $("cf-name").value.trim(), relationship: $("cf-rel").value.trim(),
+    nicknames: splitList($("cf-nick").value), known_numbers: splitList($("cf-nums").value),
+    channels: [...$("cf-chans").children].map(r => ({kind: r.dataset.kind, handle: r.querySelector("input").value.trim(),
+      enabled: r.querySelector(".sw").getAttribute("aria-checked") === "true"})).filter(ch => ch.handle),
+  };
+  const code = $("cf-code").value.trim();
+  if (code) body.code_word = code;
+  const err = m => { $("cf-err").textContent = m; $("cf-err").hidden = false; };
+  if (!body.name) return err("Give the contact a name.");
+  if (!editing && !code) return err("Set a code word, so the guard can still check a caller when nobody answers.");
+  $("cf-save").disabled = true;
+  try {
+    const out = editing ? await api(`/api/contacts/${encodeURIComponent(editing.id)}`, {method: "PUT", body})
+                        : await api("/api/contacts", {method: "POST", body});
+    if (editing) { CONTACTS = CONTACTS.map(x => x.id === editing.id ? out : x); savedId = out.id; }
+    else { CONTACTS.push(out); freshId = out.id; setTimeout(() => { if (freshId === out.id) { freshId = null; renderContacts(); } }, 12000); }
+    $("cform-dlg").close();
+    renderContacts();
+    const el = document.querySelector(`.cc[data-id="${CSS.escape(out.id)}"]`);
+    if (el) el.scrollIntoView({block: "nearest", behavior: "smooth"});
+  } catch (x) { err(x.message); }
+  finally { $("cf-save").disabled = false; }
+});
+
+// ---------- my numbers ----------
+let PROFILE = null;
+function renderProfile(p) { // called by loadData() and after every save
+  PROFILE = p;
+  if (p.guard_number) { $("guard-num").textContent = fmtNum(p.guard_number); $("rail-guard").textContent = p.guard_number; }
+  const owner = p.owner_name || CONFIG.owner_name || "";
+  for (const id of ["p-owner", "flow-owner", "owner-say"]) $(id).textContent = owner || "You";
+  if (document.activeElement !== $("owner-in")) $("owner-in").value = owner;
   const nums = p.numbers || [];
   $("num-empty").hidden = nums.length > 0;
-  $("num-list").innerHTML = nums.map(n => `<li><span><span class="lbl">${esc(n.label || "Phone")}</span><br><span class="num">${esc(n.number)}</span></span>
-    <span class="chip ${n.protected ? "on" : "off"}"><i></i>${n.protected ? "Protected" : "Not protected"}</span></li>`).join("");
+  $("num-list").innerHTML = nums.map((n, i) => `<li class="${n.protected ? "" : "off"}"><div style="min-width:0"><div class="lbl">${esc(n.label || "Phone")}</div><div class="num">${esc(fmtNum(n.number))}</div></div>
+    <span class="pt">${n.protected ? "Protected" : "Not protected"}</span>
+    <button class="sw" type="button" role="switch" aria-checked="${!!n.protected}" aria-label="Protect ${esc(n.label || n.number)}" data-nact="toggle" data-i="${i}"></button>
+    <button class="xbtn" type="button" data-nact="remove" data-i="${i}" aria-label="Remove ${esc(n.label || n.number)}">${XMARK}</button></li>`).join("");
 }
-$("add-contact").onclick = () => say("Adding contacts opens here soon.");
+async function saveProfile(savedEl) {
+  try {
+    renderProfile(await api("/api/profile", {method: "PUT", body: {owner_name: PROFILE.owner_name, numbers: PROFILE.numbers}}));
+    flashSaved(savedEl);
+  } catch (e) { say(`Couldn't save: ${e.message}`); const p = await maybe("/api/profile"); if (p) renderProfile(p); }
+}
+$("num-list").addEventListener("click", e => {
+  const b = e.target.closest("[data-nact]"); if (!b || !PROFILE) return;
+  const i = +b.dataset.i;
+  if (b.dataset.nact === "toggle") PROFILE.numbers[i].protected = !PROFILE.numbers[i].protected;
+  else PROFILE.numbers.splice(i, 1);
+  renderProfile(PROFILE); saveProfile($("num-saved"));
+});
+$("num-add").addEventListener("submit", e => {
+  e.preventDefault();
+  const number = $("na-number").value.trim(); if (!number || !PROFILE) return $("na-number").focus();
+  PROFILE.numbers.push({label: $("na-label").value.trim() || "Phone", number, protected: true});
+  $("na-label").value = $("na-number").value = "";
+  renderProfile(PROFILE); saveProfile($("num-saved"));
+});
+$("owner-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = $("owner-in").value.trim(); if (!v || !PROFILE) return;
+  PROFILE.owner_name = v; $("owner-in").blur(); saveProfile($("owner-saved"));
+});
+
+// ---------- profile and identity check ----------
+let VSTATE = "idle", vUrl = null, vPoll = 0, demoStep = 0, vMsg = "", vInq = null;
+const when = iso => iso ? new Date(iso).toLocaleString("en-US", {month: "long", day: "numeric", hour: "numeric", minute: "2-digit"}) : "";
+function renderBadge(flip) {
+  const me = ME, b = $("badge");
+  if (me.verified) b.outerHTML = `<span class="badge ok${flip ? " flip" : ""}" id="badge">${ICON("i-shield-check")}Verified</span>`;
+  else {
+    b.outerHTML = `<button class="badge todo" id="badge" type="button">${ICON("i-alert")}Not verified yet</button>`;
+    $("badge").onclick = () => {
+      location.hash = "#profile";
+      const c = $("verify-card"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); c.focus({preventScroll: true});
+    };
+  }
+  $("p-verified").textContent = me.verified ? (me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)") +
+    (me.verified_at ? `, ${when(me.verified_at)}` : "") : "Not verified yet";
+  $("p-via").textContent = me.id === "demo" ? "Demo sign-in" : "Google";
+}
+const VSTEPS = [["Photo ID", "Hold up a driver's license or passport."], ["Selfie", "A quick picture of your face."], ["Match", "The face on the ID matches yours."]];
+function renderVerify() {
+  const c = $("verify-card"), me = ME, demo = CONFIG.persona_mode !== "hosted";
+  c.classList.toggle("done", !!me.verified);
+  if (me.verified) {
+    c.innerHTML = `<h3>You're verified</h3><p class="sub">Checked once, at sign-up. Nothing more to do here.</p>
+      <div class="vok"><span class="seal">${ICON("i-check")}</span><div><b>${me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)"}</b>
+      <span>${esc(when(me.verified_at))}</span></div></div>`;
+    return;
+  }
+  const tag = demo ? '<span class="demo-tag">Demo check</span>' : "";
+  const steps = VSTEPS.map(([t, s], i) => {
+    const st = VSTATE === "demo" ? (i < demoStep ? "done" : i === demoStep ? "now" : "") : "";
+    return `<li class="${st}"><span class="dot">${ICON("i-check")}</span><span><b style="color:var(--text)">${t}</b>. ${s}</span></li>`;
+  }).join("");
+  if (VSTATE === "waiting") {
+    c.innerHTML = `<h3>Finish the check in the other tab</h3><p class="sub">Persona opened in a new tab. When it sends you back, this page turns Verified by itself.</p>
+      <ol class="vflow">${steps}</ol>${vMsg ? `<p class="vmsg">${esc(vMsg)}</p>` : ""}<div class="vbtns"><button class="btn btn-solid" type="button" id="v-done">I'm done</button>
+      ${vUrl ? `<a class="btn btn-ghost" href="${esc(vUrl)}" target="_blank" rel="noopener">Open the check again</a>` : ""}</div>`;
+    $("v-done").onclick = () => completeVerify();
+    return;
+  }
+  c.innerHTML = `<h3>Verify it's you${tag}</h3><p class="sub">A one-time check, so nobody else can change who your guard trusts.</p>
+    <ol class="vflow">${steps}</ol>
+    <div class="vbtns"><button class="btn btn-solid" type="button" id="v-start" ${VSTATE === "demo" ? "disabled" : ""}>${VSTATE === "demo" ? "Checking…" : demo ? "Run the demo check" : "Verify it's you"}</button></div>`;
+  $("v-start").onclick = () => startVerify();
+}
+async function startVerify() {
+  if (ME.verified || VSTATE !== "idle") return;
+  let r;
+  try { r = await api("/api/verify/start", {method: "POST"}); }
+  catch (e) { return say(`Couldn't start the identity check: ${e.message}`); }
+  if (r.mode === "hosted" && r.url) {
+    vUrl = r.url; VSTATE = "waiting"; window.open(r.url, "_blank", "noopener"); renderVerify();
+    clearInterval(vPoll);
+    vPoll = setInterval(async () => {
+      if (VSTATE !== "waiting") return clearInterval(vPoll);
+      try { const me = await api("/api/me"); if (me.verified) { ME = me; justVerified(); } } catch (_) {}
+    }, 3000);
+    return;
+  }
+  VSTATE = "demo"; demoStep = 0; renderVerify();
+  const tick = () => {
+    demoStep++; renderVerify();
+    if (demoStep < VSTEPS.length) setTimeout(tick, 1000); else setTimeout(completeVerify, 500);
+  };
+  setTimeout(tick, 1000);
+}
+async function completeVerify() {
+  try { ME = await api("/api/verify/complete", {method: "POST", body: vInq ? {inquiry_id: vInq} : {}}); vMsg = ""; justVerified(); }
+  catch (e) {
+    if (e.status === 409) { vMsg = e.message; VSTATE = "waiting"; renderVerify(); return; } // "Persona has not finished the check yet."
+    VSTATE = "idle"; renderVerify(); say(`Couldn't finish the identity check: ${e.message}`);
+  }
+}
+function justVerified() {
+  VSTATE = "idle"; clearInterval(vPoll); $("signup").hidden = true;
+  renderBadge(true); renderVerify();
+}
+
+// === overview and graph ===
+const OUTCOME_COLOR = {blocked: "var(--c-denied)", confirmed: "var(--c-ok)", unverified: "var(--c-unver)",
+  expected: "var(--c-expected)", known_number: "var(--c-known)", other: "var(--c-other)"};
+const CHANNEL_NAME = {whatsapp: "WhatsApp", telegram: "Telegram", email: "email", call: "a phone call"};
+const OUTCOME_TAG = {blocked: "is-blocked", confirmed: "is-ok", unverified: "is-unverified", expected: "is-expected", known_number: "is-known"};
+const TACTIC_KEYS = ["money", "urgency", "secrecy", "authority_or_kinship"];
+const TACTIC_NAME = {money: "Money", urgency: "Urgency", secrecy: "Secrecy", authority_or_kinship: "Authority or kinship"};
+const OV = {sig: {}, seen: null, people: {}, peopleAt: 0, busy: false};
+const ovInt = v => String(Math.round(v));
+const ovShown = id => !!ME && !$("app").hidden && !$(id).hidden && !document.hidden;
+const ovReduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Count a number to its new value instead of jumping (first load counts up from zero).
+function ovTween(el, to, fmt) {
+  const from = el._v ?? 0;
+  el._v = to;
+  cancelAnimationFrame(el._raf);
+  if (from === to || ovReduced()) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), dur = 700;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(k < 1 ? from + (to - from) * e : to);
+    if (k < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
+function ovStart(stats) { if (stats) renderOverview(stats); gRefresh(); }
+async function ovRefresh() {
+  if (OV.busy || !ovShown("v-overview")) return;
+  OV.busy = true;
+  try {
+    const s = await maybe("/api/stats");
+    if (s && s.headline) { renderHeadline(s.headline); await renderOverview(s); }
+    ovFitRows();
+  } finally { OV.busy = false; }
+}
+async function ovPeople() {
+  if (Date.now() - OV.peopleAt < 15000) return;
+  OV.peopleAt = Date.now();
+  try { OV.people = Object.fromEntries(((await api("/api/contacts")) || []).map(c => [c.id, c])); } catch (_) {}
+}
+async function renderOverview(s) {
+  await ovPeople();
+  const has = (s.headline && s.headline.calls_screened) > 0, recent = s.recent || [];
+  ovCard("a", has, () => ovDonut(s.outcomes || []), s.outcomes);
+  ovCard("b", has, () => ovBars(s.over_time || []), s.over_time);
+  ovCard("c", recent.length > 0, () => ovRecent(recent), [recent, Object.values(OV.people).map(p => [p.id, p.name, p.relationship])]);
+  $("ov-c-head").hidden = !recent.length;
+  ovCard("d", has, () => ovTactics(s), [s.tactics, s.channels_answered, s.headline && s.headline.calls_screened]);
+}
+// Redraw a card only when its data changed, so the 5 s refresh never flickers.
+function ovCard(k, has, draw, data) {
+  $(`ov-${k}-empty`).hidden = has; $(`ov-${k}-body`).hidden = !has;
+  if (!has) { OV.sig[k] = ""; return; }
+  const sig = JSON.stringify(data);
+  if (sig === OV.sig[k]) return;
+  OV.sig[k] = sig; draw();
+}
+
+function ovDonut(outcomes) {
+  // One stacked horizontal bar plus a plain legend table (the function keeps its old name).
+  const body = $("ov-a-body");
+  if (!body.querySelector(".sb")) {
+    body.innerHTML = `<div class="sb"><div class="sb-total"><b class="tot">0</b><span class="tl">calls</span></div>
+      <div class="sb-bar">${outcomes.map(o => `<i data-k="${esc(o.key)}" style="background:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other}"></i>`).join("")}</div>
+      <ul class="sb-leg"></ul></div>`;
+    body.getBoundingClientRect(); // commit zero widths so the first fill animates
+  }
+  const total = outcomes.reduce((a, o) => a + (o.count || 0), 0);
+  for (const o of outcomes) {
+    const seg = body.querySelector(`.sb-bar i[data-k="${CSS.escape(o.key)}"]`);
+    if (seg) seg.style.width = total && o.count ? `calc(${o.count / total * 100}% - 2px)` : "0px";
+  }
+  ovTween(body.querySelector(".tot"), total, ovInt);
+  body.querySelector(".tl").textContent = total === 1 ? "call screened" : "calls screened";
+  body.querySelector(".sb-leg").innerHTML = outcomes.map(o => `<li class="${o.count ? "" : "zero"}"><i style="background:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other}"></i><span>${esc(o.label)}</span><b>${o.count || 0}</b></li>`).join("");
+}
+
+function ovBars(rows) {
+  const body = $("ov-b-body");
+  let wrap = body.querySelector(".bars");
+  if (!wrap || wrap.dataset.n !== String(rows.length)) {
+    body.innerHTML = `<div class="bars" data-n="${rows.length}"><div class="plot">${rows.map(() => `<div class="col"><div class="val z">0</div><div class="bar"><div class="blk"></div></div></div>`).join("")}</div>
+      <div class="labels">${rows.map(() => "<span></span>").join("")}</div></div>`;
+    wrap = body.querySelector(".bars"); wrap.getBoundingClientRect();
+  }
+  const max = Math.max(1, ...rows.map(r => r.calls || 0)), cols = wrap.querySelectorAll(".col"), labs = wrap.querySelectorAll(".labels span");
+  const every = rows.length > 12 ? 2 : 1;
+  rows.forEach((r, i) => {
+    const c = cols[i], n = r.calls || 0, b = r.blocked || 0;
+    c.title = `${r.label}: ${n} ${n === 1 ? "call" : "calls"}, ${b} blocked`;
+    const v = c.querySelector(".val"); v.textContent = n; v.classList.toggle("z", !n);
+    c.querySelector(".bar").classList.toggle("z", !n);
+    c.querySelector(".bar").style.height = n ? `calc((100% - 32px) * ${n / max})` : "0px";
+    c.querySelector(".blk").style.height = n ? `${b / n * 100}%` : "0%";
+    labs[i].textContent = (rows.length - 1 - i) % every ? "" : r.label;
+  });
+}
+
+function ovTactics(s) {
+  const body = $("ov-d-body"), calls = (s.headline && s.headline.calls_screened) || 0;
+  if (!body.querySelector(".tac")) {
+    body.innerHTML = `<div class="tac">${TACTIC_KEYS.map(k => `<div class="tac-row" data-k="${k}"><span>${esc(TACTIC_NAME[k])}</span><div class="trk"><div class="fil"></div></div><b>0</b></div>`).join("")}
+      <div class="answered" id="ov-ans"></div></div>`;
+    body.getBoundingClientRect();
+  }
+  for (const t of s.tactics || []) {
+    const row = body.querySelector(`.tac-row[data-k="${CSS.escape(t.key)}"]`);
+    if (!row) continue;
+    row.querySelector("span").textContent = t.label || TACTIC_NAME[t.key] || t.key;
+    row.querySelector(".fil").style.width = `${Math.min(100, (t.count || 0) / Math.max(1, calls) * 100)}%`;
+    ovTween(row.querySelector("b"), t.count || 0, ovInt);
+    row.classList.toggle("zero", !t.count);
+    row.title = `Heard on ${t.count || 0} of ${calls} calls`;
+  }
+  const ans = (s.channels_answered || []).filter(a => a.count > 0);
+  $("ov-ans").innerHTML = "Who answered: " + (ans.length
+    ? ans.map(a => `${esc(a.label || a.kind)} <b>${a.count}</b>`).join(", ")
+    : "nobody had to be asked yet.");
+}
+
+const ovTime = ts => { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false}); };
+function ovHow(r) {
+  const ch = CHANNEL_NAME[r.channel] || r.channel || "their phone";
+  const t = r.seconds_to_decide == null ? "" : ` in ${Math.max(1, Math.round(r.seconds_to_decide))} s`;
+  switch (r.decided_by) {
+    case "tap": return r.outcome === "confirmed" ? `said Yes on ${ch}${t}` : r.outcome === "blocked" ? `said No on ${ch}${t}` : `answered on ${ch}${t}`;
+    case "timeout": return `no answer${t}`;
+    case "code_word": return r.outcome === "confirmed" ? "gave the family code word" : "no answer, code word failed";
+    case "repeat_attempt": return "same number tried again, ended at once";
+    case "expected_but_money": return "expected call asked for money";
+    case "expected": return "expected call, let through";
+    case "known_number": return "known number, put through";
+    case "lookup": return "named someone the guard doesn't know";
+    default: return r.decided_by ? String(r.decided_by).replace(/_/g, " ") : "";
+  }
+}
+function ovWant(r) {
+  if (r.asks_for) return r.asks_for;
+  if (r.amount) return r.method ? `${r.amount} by ${r.method}` : r.amount;
+  return "";
+}
+function ovRecent(recent) {
+  const body = $("ov-c-body"), first = OV.seen === null, seen = OV.seen || new Set();
+  body.innerHTML = recent.slice(0, 8).map(r => {
+    const p = r.contact_id && OV.people[r.contact_id];
+    const name = p ? p.name : (r.claimed_name || "Unknown caller");
+    const extra = p && p.relationship ? `<span class="rel">your ${esc(p.relationship)}</span>`
+      : r.claimed_name ? `<span class="rel">not one of your people</span>`
+      : r.caller_number ? `<span class="num">${esc(r.caller_number)}</span>` : "";
+    const want = ovWant(r);
+    const live = r.outcome === "other" && !r.decided_by && Date.now() - new Date(r.ts) < 120000; // still being decided
+    const tag = live ? "is-asking" : OUTCOME_TAG[r.outcome] || "";
+    return `<li class="rr${!first && !seen.has(r.call_id) ? " new" : ""}"><time>${ovTime(r.ts)}</time>
+      <span class="who"><b>${esc(name)}</b>${extra}</span>
+      <span class="want${want ? "" : " no"}">${esc(want || "Nothing asked")}</span>
+      <span class="scam">${esc(r.scam_type || "")}</span>
+      <span class="oc"><span class="m-tag dot ${tag}">${esc(live ? "Asking now" : (r.outcome_label || r.outcome))}</span></span>
+      <span class="how">${esc(live ? "waiting for an answer" : ovHow(r))}</span></li>`;
+  }).join("");
+  OV.seen = new Set(recent.map(r => r.call_id));
+  ovFitRows(); requestAnimationFrame(ovFitRows); setTimeout(ovFitRows, 400);
+}
+// Show only the rows that fit completely: no scrollbar, no half-cut row.
+function ovFitRows() {
+  const body = $("ov-c-body");
+  if (body.hidden || !body.clientHeight) return;
+  const rows = [...body.children];
+  rows.forEach(li => li.hidden = false);
+  const bottom = body.getBoundingClientRect().bottom + 1;
+  let over = false;
+  for (const li of rows) { over = over || li.getBoundingClientRect().bottom > bottom; li.hidden = over; }
+}
+
+setInterval(ovRefresh, 5000);
+addEventListener("hashchange", () => setTimeout(() => { ovRefresh(); gRefresh(); }, 0));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { ovRefresh(); gRefresh(); } });
+let ovResizeT = 0;
+addEventListener("resize", () => { clearTimeout(ovResizeT); ovResizeT = setTimeout(() => { ovFitRows(); gRefresh(); }, 200); });
+
+// ---------- knowledge graph ----------
+const G = {sig: "", pos: {}, lab: {}, byId: {}, adj: {}, pinned: null, w: 0, h: 0, busy: false, raf: 0, ctx: null};
+const GT = {owner: {name: "Protected person", r: 30}, contact: {name: "Trusted contact", r: 22},
+  number: {name: "Phone number", r: 6}, channel: {name: "Where the guard asks them", r: 7},
+  expected: {name: "Expected call", r: 7}, fact: {name: "Remembered fact", r: 6}, attempt: {name: "Attempt", r: 10}};
+const gR = n => (GT[n.type] || GT.fact).r;
+const gColor = n => n.type === "attempt" ? (n.blocked ? "var(--mg-red)" : "var(--mg-green)")
+  : ({owner: "var(--mg-accent)", expected: "var(--mg-accent)", fact: "var(--mg-text-3)"})[n.type] || "var(--mg-text-2)";
+const gCut = (s, n) => { s = String(s ?? ""); return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s; };
+const gLabel = n => n.type === "owner" || n.type === "contact" ? gCut(n.label, 18) : gCut(n.label, 24);
+function gFont(n) {
+  const css = getComputedStyle(document.documentElement);
+  const f = css.getPropertyValue("--mg-font");
+  return n.type === "owner" ? `500 22px ${f}` : n.type === "contact" ? `500 20px ${f}` : `400 17px ${f}`;
+}
+function gMeasure(text, font) {
+  G.ctx = G.ctx || document.createElement("canvas").getContext("2d");
+  G.ctx.font = font;
+  return G.ctx.measureText(text).width;
+}
+const SHIELD = "M12 2.5 4.5 5.3v5.9c0 4.7 3.2 8.8 7.5 10.3 4.3-1.5 7.5-5.6 7.5-10.3V5.3L12 2.5Z";
+function gShape(n, hit) {
+  const r = gR(n), c = gColor(n);
+  const pad = `<circle r="${r + 12}" style="fill:transparent"/>`, ring = w => `fill:var(--mg-surface);stroke:${c};stroke-width:${w}`;
+  switch (n.type) {
+    case "owner": return pad + `<circle class="ring" r="${r}" style="fill:${c}"/>
+      <g transform="translate(-15.6 -16.2) scale(1.3)"><path d="${SHIELD}" style="fill:#fff"/><path d="m8.5 12 2.5 2.5 4.5-5" style="fill:none;stroke:${c};stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/></g>`;
+    case "contact": return pad + `<circle class="ring" r="${r}" style="${ring(1.5)}${hit ? ";stroke:var(--mg-red);stroke-dasharray:4 3" : ""}"/>
+      <text class="in" text-anchor="middle" dominant-baseline="central">${esc(initials(n.label))}</text>`;
+    case "channel": return pad + `<rect class="ring" x="-6" y="-6" width="12" height="12" rx="3" style="${ring(1.5)}"/>`;
+    case "expected": return pad + `<circle class="ring" r="${r}" style="${ring(2)}"/>`;
+    case "fact": return pad + `<circle class="ring" r="${r}" style="${ring(1.5)}"/>`;
+    case "number": return pad + `<circle class="ring" r="${r}" style="fill:${c}"/>`;
+    case "attempt": return pad + (n.blocked
+      ? `<circle class="ring" r="${r}" style="fill:${c}"/><path d="M-4.2 4.2 4.2-4.2" style="stroke:#fff;stroke-width:2;stroke-linecap:round"/>`
+      : `<circle class="ring" r="${r}" style="fill:${c}"/><path d="m-4.5 .3 3.2 3.2 6-6.3" style="fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"/>`);
+    default: return pad + `<circle class="ring" r="${r}" style="${ring(1.5)}"/>`;
+  }
+}
+function gSwatch(type, blocked) {
+  const n = {type, blocked, label: ""}, r = gR(n);
+  return `<svg viewBox="-14 -14 28 28" aria-hidden="true"><g transform="scale(${Math.min(1, 10 / r).toFixed(3)})">${gShape(n).replace(/<circle r="[^"]*" style="fill:transparent"\/>/, "").replace(/<text[^>]*>.*?<\/text>/, "")}</g></svg>`;
+}
+
+// Deterministic radial layout: contacts on an inner ring, their numbers, channels, facts and attempts
+// fanned out behind them; the owner's own groups get their own sectors. Then labels are pushed apart.
+function gLayout(nodes, edges, byId, W, H) {
+  const top = 70, bottom = 96, cx = W / 2, cy = top + (H - top - bottom) / 2;
+  const RX = Math.max(220, W / 2 - 270), RY = Math.max(150, (H - top - bottom) / 2 - 26);
+  const parent = {};
+  for (const e of edges) for (const [a, b] of [[e.from, e.to], [e.to, e.from]]) {
+    const na = byId[a], nb = byId[b];
+    if (parent[a] || na.type === "owner") continue;
+    if (nb.type === "owner" || (nb.type === "contact" && na.type !== "contact")) parent[a] = b;
+  }
+  for (const n of nodes) if (n.type !== "owner" && !parent[n.id]) parent[n.id] = "owner";
+  const ORDER = {number: 0, channel: 1, expected: 2, fact: 3, attempt: 4};
+  const kidsOf = id => nodes.map((n, i) => [n, i]).filter(([n]) => n.type !== "owner" && n.type !== "contact" && parent[n.id] === id)
+    .sort((a, b) => ((ORDER[a[0].type] ?? 5) - (ORDER[b[0].type] ?? 5)) || a[1] - b[1]).map(x => x[0]);
+  const groups = nodes.filter(n => n.type === "contact").map(c => ({hub: c, items: kidsOf(c.id)}));
+  const own = kidsOf("owner");
+  for (const t of ["attempt", "expected", "number", "channel", "fact"]) { const items = own.filter(n => n.type === t); if (items.length) groups.push({hub: null, items}); }
+  const rest = own.filter(n => !(n.type in ORDER)); if (rest.length) groups.push({hub: null, items: rest});
+
+  const GAP = 0.9, wt = g => Math.max(g.hub ? 2 : 1, g.items.length) + GAP;
+  const total = groups.reduce((s, g) => s + wt(g), 0) || 1;
+  const cSpan = groups.filter(g => g.hub).reduce((s, g) => s + wt(g), 0) / total * 2 * Math.PI;
+  const at = (ang, r) => [cx + Math.cos(ang) * r * RX, cy + Math.sin(ang) * r * RY];
+  const P = {owner: [cx, cy]};
+  let a = -cSpan / 2; // the people sit on the right, the owner's own groups on the left
+  for (const g of groups) {
+    const span = wt(g) / total * 2 * Math.PI, mid = a + span / 2, n = g.items.length;
+    const use = span * (wt(g) - GAP) / wt(g), step = n ? use / n : 0;
+    if (g.hub) { // inner ring, but never closer than ~230 px to the owner
+      const p = at(mid, 0.48), dx = p[0] - cx, dy = p[1] - cy, dist = Math.hypot(dx, dy) || 1, k = Math.max(1, 230 / dist);
+      P[g.hub.id] = [cx + dx * k, cy + dy * k];
+    }
+    g.items.forEach((it, i) => {
+      const stag = n > 3 ? (i % 2 ? 0.09 : -0.07) : 0;
+      P[it.id] = at(mid - use / 2 + step * (i + 0.5), (g.hub ? 0.88 : 0.74) + stag);
+    });
+    a += span;
+  }
+  for (const n of nodes) if (!P[n.id]) P[n.id] = [cx, cy];
+  return gSpread(nodes, byId, P, {parent, cx, cy, W, H, top, bottom});
+}
+// Place each label beside its node, then push overlapping node+label boxes apart (deterministic).
+function gSpread(nodes, byId, P, o) {
+  const {cx, W, H, top, bottom} = o, lab = {};
+  for (const n of nodes) {
+    const [x] = P[n.id], r = gR(n), w = gMeasure(gLabel(n), gFont(n));
+    const h = n.type === "owner" ? 28 : n.type === "contact" ? 26 : 22, hh = Math.max(r, h / 2);
+    const side = n.type === "owner" || n.type === "contact" ? "b" : x >= cx + 20 ? "r" : x <= cx - 20 ? "l" : "b";
+    lab[n.id] = side === "r" ? {x: r + 10, y: 0, anchor: "start", box: [-r, -hh, r + 10 + w, hh]}
+      : side === "l" ? {x: -r - 10, y: 0, anchor: "end", box: [-r - 10 - w, -hh, r, hh]}
+      : {x: 0, y: r + 10 + h / 2, anchor: "middle", box: [-Math.max(r, w / 2), -r, Math.max(r, w / 2), r + 10 + h]};
+  }
+  const ids = nodes.map(n => n.id), mass = id => byId[id].type === "owner" ? 0 : byId[id].type === "contact" ? 0.25 : 1;
+  const PAD = 5, minX = 12, maxX = W - 12, minY = top - 8, maxY = H - bottom + 6;
+  const rect = id => { const [x, y] = P[id], b = lab[id].box; return [x + b[0] - PAD, y + b[1] - PAD, x + b[2] + PAD, y + b[3] + PAD]; };
+  for (let it = 0; it < 220; it++) {
+    let moved = false;
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const A = rect(ids[i]), B = rect(ids[j]);
+      const ox = Math.min(A[2], B[2]) - Math.max(A[0], B[0]), oy = Math.min(A[3], B[3]) - Math.max(A[1], B[1]);
+      if (ox <= 0 || oy <= 0) continue;
+      const mi = mass(ids[i]), mj = mass(ids[j]), s = mi + mj;
+      if (!s) continue;
+      moved = true;
+      const pi = P[ids[i]], pj = P[ids[j]];
+      if (oy < ox * 1.6) {
+        const dir = (A[1] + A[3]) <= (B[1] + B[3]) ? -1 : 1, d = (oy + 1) / s;
+        pi[1] += dir * d * mi; pj[1] -= dir * d * mj;
+      } else {
+        const dir = (A[0] + A[2]) <= (B[0] + B[2]) ? -1 : 1, d = (ox + 1) / s;
+        pi[0] += dir * d * mi; pj[0] -= dir * d * mj;
+      }
+    }
+    for (const id of ids) {
+      if (!mass(id)) continue;
+      const R = rect(id), p = P[id];
+      if (R[0] < minX) p[0] += minX - R[0]; else if (R[2] > maxX) p[0] -= R[2] - maxX;
+      if (R[1] < minY) p[1] += minY - R[1]; else if (R[3] > maxY) p[1] -= R[3] - maxY;
+    }
+    if (!moved) break;
+  }
+  return {P, lab, parent: o.parent, cx: o.cx, cy: o.cy};
+}
+function gPath(a, b, straight) {
+  const f = v => v.toFixed(1);
+  if (straight) return `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}`;
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, k = 0.12;
+  return `M${f(a[0])} ${f(a[1])}Q${f(mx - (b[1] - a[1]) * k)} ${f(my + (b[0] - a[0]) * k)} ${f(b[0])} ${f(b[1])}`;
+}
+
+function gDraw(d, W, H) {
+  const nodes = (d.nodes || []).filter(n => n && n.id != null);
+  if (!nodes.some(n => n.id === "owner")) nodes.unshift({id: "owner", type: "owner", label: "You", detail: ""});
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const edges = (d.edges || []).filter(e => byId[e.from] && byId[e.to] && e.from !== e.to);
+  const L = gLayout(nodes, edges, byId, W, H);
+  G.byId = byId; G.lab = L.lab; G.adj = {};
+  for (const e of edges) { (G.adj[e.from] ||= []).push(e.to); (G.adj[e.to] ||= []).push(e.from); }
+  const kind = e => {
+    const a = byId[e.from], b = byId[e.to], att = a.type === "attempt" ? a : b.type === "attempt" ? b : null;
+    if (att) return att.blocked ? "e-blk" : "e-ok";
+    return (a.type === "contact" && b.type === "owner") || (b.type === "contact" && a.type === "owner") ? "e-contact" : "";
+  };
+  const targeted = new Set(edges.filter(e => kind(e) === "e-blk").flatMap(e => [e.from, e.to]));
+  const prev = G.pos, fresh = new Set(nodes.filter(n => !prev[n.id]).map(n => n.id));
+  const rank = {attempt: 0, fact: 1, number: 2, channel: 2, expected: 2, contact: 3, owner: 4};
+  const order = nodes.slice().sort((a, b) => (rank[a.type] ?? 1) - (rank[b.type] ?? 1));
+  const svg = $("g-svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = `<g>${edges.map((e, i) => `<path class="ge ${kind(e)}" data-i="${i}" data-a="${esc(e.from)}" data-b="${esc(e.to)}"/>`).join("")}</g>
+    <g>${edges.map((e, i) => kind(e) === "e-contact" && e.label ? `<text class="gel" data-i="${i}" data-a="${esc(e.from)}" data-b="${esc(e.to)}" text-anchor="middle">${esc(e.label)}</text>` : "").join("")}</g>
+    <g>${order.map(n => { const lb = L.lab[n.id]; return `<g class="gn t-${esc(n.type)}${n.blocked ? " blk" : ""}" data-id="${esc(n.id)}"${fresh.has(n.id) ? ` style="opacity:0"` : ""}>${gShape(n, targeted.has(n.id))}<text x="${lb.x}" y="${lb.y}" text-anchor="${lb.anchor}" dominant-baseline="central">${esc(gLabel(n))}</text></g>`; }).join("")}</g>`;
+
+  const els = {}; svg.querySelectorAll(".gn").forEach(g => els[g.dataset.id] = g);
+  const paths = [...svg.querySelectorAll(".ge")], elabs = [...svg.querySelectorAll(".gel")];
+  const from = {};
+  for (const n of nodes) from[n.id] = prev[n.id] || prev[L.parent[n.id]] || [L.cx, L.cy];
+  const t0 = performance.now(), dur = ovReduced() ? 0 : (Object.keys(prev).length ? 600 : 1000);
+  cancelAnimationFrame(G.raf);
+  const frame = now => {
+    const k = dur ? Math.min(1, (now - t0) / dur) : 1, e = 1 - Math.pow(1 - k, 3), cur = {};
+    for (const n of nodes) {
+      const a = from[n.id], b = L.P[n.id], x = a[0] + (b[0] - a[0]) * e, y = a[1] + (b[1] - a[1]) * e;
+      cur[n.id] = [x, y];
+      els[n.id].setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+      if (fresh.has(n.id)) els[n.id].style.opacity = k < 1 ? Math.min(1, k * 1.8) : "";
+    }
+    for (const p of paths) { const ed = edges[+p.dataset.i]; p.setAttribute("d", gPath(cur[ed.from], cur[ed.to], p.classList.contains("e-contact"))); }
+    for (const t of elabs) {
+      const ed = edges[+t.dataset.i], ownerFirst = byId[ed.from].type === "owner";
+      const c = cur[ownerFirst ? ed.to : ed.from], o = cur[ownerFirst ? ed.from : ed.to]; // label sits nearer the contact
+      t.setAttribute("x", (c[0] + (o[0] - c[0]) * 0.3).toFixed(1)); t.setAttribute("y", (c[1] + (o[1] - c[1]) * 0.3 - 12).toFixed(1));
+    }
+    G.pos = cur;
+    if (k < 1) G.raf = requestAnimationFrame(frame);
+    else if (G.pinned) gFocus(byId[G.pinned] ? G.pinned : (G.pinned = null));
+  };
+  G.raf = requestAnimationFrame(frame);
+  gChrome(nodes, d.source);
+  $("g-mnote").textContent = typeof d.memory_note === "string" ? d.memory_note : "";
+}
+function gChrome(nodes, source) {
+  const count = t => nodes.filter(n => n.type === t).length, att = nodes.filter(n => n.type === "attempt");
+  const blk = att.filter(n => n.blocked).length, people = count("contact");
+  const bits = [att.length ? `${att.length} recent ${att.length === 1 ? "attempt" : "attempts"}, ${blk} blocked` : "",
+    count("fact") ? `${count("fact")} remembered ${count("fact") === 1 ? "fact" : "facts"}` : "",
+    count("expected") ? `${count("expected")} expected ${count("expected") === 1 ? "call" : "calls"}` : ""].filter(Boolean);
+  $("g-sum").innerHTML = `${people} ${people === 1 ? "person" : "people"} you trust<span>${esc(bits.join(", "))}</span>`;
+  $("g-src").textContent = `Memory: ${source === "cognee" ? "Cognee" : "local"}`;
+  const legend = [["owner", "Protected person"], ["contact", "Trusted contact"], ["number", "Phone number"], ["channel", "Channel to ask on"],
+    ["expected", "Expected call"], ["fact", "Remembered fact"]].filter(([t]) => count(t));
+  if (att.some(n => n.blocked)) legend.push(["attempt", "Attempt, blocked", true]);
+  if (att.some(n => !n.blocked)) legend.push(["attempt", "Attempt, let through", false]);
+  $("g-legend").innerHTML = legend.map(([t, l, b]) => `<span>${gSwatch(t, b)}${esc(l)}</span>`).join("");
+}
+function gFocus(id) {
+  const svg = $("g-svg"), set = new Set(id ? [id, ...(G.adj[id] || [])] : []);
+  svg.classList.toggle("focus", !!id);
+  for (const g of svg.querySelectorAll(".gn")) { g.classList.toggle("hl", set.has(g.dataset.id)); g.classList.toggle("sel", g.dataset.id === id); }
+  for (const e of svg.querySelectorAll(".ge,.gel")) e.classList.toggle("hl", !!id && (e.dataset.a === id || e.dataset.b === id));
+  gCard(id);
+}
+function gCard(id) {
+  const c = $("g-card"), n = id && G.byId[id];
+  if (!n || !G.pos[id]) { c.hidden = true; return; }
+  const what = n.type === "attempt" ? (n.blocked ? "Attempt, blocked" : "Attempt, let through")
+    : n.type === "number" && String(id).startsWith("own:") ? "Your own number" : (GT[n.type] || {name: n.type}).name;
+  const links = (G.adj[id] || []).map(x => G.byId[x] && G.byId[x].label).filter(Boolean);
+  c.innerHTML = `<div class="gk"><i style="background:${gColor(n)}"></i>${esc(what)}</div><div class="gt">${esc(n.label)}</div>
+    <p class="gd">${esc(n.detail || "")}</p>${n.origin ? `<div class="go">${esc(n.origin)}</div>` : ""}<div class="gp">${links.length ? `Linked to ${esc(links.slice(0, 4).join(", "))}${links.length > 4 ? ` and ${links.length - 4} more` : ""}. ` : ""}${G.pinned === id ? "Click empty space to let go." : "Click to pin."}</div>`;
+  c.hidden = false;
+  const [x, y] = G.pos[id], r = gR(n), cw = c.offsetWidth, ch = c.offsetHeight, lb = G.lab[id];
+  // Put the card on the side away from the node's label and satellites (towards the centre for hubs).
+  const toLeft = lb && (lb.anchor === "start" || (lb.anchor === "middle" && n.type !== "owner" && x >= G.w / 2));
+  let left = toLeft ? x - r - 28 - cw : x + r + 28;
+  if (left + cw > G.w - 16) left = x - r - 28 - cw;
+  if (left < 16) left = Math.min(G.w - cw - 16, x + r + 28);
+  c.style.left = `${Math.max(16, left)}px`;
+  c.style.top = `${Math.min(Math.max(16, y - ch / 2), G.h - ch - 16)}px`;
+}
+(function gWire() {
+  const svg = $("g-svg");
+  svg.addEventListener("pointerover", e => { const g = e.target.closest(".gn"); if (g && !G.pinned) gFocus(g.dataset.id); });
+  svg.addEventListener("pointerout", e => {
+    const g = e.target.closest(".gn");
+    if (g && !G.pinned && !(e.relatedTarget && g.contains(e.relatedTarget))) gFocus(null);
+  });
+  svg.addEventListener("click", e => {
+    const g = e.target.closest(".gn");
+    if (g) { G.pinned = G.pinned === g.dataset.id ? null : g.dataset.id; gFocus(G.pinned || g.dataset.id); }
+    else { G.pinned = null; gFocus(null); }
+  });
+})();
+async function gRefresh() {
+  if (G.busy || !ovShown("v-graph")) return;
+  G.busy = true;
+  try {
+    const d = await maybe("/api/graph");
+    if (!d || !Array.isArray(d.nodes)) return;
+    const empty = d.nodes.length <= 1, box = $("g-box");
+    $("g-empty").hidden = !empty; $("g-cap").hidden = !empty; box.hidden = empty;
+    if (empty) { G.sig = ""; G.pos = {}; return; }
+    const sig = JSON.stringify(d), W = box.clientWidth, H = box.clientHeight;
+    if (sig === G.sig && W === G.w && H === G.h) return;
+    G.sig = sig; G.w = W; G.h = H;
+    gDraw(d, W, H);
+  } finally { G.busy = false; }
+}
+setInterval(gRefresh, 10000);
+
+// === expected calls ===
+const XKINDS = {
+  delivery: ["Delivery", '<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5Z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9M7.8 5.3l8.4 4.5"/>'],
+  callback: ["Callback", '<path d="M5.2 3.8h3.4l1.6 4.1-2.1 1.4a11.5 11.5 0 0 0 6.6 6.6l1.4-2.1 4.1 1.6v3.4a1.6 1.6 0 0 1-1.7 1.6C10.4 19.8 4.2 13.6 3.6 5.5a1.6 1.6 0 0 1 1.6-1.7Z"/><path d="M20.5 3.5l-5.5 5.5M15 4.5V9h4.5"/>'],
+  appointment: ["Appointment", '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 15l2 2 4-4"/>'],
+};
+const xIcon = k => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${(XKINDS[k] || XKINDS.delivery)[1]}</svg>`;
+let EXPECTED = [], xFresh = null, xSaved = null, xKind = "delivery";
+const capFirst = s => { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1); };
+async function loadExpected() {
+  const [list, stats] = await Promise.all([maybe("/api/expected"), maybe("/api/stats")]);
+  if (Array.isArray(list)) { EXPECTED = list; renderExpected(); }
+  const n = stats && Array.isArray(stats.recent) ? stats.recent.filter(r => r.outcome === "expected").length : 0;
+  $("x-passed").hidden = !n;
+  $("x-passed").textContent = `${n} expected ${n === 1 ? "call" : "calls"} passed without a question`;
+}
+addEventListener("hashchange", () => { if (ME && location.hash === "#expected") loadExpected(); });
+function xRowHTML(x) {
+  const on = !!x.expected, kw = (x.keywords || []).map(k => `<span class="chip kw">${esc(k)}</span>`).join("");
+  return `<article class="xr${on ? "" : " off"}${xFresh === x.id ? " fresh" : ""}" data-id="${esc(x.id)}">
+    <span class="xk"><span class="tile">${xIcon(x.kind)}</span>${esc((XKINDS[x.kind] || [x.kind])[0])}</span>
+    <div style="min-width:0"><div class="xwho">${esc(capFirst(x.who))}</div>${x.note ? `<div class="xnote">${esc(x.note)}</div>` : ""}
+      ${xFresh === x.id ? '<div class="xok">The guard lets this call through, unless it asks for money.</div>' : ""}</div>
+    <div class="xkw"><span class="lab">Listens for</span>${kw || '<span class="cc-empty">No words yet</span>'}</div>
+    <div class="xact"><span class="saved">Saved</span><span class="xst">${on ? "Expected" : "Off"}</span>
+      <button class="sw" type="button" role="switch" aria-checked="${on}" aria-label="Expect ${esc(x.who)}" data-xact="toggle"></button>
+      ${x.builtin ? '<span class="xbuilt"></span>' : `<button class="xbtn" type="button" data-xact="remove" aria-label="Remove ${esc(x.who)}">${XMARK}</button>`}</div>
+  </article>`;
+}
+function renderExpected() {
+  const order = {delivery: 0, callback: 1, appointment: 2};
+  const list = EXPECTED.map((x, i) => [x, i]).sort((a, b) => (+!a[0].expected - +!b[0].expected) || ((order[a[0].kind] ?? 3) - (order[b[0].kind] ?? 3)) || a[1] - b[1]).map(p => p[0]);
+  $("x-list").innerHTML = list.length ? list.map(xRowHTML).join("")
+    : `<div class="card xempty"><h3>Nothing expected right now</h3><p class="sub">Tell the guard about a delivery, a callback or an appointment, and that caller gets through without a question.</p></div>`;
+  if (xSaved) { const s = document.querySelector(`.xr[data-id="${CSS.escape(xSaved)}"] .saved`); xSaved = null; flashSaved(s); }
+}
+$("x-list").addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-xact]"); if (!b) return;
+  const row = b.closest(".xr"), x = row && EXPECTED.find(e => e.id === row.dataset.id); if (!x) return;
+  if (b.dataset.xact === "toggle") {
+    x.expected = !x.expected; renderExpected();
+    try { const out = await api(`/api/expected/${encodeURIComponent(x.id)}`, {method: "PUT", body: {expected: x.expected}});
+          EXPECTED = EXPECTED.map(e => e.id === x.id ? out : e); xSaved = x.id; renderExpected(); }
+    catch (e) { say(`Couldn't save: ${e.message}`); loadExpected(); }
+  } else if (b.dataset.xact === "remove") {
+    try { await api(`/api/expected/${encodeURIComponent(x.id)}`, {method: "DELETE"}); EXPECTED = EXPECTED.filter(e => e.id !== x.id); renderExpected(); }
+    catch (e) { say(`Couldn't remove it: ${e.message}`); }
+  }
+});
+function xRenderKinds() {
+  $("xf-kinds").innerHTML = Object.entries(XKINDS).map(([k, [label]]) =>
+    `<button class="xkind" type="button" role="radio" aria-checked="${k === xKind}" data-kind="${k}">${xIcon(k)}${label}</button>`).join("");
+}
+$("xf-kinds").addEventListener("click", e => { const b = e.target.closest("[data-kind]"); if (b) { xKind = b.dataset.kind; xRenderKinds(); } });
+$("x-add").onclick = () => {
+  xKind = "delivery"; xRenderKinds();
+  $("xf-who").value = $("xf-words").value = $("xf-note").value = "";
+  $("xf-err").hidden = true;
+  $("xform-dlg").showModal(); $("xf-who").focus();
+};
+$("xf-cancel").onclick = () => $("xform-dlg").close();
+$("xform").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = m => { $("xf-err").textContent = m; $("xf-err").hidden = false; };
+  const body = {kind: xKind, who: $("xf-who").value.trim(), keywords: splitList($("xf-words").value), note: $("xf-note").value.trim()};
+  if (!body.who) return err("Say who will call.");
+  if (!body.keywords.length) return err("Add at least one word the caller will say.");
+  $("xf-save").disabled = true;
+  try {
+    const out = await api("/api/expected", {method: "POST", body});
+    EXPECTED.push(out); xFresh = out.id;
+    setTimeout(() => { if (xFresh === out.id) { xFresh = null; renderExpected(); } }, 12000);
+    $("xform-dlg").close(); renderExpected();
+  } catch (x) { err(x.status === 404 ? "The server can't save expected calls yet. Try again in a minute." : x.message); }
+  finally { $("xf-save").disabled = false; }
+});
+
+// === live call ===
+// The same story as the audience screen: final lines and steps from /events, words in progress from /live.
+(function liveCall() {
+  // Wording and order as on the audience screen.
+  const FLAGS = {authority_or_kinship: "Identity claim", money: "Money", urgency: "Urgency", secrecy: "Secrecy"};
+  const CHN = {telegram: "Telegram", whatsapp: "WhatsApp", email: "Email", call: "Phone call"};
+  const human = s => String(s ?? "").replace(/[._]/g, " ");
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const chLabel = c => CHN[c] || cap(human(c));
+  const chans = p => ((p && p.channels) || ["telegram"]).map(chLabel).join(", ");
+  const ms = ts => Date.parse(String(ts).replace(/(\.\d{3})\d+/, "$1"));
+  const owner = () => CONFIG.owner_name || "Mum";
+  const verb = d => d && d.channel && d.channel !== "telegram" ? "answered" : "tapped";
+  const onCh = d => d && d.channel ? " on " + chLabel(d.channel) : "";
+  const secsBetween = (a, b) => Math.max(0, (b - a) / 1000).toFixed(1);
+  const onLive = () => !!ME && location.hash === "#live";
+
+  // ---------- test-call key: taken from ?k=..., kept in localStorage, never left in the address ----------
+  const params = () => new URLSearchParams(location.search);
+  function setQuery(q) { const s = q.toString(); history.replaceState(null, "", location.pathname + (s ? "?" + s : "") + location.hash); }
+  (function takeKey() {
+    const q = params();
+    if (!q.has("k")) return;
+    try { localStorage.setItem("sim-key", q.get("k")); } catch (_) {}
+    q.delete("k"); setQuery(q);
+  })();
+  const simKey = () => { try { return localStorage.getItem("sim-key") || ""; } catch (_) { return ""; } };
+  async function sim(path, body) {
+    const headers = {"Content-Type": "application/json"};
+    if (simKey()) headers["X-Sim-Key"] = simKey();
+    const r = await fetch(path, {method: "POST", credentials: "same-origin", headers, body: body ? JSON.stringify(body) : undefined});
+    if (!r.ok) throw new Error(r.status === 403 ? "the test-call key was not accepted" : `${r.status} ${r.statusText}`);
+  }
+
+  let since = 0, S = null, skew = null, primed = false, quiet = 0, busy = false, timer = 0, lastWord = "", dropBacklog = false;
+  const seen = new Set();
+  const talk = {live: {}, awaiting: {}, signal: 0, inflight: false};
+  const now = () => Date.now() - (skew ?? 0);
+  const name = () => S && S.lookup && S.lookup.contact ? S.lookup.contact.name : "the real person";
+
+  const banner = document.createElement("a");
+  banner.id = "lc-banner"; banner.href = "#live"; banner.hidden = true;
+  banner.innerHTML = '<span class="lc-onair" aria-hidden="true"></span><span>Call in progress: watch it live</span><u id="lc-banner-word"></u>';
+  document.querySelector("#app main").prepend(banner);
+
+  function clearCall() { S = null; talk.live = {}; talk.awaiting = {}; $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = ""; lastWord = ""; }
+  function reset(e) {
+    S = {id: e.call_id, t0: ms(e.ts), lastAt: ms(e.ts), number: (e.data || {}).caller_number, flags: null,
+         popped: new Set(), claim: null, scam: null, lookup: null, expected: null, expectedWho: null, expectedKind: null, ping: null,
+         notice: null, decision: null, first: null, cred: null, told: null, ended: false, late: 0, stepup: false, codeFailed: false,
+         askedName: false, tookMessage: false, expectedMoney: false};
+    talk.live = {}; talk.awaiting = {}; talk.signal = Date.now();
+    $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = "";
+    lastWord = "";
+  }
+
+  // ---------- the call's state, from events ----------
+  function apply(e) {
+    const d = e.data || {};
+    switch (e.type) {
+      case "transcript": addFinal(d.role, d.text); break;
+      case "claim": S.claim = d; break;
+      case "flags": S.flags = d; break;
+      case "script.match": S.scam = d; break;
+      case "contact.lookup": S.lookup = d; break;
+      case "ping.sent": S.ping = {...d, at: ms(e.ts)}; break;
+      case "notice.sent": S.notice = {...d, at: ms(e.ts)}; break;
+      case "decision": S.decision = {...d, at: ms(e.ts)}; S.first = S.first || S.decision; talk.signal = Date.now(); break;
+      case "credential.verified": S.cred = d; break;
+      case "owner.notified": S.told = d.text; break;
+      case "call.ended": S.ended = true; talk.signal = Date.now(); break;
+      case "action":
+        if (d.kind === "late_denial") S.late = ms(e.ts);
+        if (d.kind === "stepup") S.stepup = true;
+        if (d.kind === "code_word_failed") S.codeFailed = true;
+        if (d.kind === "ask_name") S.askedName = true;
+        if (d.kind === "take_message") S.tookMessage = true;
+        if (d.kind === "expected_but_money") S.expectedMoney = true;
+        break;
+      default:
+        if (e.type.startsWith("context.")) { S.expected = d.why || "The owner was expecting this call."; S.expectedWho = d.who; S.expectedKind = d.kind; }
+    }
+  }
+  function handle(e, fresh) {
+    if (seen.has(e.id)) return; // one row per event, even if a response repeats it
+    seen.add(e.id);
+    if (seen.size > 5000) seen.clear();
+    if (fresh) skew = Math.min(skew ?? Infinity, Date.now() - ms(e.ts));
+    if (e.type === "call.started") reset(e);
+    if (!S || e.call_id !== S.id) return;
+    S.lastAt = Math.max(S.lastAt, ms(e.ts));
+    apply(e);
+    addStep(e);
+  }
+  // live: in progress or decided moments ago; last: finished and kept on screen; none: no call yet
+  function phase() {
+    if (!S) return "none";
+    const idle = now() - S.lastAt;
+    if (idle > 120000) return "last";
+    if ((S.decision || S.ended || S.codeFailed) && idle > 15000) return "last";
+    return "live";
+  }
+
+  // ---------- outcome wording, as on the audience screen ----------
+  function byText(d) {
+    const n = name();
+    return {tap: `${n} ${verb(d)} ${d.state === "confirmed" ? "Yes" : "No"}${onCh(d)}`, timeout: `no answer from ${n}`,
+            known_number: "known number, harmless request", lookup: "caller not in the circle",
+            repeat_attempt: "number already denied today", stepup: "identity check", code_word: "family code word",
+            ping_cap: "too many attempts today", credential: "verified agent credential",
+            stepup_unavailable: "identity check unavailable", expected: "an expected call",
+            expected_but_money: "expected caller asked for money"}[d.by] || human(d.by);
+  }
+  function outcome() {
+    const n = name(), d = S.decision, O = owner();
+    const after = d && S.ping ? ` after ${secsBetween(S.ping.at, d.at)} s` : "";
+    if (S.late) return ["denied", "Blocked", `${n} tapped Not me. The guard hung up.`];
+    if (S.codeFailed) return ["unver", "Not verified", "Wrong code word twice. The guard hung up."];
+    if (d) {
+      const by = d.by;
+      if (d.state === "denied") return ["denied", "Blocked", {
+        tap: `${n} ${verb(d)} No${onCh(d)}${after}. The guard hung up.`,
+        repeat_attempt: `This number was already denied as ${n} today. Hung up without asking again.`,
+        stepup: `Failed ${n}'s identity check. The guard hung up.`}[by] || `Denied by ${human(by)}. The guard hung up.`];
+      if (d.state === "confirmed") {
+        if (by === "code_word") return ["ok", "Verified by code word", `${n} didn't answer, but the caller knew the family code word.`];
+        if (S.expected || by === "context" || by === "expected") return ["expected", "Expected call", S.expected || "The owner was expecting this call."];
+        if (by === "known_number") return ["known", "Known caller", `${n}'s own number, harmless request. Put through; ${n} got a heads-up.`];
+        return ["ok", "Put through", {tap: `${n} ${verb(d)} Yes${onCh(d)}${after}. Put through to ${O}.`,
+          stepup: `${n} passed the identity check. Put through to ${O}.`}[by] || `Confirmed by ${human(by)}. Put through.`];
+      }
+      if (d.state === "unverified") return ["unver", "Not verified", {
+        timeout: `No answer from ${n} in ${S.ping ? secsBetween(S.ping.at, d.at) : d.seconds_to_decide} s. The caller can still give the family code word.`,
+        lookup: S.tookMessage ? `Not in ${O}'s circle and not expected. Taking a message.` : `Not someone in ${O}'s circle. Asking who they are.`,
+        expected_but_money: "Says it's an expected delivery, but asks for money. No shortcut; don't pay.",
+        ping_cap: `Too many attempts as ${n} today. The caller can still give the family code word.`,
+        stepup_unavailable: "The identity check is unavailable. Don't send money.",
+        code_word: "Wrong code word twice. The guard hung up."}[by] || `Unverified (${human(by)}). Don't send money.`];
+      if (d.state === "agent_verified") return ["agent", "Verified agent",
+        S.cred ? `${S.cred.agent}, acting for ${S.cred.principal}. Scope: ${(S.cred.scope || []).join(", ")}.` : "A verified agent credential."];
+      if (/expect/.test(d.state)) return ["expected", "Expected call", S.expected || "The owner was expecting this call."];
+      return ["screen", cap(human(d.state)), `Decided by ${human(by)}.`];
+    }
+    if (S.stepup) return ["check", "Checking", `With the real person: ${n} tapped Yes. Now confirming it is really ${n}.`];
+    if (S.ping) return ["check", "Is this you?", `Asked ${n} on ${chans(S.ping)}. The caller is on hold.`];
+    if (S.expected) return ["screen", "Screening", S.expected];
+    if (S.askedName) return ["screen", "Screening", "The assistant asked the caller for their first name."];
+    return ["screen", "Screening", "The assistant is answering and listening."];
+  }
+
+  // ---------- timeline: one row per event (the transcript has its own panel) ----------
+  const KIND = {call: "var(--faint)", heard: "var(--c-unver)", scam: "var(--c-denied)", contact: "var(--c-known)",
+                context: "var(--c-expected)", ask: "var(--c-check)", act: "var(--muted)", owner: "var(--text)"};
+  const DEC = {denied: "var(--c-denied)", confirmed: "var(--c-ok)", unverified: "var(--c-unver)", agent_verified: "var(--c-expected)"};
+  const STATE_WORD = {denied: "Blocked", confirmed: "Put through", unverified: "Not verified", agent_verified: "Verified agent"};
+  function describe(e) {
+    const d = e.data || {}, n = name(), O = owner();
+    switch (e.type) {
+      case "transcript": return null;
+      case "call.started": return ["call", `Call came in${d.caller_number ? " from " + d.caller_number : ""}`];
+      case "flags": {
+        const on = Object.keys(FLAGS).filter(k => d[k]).map(k => FLAGS[k].toLowerCase());
+        const r = d.risk != null ? ` (risk ${Math.round(d.risk * 100)}%)` : "";
+        return ["heard", on.length ? `Flagged ${on.join(", ")}${r}${d.needs_verification ? ": needs verification" : ""}` : "No warning signs"];
+      }
+      case "claim": {
+        const ask = d.asks_for || d.amount;
+        if (!d.claimed_name && !ask) return ["heard", "No name or request heard yet"];
+        return ["heard", d.claimed_name ? `Claims to be ${d.claimed_name}${ask ? ", asks for " + ask : ""}` : `Asks for ${ask}`];
+      }
+      case "script.match": return d.title ? [d.benign ? "context" : "scam", d.benign ? `Looks like: ${d.title}` : `Matches a known scam script: ${d.title}`] : ["call", "No known script matched"];
+      case "contact.lookup":
+        return ["contact", d.contact ? `Matched ${d.contact.name} (${d.contact.relationship}), ${d.number_known ? "known number" : "unknown number"}`
+                                     : `No match in ${O}'s circle${d.note ? ": " + d.note : ""}`];
+      case "context.expected": return ["context", `Expected ${d.kind || "call"}${d.why ? ": " + d.why : ""}${d.source ? ` (from ${d.source})` : ""}`];
+      case "ping.sent": return ["ask", `Asked ${n} on ${chans(d)}: “Is this you?”`];
+      case "notice.sent": return ["ask", `Sent ${n} a heads-up: “${d.text}”`];
+      case "decision": return ["dec:" + d.state, `${STATE_WORD[d.state] || cap(human(d.state))}: ${byText(d)}, ${d.seconds_to_decide} s after the call began`];
+      case "credential.verified": return ["context", `Verified agent ${d.agent} acting for ${d.principal}`];
+      case "owner.notified": return ["owner", `Told ${O}: “${d.text}”`];
+      case "call.ended": return ["call", "Call ended"];
+      case "action": {
+        const k = d.kind;
+        const t = {hangup: "Hung up on the caller", forward: `Put the call through to ${O}`,
+                   say: `Told the caller: “${d.text}”`, challenge: `Instructed the assistant: “${d.text}”`,
+                   ask_name: "Asked the caller for their first name", out_of_scope: d.text || "Credential out of scope",
+                   late_denial: `${n} tapped Not me: hung up`, code_word_failed: "Wrong code word twice: hung up",
+                   stepup: `Sent ${n} an identity check`, take_message: "Took a message instead of putting the call through",
+                   expected_but_money: "Matches an expected call but asks for money: no shortcut"}[k];
+        return ["act", t || cap(human(k || "action")) + (d.text ? ": " + d.text : "")];
+      }
+    }
+    return ["call", cap(human(e.type))];
+  }
+  function addStep(e) {
+    const r = describe(e);
+    if (!r) return;
+    const [kind, text] = r;
+    const li = document.createElement("li");
+    li.dataset.id = e.id;
+    li.style.setProperty("--k", kind.startsWith("dec:") ? (DEC[kind.slice(4)] || "var(--muted)") : (KIND[kind] || "var(--faint)"));
+    li.innerHTML = `<span class="d"></span><span><span class="t">+${Math.max(0, (ms(e.ts) - S.t0) / 1000).toFixed(1)} s</span><span class="x"></span></span>`;
+    li.querySelector(".x").textContent = text;
+    li.querySelector(".x").title = text;
+    const box = $("lc-steps");
+    box.appendChild(li);
+    while (box.children.length > 40) box.firstChild.remove();
+  }
+
+  // ---------- transcript: finals from /events, words in progress from /live ----------
+  const words = t => String(t || "").toLowerCase().replace(/[^\p{L}\p{N}•]+/gu, " ").trim();
+  const sameLine = (a, b) => { a = words(a); b = words(b); const k = Math.min(a.length, b.length, 14); return k > 0 && a.slice(0, k) === b.slice(0, k); };
+  // Redaction arrives already done by the server; this only styles it.
+  const maskHTML = t => esc(t).replace(/•{2,}/g, '<span class="lc-mask" title="Code word hidden">••••</span>')
+                              .replace(/\[([A-Za-z][A-Za-z ]{0,30})\]/g, '<span class="lc-mask">$1</span>');
+  function setSaid(el, text) {
+    if (el.dataset.text === text) return;
+    el.dataset.text = text;
+    el.querySelector(".lc-said").innerHTML = maskHTML(text);
+  }
+  function newTurn(role) {
+    const el = document.createElement("div");
+    el.className = "lc-turn " + role;
+    el.dataset.role = role;
+    el.innerHTML = '<span class="lc-who"></span><p class="lc-said"></p>';
+    el.querySelector(".lc-who").textContent = role === "caller" ? "Caller" : "Guard";
+    return el;
+  }
+  function tidyTalk() {
+    const box = $("lc-convo");
+    while (box.children.length > 40) box.firstChild.remove();
+    let prev = null;
+    for (const el of box.children) { el.classList.toggle("cont", !!prev && prev.dataset.role === el.dataset.role); prev = el; }
+    box.scrollTop = box.scrollHeight;
+  }
+  function addFinal(role, text) {
+    role = role === "caller" ? "caller" : "agent";
+    talk.signal = Date.now();
+    let el = talk.awaiting[role] && sameLine(talk.awaiting[role].dataset.text, text) ? talk.awaiting[role] : null;
+    if (el) delete talk.awaiting[role];
+    else if (talk.live[role] && (talk.live[role].dataset.stale || sameLine(talk.live[role].dataset.text, text))) {
+      el = talk.live[role]; delete talk.live[role]; // the line being spoken settles in place
+    }
+    if (el) el.classList.remove("live");
+    else { el = newTurn(role); $("lc-convo").insertBefore(el, $("lc-convo").querySelector(".lc-turn.live")); }
+    setSaid(el, text);
+    tidyTalk();
+  }
+  function applyLive(L) {
+    if (!S || !S.id || !L || L.call_id !== S.id) return;
+    let changed = false;
+    for (const role of ["caller", "agent"]) {
+      const p = L[role];
+      let el = talk.live[role];
+      if (p && p.text) {
+        talk.signal = Date.now();
+        if (el && el.dataset.stale && !sameLine(el.dataset.text, p.text)) {
+          el.classList.remove("live"); talk.awaiting[role] = el; el = null; // a new line began before the last one's final
+        }
+        if (!el) { el = newTurn(role); el.classList.add("live"); $("lc-convo").appendChild(el); talk.live[role] = el; }
+        delete el.dataset.stale;
+        setSaid(el, p.text);
+        changed = true;
+      } else if (el && !el.dataset.stale) el.dataset.stale = Date.now();
+    }
+    if (changed) { tidyTalk(); renderPanels(); }
+  }
+  function expireLive() { // words that never got a final fade after a moment
+    for (const role of ["caller", "agent"]) {
+      const el = talk.live[role];
+      if (el && el.dataset.stale && Date.now() - el.dataset.stale > 2500) { el.remove(); delete talk.live[role]; tidyTalk(); }
+    }
+  }
+  const liveWanted = () => !!(S && S.id) && ((!S.ended && !S.decision) || Date.now() - talk.signal < 15000);
+  async function pollLive() {
+    if (document.hidden || !onLive() || !S) return;
+    expireLive();
+    if (!liveWanted() || talk.inflight) return;
+    talk.inflight = true;
+    try { applyLive(await api("/live")); } catch (_) {} finally { talk.inflight = false; }
+  }
+
+  // ---------- render ----------
+  function setHTML(id, html) { const el = $(id); if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; } }
+  function ago(t) {
+    const s = (now() - t) / 1000;
+    return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+  }
+  function renderHero() {
+    const ph = phase(), O = owner();
+    let cls = "", word = "Waiting for a call", why = `The assistant answers ${O}'s phone and screens every caller.`, top;
+    if (S) [cls, word, why] = outcome();
+    const from = S && S.number ? " from " + esc(S.number) : "";
+    if (ph === "live") top = `<span class="lc-onair on"></span>Live call to ${esc(O)}${from}`;
+    else if (ph === "last") top = `<span class="lc-onair"></span>Last call${from}, ${ago(S.lastAt)}. Waiting for the next call.`;
+    else top = `<span class="lc-onair"></span>${esc(O)}'s phone line`;
+    $("lc-hero").className = `lc-hero lc-${ph === "none" ? "idle" : ph}${cls ? " lc-st-" + cls : ""}`;
+    setHTML("lc-top", top);
+    const w = $("lc-word");
+    if (word !== lastWord) {
+      w.textContent = word; w.classList.remove("lc-stamp");
+      if (ph === "live") { void w.offsetWidth; w.classList.add("lc-stamp"); }
+      lastWord = word;
+    }
+    $("lc-why").textContent = why; $("lc-why").title = why;
+    let ch = "";
+    if (ph === "live" && S.ping) ch = (S.ping.channels || ["telegram"]).map(c =>
+      `<span class="lc-ch${S.decision && S.decision.channel === c ? " on" : ""}">${esc(chLabel(c))}</span>`).join("");
+    setHTML("lc-chans", ch);
+    tick();
+  }
+  function tick() {
+    const ph = phase();
+    let secs = "", capt = "", bar = 0;
+    if (S) {
+      const t = now(), d = S.decision;
+      if (ph === "live" && S.ping && !d && !S.stepup && S.ping.timeout_s != null) {
+        const left = Math.max(0, S.ping.timeout_s - (t - S.ping.at) / 1000);
+        secs = Math.ceil(left) + " s"; capt = "left to answer"; bar = left / S.ping.timeout_s;
+      } else if (S.late) { secs = ((S.late - S.t0) / 1000).toFixed(1) + " s"; capt = "to catch it"; }
+      else if (d && d.seconds_to_decide != null) { secs = (+d.seconds_to_decide).toFixed(1) + " s"; capt = "to decide"; }
+      else if (ph === "live" && !S.ended && !S.codeFailed) { secs = Math.max(0, (t - S.t0) / 1000).toFixed(1) + " s"; capt = "on the line"; }
+    }
+    $("lc-secs").textContent = secs; $("lc-cap").textContent = capt;
+    $("lc-bar").style.width = (bar * 100).toFixed(1) + "%";
+  }
+  function row(id, html, wait) {
+    const el = $(id), sig = (wait ? "w" : "f") + html, was = el.dataset.sig || "w";
+    if (el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    el.classList.toggle("wait", !!wait);
+    el.querySelector("dd").innerHTML = html;
+    el.classList.remove("fresh");
+    if (!wait && was[0] === "w" && S) { void el.offsetWidth; el.classList.add("fresh"); }
+  }
+  const V = (v, note) => `<div class="lc-v">${esc(v)}</div>${note ? `<div class="lc-n lc-one">${esc(note)}</div>` : ""}`;
+  const Q = text => `<div class="lc-n lc-q">${esc(text)}</div>`;
+  function renderFacts() {
+    const O = owner(), n = name();
+    $("lc-f-told-dt").textContent = `What ${O} was told`;
+    if (!S) {
+      row("lc-f-who", V("No call yet"), true); row("lc-f-ask", V("No call yet"), true); row("lc-f-press", V("None heard"), true);
+      row("lc-f-ping", V("No message yet"), true); row("lc-f-told", V("Nothing yet"), true); row("lc-f-dec", V("Not yet"), true);
+      $("lc-f-notice").hidden = true;
+      return;
+    }
+    const d = S.decision, lk = S.lookup;
+
+    // Who: as the audience screen's claim panel, plus whether that person is a trusted contact.
+    let w = null, wsub = "";
+    if (S.cred) { w = S.cred.agent; wsub = `agent for ${S.cred.principal}`; }
+    else if (lk && lk.contact) {
+      w = `${lk.contact.name} (${lk.contact.relationship})`;
+      wsub = lk.number_known ? "from a known number" : "from an unknown number";
+      const att = S.ping && String(S.ping.text || "").match(/\(attempt (\d+) today\)/);
+      if (att) wsub += `, attempt ${att[1]} today`;
+    } else if (S.expectedWho) { w = {delivery: "A delivery", callback: "A callback", appointment: "An appointment"}[S.expectedKind] || "An expected caller"; wsub = S.expectedWho; }
+    else if (S.expected) w = "An expected caller";
+    else if (S.expectedMoney) { w = "An expected delivery"; wsub = "by its own account"; }
+    else if (lk || d) w = `Nobody in ${O}'s circle`;
+    else if (S.askedName) wsub = "asked for a name";
+    if (S.claim && (S.claim.claimed_name || S.claim.relationship)) {
+      w = S.claim.claimed_name || S.claim.relationship;
+      if (S.claim.claimed_name && S.claim.relationship) w += ` (${S.claim.relationship})`;
+    }
+    const trust = lk ? (lk.contact ? "trusted contact" : "not a trusted contact") : "";
+    const sub = [trust && cap(trust), wsub, S.number].filter(Boolean).join(", ");
+    row("lc-f-who", `<div class="lc-v">${esc(w || "Listening")}</div>${sub ? `<div class="lc-n lc-one">${esc(sub)}</div>` : ""}`, !w);
+
+    // Asks for: claim, then the question's text, then the caller's own words.
+    let a = null, m;
+    if (S.claim && S.claim.asks_for) a = S.claim.asks_for;
+    else if (S.claim && (S.claim.amount || S.claim.method)) a = [S.claim.amount, S.claim.method && "by " + S.claim.method].filter(Boolean).join(" ");
+    else if (S.ping && (m = String(S.ping.text || "").match(/asking for (.+?)(?: \(attempt \d+ today\))?\. Is this you\?/))) a = m[1];
+    else if (S.flags && S.flags.money) { // HACK: no claim event yet; read the amount from the caller's words
+      const said = [...$("lc-convo").querySelectorAll(".lc-turn.caller:not(.live) .lc-said")].map(l => l.textContent).join(" ");
+      const amt = said.match(/\$\s?\d[\d,]*(?:\.\d{2})?|\b\d[\d,]*\s*dollars?\b/i), how = said.match(/\b(gift cards?|wire|bank transfer|crypto|cash)\b/i);
+      a = (amt ? amt[0].replace(/^(\d[\d,]*)\s*dollars?$/i, "$$$1") : "Money") + (how ? " by " + how[0].toLowerCase() : "");
+    }
+    else if (lk || d) a = "Nothing sensitive";
+    row("lc-f-ask", V(a || "Listening"), !a);
+
+    // Pressure tags (only the ones that are on), the classifier line and the scam-script match, worded as on the audience screen.
+    const f = S.flags || {};
+    const on = Object.keys(FLAGS).filter(k => f[k]);
+    const src = {fake: "keyword rules", sie: "Superlinked SIE"}[f.source] || f.source;
+    const cls = S.flags ? `Classifier: ${src}${f.latency_ms ? `, ${f.latency_ms} ms` : ""}${f.risk != null ? `, risk ${Math.round(f.risk * 100)}%` : ""}` : "";
+    let scam = "";
+    const sm = S.scam;
+    if (sm && sm.title && !(d && d.state === "confirmed")) {
+      const how = {vector: "Superlinked embeddings + SingleStore vector search", fulltext: "SingleStore full-text search"}[sm.method] || "keyword stand-in";
+      const pct = Number.isFinite(+sm.score) ? ` · ${Math.round(sm.score * 100)}%` : "";
+      const lat = sm.latency_ms != null ? ` · ${sm.latency_ms} ms` : "";
+      const t = sm.benign ? `Looks like: ${sm.title}${pct} · ${how}${lat}` : `Matches a known scam script: ${sm.title}${pct} · ${how}${lat}`;
+      scam = `<div class="lc-n lc-one${sm.benign ? "" : " lc-scam"}" title="${esc(t)}">${esc(t)}</div>`;
+    }
+    const tags = on.length ? `<div class="lc-tags">${on.map(k => `<span class="lc-tag" data-k="${k}">${FLAGS[k]}</span>`).join("")}</div>`
+                           : `<div class="lc-v">${S.flags ? "No warning signs" : "Listening"}</div>`;
+    row("lc-f-press", tags + scam + (cls ? `<div class="lc-n lc-one lc-meta">${esc(cls)}</div>` : ""), !on.length && !scam);
+    for (const k of on) if (!S.popped.has(k)) {
+      S.popped.add(k);
+      const c = document.querySelector(`#lc-f-press [data-k="${k}"]`); if (c) c.classList.add("lc-pop");
+    }
+
+    // The question on the real person's phone, with its status as on the audience screen's phone.
+    if (S.ping) {
+      const f1 = S.first;
+      let st;
+      if (f1 && f1.by === "tap") st = `Tapped ${f1.state === "confirmed" ? "Yes" : "No"} after ${secsBetween(S.ping.at, f1.at)} s`;
+      else if (f1 && f1.by === "stepup") st = `Tapped Yes; identity check ${f1.state === "confirmed" ? "passed" : "failed"}`;
+      else if (S.stepup) st = "Tapped Yes. Identity check sent.";
+      else if (f1 && f1.by === "timeout") st = `No answer in ${secsBetween(S.ping.at, f1.at)} s`;
+      else if (f1) st = `Not answered: decided by ${human(f1.by)}`;
+      else st = S.ping.timeout_s != null ? `Waiting for a tap, ${Math.max(0, Math.ceil(S.ping.timeout_s - (now() - S.ping.at) / 1000))} s left`
+                                         : `Waiting for a tap, ${Math.max(0, (now() - S.ping.at) / 1000).toFixed(0)} s`;
+      const via = (S.ping.channels || ["telegram"]).map(c => S.decision && S.decision.channel === c ? `${chLabel(c)} (answered)` : chLabel(c)).join(", ");
+      row("lc-f-ping", `${Q(S.ping.text)}<div class="lc-n lc-one">${esc(`${via}. ${st}`)}</div>`, false);
+    } else {
+      const quiet = S.notice ? "Not asked: a heads-up was sent instead" : !d ? "No message yet" : S.expected ? "Not needed: this call was expected." : {
+        lookup: `Nobody to ask: the caller isn't in ${O}'s circle.`, expected_but_money: `Nobody to ask: the caller isn't in ${O}'s circle.`,
+        repeat_attempt: "Not asked again: this number was already denied today.", ping_cap: "Not asked: too many attempts today.",
+        credential: "Not needed: a verified agent is calling."}[d.by] || "No message sent.";
+      row("lc-f-ping", V(quiet), true);
+    }
+    $("lc-f-notice").hidden = !S.notice;
+    if (S.notice) {
+      const st = S.late ? `Tapped Not me after ${secsBetween(S.notice.at, S.late)} s` : "Heads-up only. The call already went through.";
+      row("lc-f-notice", `${Q(S.notice.text)}<div class="lc-n lc-one">${esc(`${chans(S.notice)}. ${st}`)}</div>`, false);
+    }
+
+    // What the protected person was told.
+    if (S.told) row("lc-f-told", Q(S.told), false);
+    else if (d && /confirmed|verified/.test(d.state)) row("lc-f-told", V("No warning needed: the call went through."), true);
+    else row("lc-f-told", V("Nothing yet"), true);
+
+    if (d) {
+      const [c, word] = outcome();
+      const how = cap(byText(d)) + (S.ping && d.by === "tap" ? ` after ${secsBetween(S.ping.at, d.at)} s`
+        : d.seconds_to_decide != null ? `, ${d.seconds_to_decide} s into the call` : "");
+      row("lc-f-dec", `<div class="lc-v lc-st-${c}"><span class="lc-dot"></span>${esc(word)}</div><div class="lc-n lc-one">${esc(how)}</div>`, false);
+    } else row("lc-f-dec", V(S.ping ? `Waiting for ${n}` : "Not yet"), true);
+  }
+  function renderPanels() {
+    const ph = phase(), has = $("lc-convo").children.length > 0;
+    $("lc-convo").hidden = !has; $("lc-talk-empty").hidden = has;
+    $("lc-onair").classList.toggle("on", ph === "live" && !!S && !S.ended);
+    $("lc-talk-note").textContent = ph === "last" ? "Last call" : ph === "live" && S && !S.ended ? "Live" : "";
+    const steps = $("lc-steps").children.length > 0;
+    $("lc-steps").hidden = !steps; $("lc-tl-empty").hidden = steps;
+  }
+  function renderGlobal() {
+    const active = !!ME && phase() === "live";
+    const a = document.querySelector('#nav a[data-view="live"]');
+    if (a) a.classList.toggle("lc-on", active);
+    banner.hidden = !active || location.hash === "#live";
+    if (active) $("lc-banner-word").textContent = outcome()[1];
+    applyPresent();
+  }
+  function render() {
+    renderGlobal();
+    if (!onLive()) return;
+    renderScenes(); renderHero(); renderFacts(); renderPanels();
+  }
+
+  // ---------- stage mode: no rail, no header; kept in the address as ?present ----------
+  function applyPresent() {
+    const on = onLive() && params().has("present");
+    document.body.classList.toggle("lc-present", on);
+    const b = $("lc-present");
+    b.setAttribute("aria-pressed", String(on));
+    b.textContent = on ? "Leave presenting" : "Present";
+  }
+  function setPresent(on) {
+    const q = params();
+    if (on) q.set("present", "1"); else q.delete("present");
+    setQuery(q); applyPresent();
+  }
+  $("lc-present").addEventListener("click", () => setPresent(!document.body.classList.contains("lc-present")));
+  addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("lc-present")) setPresent(false); });
+
+  // ---------- test calls: the audience screen's scenes ----------
+  function scenes() {
+    const O = owner();
+    const GREET = `Hello, this is ${O}'s assistant. Who is calling, and what is it about?`, HOLD = "One moment, I am trying to reach her.";
+    const SCAM = [`${O}, it's me, I'm in trouble.`, "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
+    return {
+      scam_no: {label: "Scam, tap No", claimed_name: "Jakob", caller_number: "+15550999999", lines: SCAM, agent_lines: {0: GREET, 3: HOLD}, tap: "no", tap_after_s: 4},
+      real_yes: {label: "Real, tap Yes", claimed_name: "Jakob", caller_number: "+15550100002", lines: [`Hi ${O}, it's Jakob.`, "Can you pick me up at five?"], agent_lines: {0: GREET, 2: HOLD}, tap: "yes", tap_after_s: 4},
+      scam_none: {label: "Scam, no answer", claimed_name: "Jakob", caller_number: "+15550999999", lines: SCAM, agent_lines: {0: GREET, 3: HOLD}, tap: null, tap_after_s: 0},
+      delivery: {label: "Delivery driver, expected", caller_number: "+15550440001", lines: ["Hi, I'm the driver with your desk lamp, are you home?"], agent_lines: {0: GREET}},
+      delivery_fee: {label: "Fake delivery fee", caller_number: "+15550440002", lines: ["I'm calling from the parcel service about your desk lamp delivery.", "There is a small customs fee of $4.99 to pay. What is your card number?", "I'll process that payment now."], agent_lines: {0: GREET, 2: "My card number is 4111 1111 1111 1111."}},
+    };
+  }
+  function renderScenes() {
+    const nav = $("lc-scenes"), show = !!(simKey() || CONFIG.fake);
+    nav.hidden = !show;
+    if (!show || nav.children.length) return;
+    nav.innerHTML = '<button type="button" data-scene="reset">Reset demo</button>' +
+      Object.entries(scenes()).map(([k, s]) => `<button type="button" data-scene="${k}">${esc(s.label)}</button>`).join("");
+  }
+  $("lc-scenes").addEventListener("click", async ev => {
+    const b = ev.target.closest("button[data-scene]");
+    if (!b) return;
+    const btns = [...$("lc-scenes").querySelectorAll("button")];
+    btns.forEach(x => x.disabled = true);
+    try {
+      await sim("/sim/reset");
+      if (b.dataset.scene === "reset") { dropBacklog = true; clearCall(); render(); }
+      else { const {label, ...body} = scenes()[b.dataset.scene]; await sim("/sim/call", body); }
+      pollEvents();
+    } catch (e) { say(`The test call didn't start: ${e.message}`); }
+    finally { btns.forEach(x => x.disabled = false); }
+  });
+
+  // ---------- polling: one /events request at a time; fast while watched or a call is on, slow otherwise, none while hidden ----------
+  const fast = () => onLive() || phase() === "live";
+  async function pollEvents() {
+    clearTimeout(timer);
+    if (ME && !document.hidden && !busy) {
+      busy = true;
+      try {
+        let evs = await api("/events?since=" + since);
+        if (dropBacklog) { // after "Reset demo": skip what happened before it
+          dropBacklog = false;
+          for (const e of evs) seen.add(e.id);
+          if (evs.length) since = evs[evs.length - 1].id;
+          clearCall(); evs = []; primed = true;
+        }
+        if (!primed && evs.length) { // first load: only the most recent call matters
+          let i = evs.length - 1;
+          while (i > 0 && evs[i].type !== "call.started") i--;
+          for (const e of evs.slice(0, i)) since = Math.max(since, e.id);
+          evs = evs.slice(i);
+        }
+        for (const e of evs) { handle(e, primed); since = Math.max(since, e.id); }
+        primed = true;
+        if (evs.length) quiet = 0;
+        else if (since > 0 && ++quiet % 10 === 0) {
+          // The server was restarted if even our last event is gone: start over.
+          const last = await api("/events?since=" + (since - 1));
+          if (!last.length) { since = 0; primed = false; seen.clear(); clearCall(); }
+        }
+      } catch (_) {}
+      busy = false;
+      render();
+    }
+    if (!document.hidden) timer = setTimeout(pollEvents, !ME ? 600 : fast() ? 500 : 3000);
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollEvents(); });
+  addEventListener("hashchange", () => {
+    if (location.hash !== "#live" && params().has("present")) setPresent(false);
+    render();
+    if (onLive()) { $("lc-convo").scrollTop = $("lc-convo").scrollHeight; pollEvents(); }
+  });
+  setInterval(pollLive, 200);
+  setInterval(() => { if (S && onLive() && !document.hidden) tick(); }, 250);
+  pollEvents();
+})();
 
 // ---------- start: decide signed-in or not before anything shows ----------
 (async function boot() {

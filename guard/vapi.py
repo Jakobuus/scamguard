@@ -160,11 +160,11 @@ async def webhook(req: Request):
     return {}
 
 
-async def _verify(call_id: str, claimed_name) -> None:
+async def _verify(call_id: str, claimed_name, reason=None) -> None:
     from guard import flow
 
     try:
-        await flow.verify_caller(call_id, claimed_name)
+        await flow.verify_caller(call_id, claimed_name, reason=reason)
     except Exception:
         log.warning("Vapi caller verification failed; keeping caller on hold")
 
@@ -195,7 +195,8 @@ async def verify_caller(req: Request):
             except Exception:
                 args = {}
         # Return before verification can touch Telegram or any other network service.
-        flow.spawn(_verify(call_id, _dict(args).get("claimed_name")))
+        flow.verification_started(call_id)
+        flow.spawn(_verify(call_id, _dict(args).get("claimed_name"), _dict(args).get("reason")))
         results.append({"toolCallId": tc.get("id"), "result": _TOOL_RESULT})
     return {"results": results}
 

@@ -11,6 +11,8 @@ from guard.brain.redact import redact
 _tasks: set = set()
 _caller_text: dict[str, str] = {}
 _asked_name: set[str] = set()
+_verification_started: set[str] = set()
+_expected_checks: dict[str, int] = {}
 _late_denials: set[str] = set()
 _code_tries: dict[str, int] = {}
 _pings: dict[tuple, int] = {}
@@ -27,6 +29,8 @@ def reset_demo() -> None:
     _pings.clear()
     _cap_notified.clear()
     _caller_text.clear()
+    _verification_started.clear()
+    _expected_checks.clear()
     scripts.reset()
 
 
@@ -145,28 +149,77 @@ async def on_transcript(call_id, role, text) -> None:
         state.update_call(call_id, flags=f)
         state.emit(call_id, "flags", f.model_dump())
         spawn(scripts.on_text(call_id, _caller_text[call_id], f))  # fire-and-forget, never blocks the call
+        call = state.get_call(call_id)
+        if (call and call.state == "screening" and call_id not in _verification_started
+                and _expected_checks.get(call_id, 0) < 3):
+            _expected_checks[call_id] = _expected_checks.get(call_id, 0) + 1
+            spawn(_expected_without_tool(call_id))
 
 
-async def _expected_call(call_id, found) -> bool:
+def verification_started(call_id) -> None:
+    _verification_started.add(call_id)
+
+
+async def _expected_without_tool(call_id) -> None:
+    # HACK: allow adjacent final fragments to arrive before deciding, with three checks per call.
+    await asyncio.sleep(0.75)
+    call = state.get_call(call_id)
+    if (not call or call.state != "screening" or call_id in _verification_started
+            or call_id not in _live_calls):
+        return
+    text = _caller_text.get(call_id, "")
+    def circle_claim():
+        claim = classify.claim(text)
+        claim.claimed_name = _caller_name(claim.claimed_name, text)
+        return contacts.candidates(claim, call.caller_number)
+    found = await asyncio.to_thread(circle_claim)
+    if text != _caller_text.get(call_id, ""):
+        return
+    await _expected_call(call_id, found, without_tool=True)
+
+
+async def _expected_call(call_id, found, without_tool=False) -> bool:
     if found:
         return False
     text = _caller_text.get(call_id, "")
     expectation = await asyncio.to_thread(context.expected, text)
-    if expectation is None and not any(
+    if without_tool and (expectation is None or call_id in _verification_started
+                         or call_id not in _live_calls or text != _caller_text.get(call_id, "")):
+        return False
+    generic = expectation is None and any(
         record.get("expected", True) and any(context._contains(term, text)
                                             for term in record["keywords"]["generic"])
         for record in context.records()
-    ):
+    )
+    # A courier or caller who names no item: still a delivery-like call, so take a message.
+    delivery_words = expectation is None and not generic and bool(re.search(
+        r"\b(deliver\w*|parcels?|packages?|couriers?|orders?|appointments?|callbacks?|doctors?|pharmacy)\b",
+        text, re.I))
+    if expectation is None and not generic and not delivery_words:
         return False
-    call = state.get_call(call_id)  # Flags may have changed during retrieval.
+    def pressure():
+        call = state.get_call(call_id)
+        if call is None or call.state != "screening":
+            return call, False, False
+        latest = _caller_text.get(call_id, "")
+        money = bool((call.flags and call.flags.money) or re.search(
+            r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card|wire|transfer|cash|"
+            r"crypto|bitcoin|dollars?|customs|deposit|card number)\b|\$", latest, re.I))
+        blocked = (call.flags is None or money or call.flags.urgency or call.flags.secrecy
+                   or call.flags.needs_verification)
+        return call, money, blocked
+
+    call, money, blocked = pressure()  # Flags may have changed during retrieval.
     if call is None or call.state != "screening":
         return True
-    latest = _caller_text.get(call_id, "")
-    money = bool((call.flags and call.flags.money) or re.search(
-        r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card|wire|transfer|cash|"
-        r"crypto|bitcoin|dollars?|customs|deposit|card number)\b|\$", latest, re.I))
-    blocked = (call.flags is None or money or call.flags.urgency or call.flags.secrecy
-               or call.flags.needs_verification)
+    if expectation and not blocked and not without_tool:
+        # HACK: the tool's summary can arrive before the caller's money words; wait, then decide on the latest.
+        await asyncio.sleep(0.75)
+        call, money, blocked = pressure()
+        if call is None or call.state != "screening":
+            return True
+    if delivery_words and blocked:
+        return False  # Pressure or money: ordinary unverified path.
     if expectation is None and money:
         return False  # Generic money claims retain the ordinary unverified path.
     state.emit(call_id, "contact.lookup", {"contact": None, "number_known": False,
@@ -218,10 +271,16 @@ def _caller_name(name, text):
     return None if not fallback or own(fallback) else fallback
 
 
-async def verify_caller(call_id, claimed_name) -> None:
+async def verify_caller(call_id, claimed_name, reason=None) -> None:
+    verification_started(call_id)
     call = state.get_call(call_id)
     if call is None or call.state != "screening":
         return
+    if isinstance(reason, str) and reason.strip():
+        _caller_text[call_id] = (_caller_text.get(call_id, "") + " " + _redact(reason)).strip()
+        f = classify.flags(_caller_text[call_id])
+        state.update_call(call_id, flags=f)
+        state.emit(call_id, "flags", f.model_dump())
     claim = classify.claim(_caller_text.get(call_id, ""))
     claim.claimed_name = _caller_name(claim.claimed_name, _caller_text.get(call_id, "")) or claimed_name
     state.emit(call_id, "claim", {**claim.model_dump(), "asks_for": telegram.asks_for(claim)})

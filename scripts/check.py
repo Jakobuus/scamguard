@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -100,6 +101,107 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert "no longer valid" in c.post("/answer", data={"d": signed + "bad"}).text
     flow.reset_demo()
     ok("channels: fan-out, first answer wins, scanner-safe email confirmation")
+    async def contact_channels():
+        import asyncio
+        import httpx
+        import tempfile
+        from urllib.parse import unquote
+        from guard.contracts import Contact
+
+        # Catch global-target routing and replies deciding a different contact's call.
+        first = Contact(id="first", name="First", relationship="friend", challenge_question="Code?",
+                        challenge_answer="demo", whatsapp_chat_id="!first", telegram_chat_id="101",
+                        email="first@example.invalid")
+        assert getattr(first, "whatsapp_chat_id", None) == "!first"
+        second = first.model_copy(update={"id": "second", "name": "Second", "whatsapp_chat_id": "!second"})
+        with tempfile.TemporaryDirectory() as tmp, patch.object(channels, "ACCOUNT_PATH", Path(tmp) / "account.json"), patch.dict(
+            os.environ, {"REAL_BEEPER": "1", "REAL_EMAIL": "1", "BEEPER_ACCESS_TOKEN": "test",
+                         "BEEPER_CHAT_ID": "!fallback", "TELEGRAM_CHAT_ID": "999", "RESEND_API_KEY": "test",
+                         "PING_EMAIL_TO": "fallback@example.invalid", "PUBLIC_BASE_URL": "https://guard.example",
+                         "APP_SECRET": "channel-test"}):
+            assert channels.targets(first) == {"telegram": "101", "whatsapp": "!first", "email": "first@example.invalid"}
+            bare = first.model_copy(update={"telegram_chat_id": None, "whatsapp_chat_id": None, "email": None})
+            fallback = {"telegram": "999", "whatsapp": "!fallback", "email": "fallback@example.invalid"}
+            assert channels.targets(bare) == fallback
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"first": {"channels": [
+                {"kind": "whatsapp", "handle": "!override", "enabled": True},
+                {"kind": "telegram", "handle": "-100123", "enabled": True},
+                {"kind": "email", "handle": "override@example.invalid", "enabled": True}]}}}))
+            assert channels.targets(first) == {"telegram": "-100123", "whatsapp": "!override", "email": "override@example.invalid"}
+            delivered = []
+            def target_http(request):
+                delivered.append(json.loads(request.content))
+                return httpx.Response(200, json={"ok": True, "result": {}, "id": "email"})
+            cid = flow.start_call(None)
+            with httpx.Client(transport=httpx.MockTransport(target_http)) as client, patch.object(
+                settings, "REAL_EMAIL", True), patch.object(settings, "REAL_TELEGRAM", True), patch.dict(
+                os.environ, {"TELEGRAM_BOT_TOKEN": "test", "BEEPER_CHAT_ID": "", "PING_EMAIL_TO": ""}), patch.object(
+                channels.httpx, "post", client.post):
+                assert channels.enabled(first) == ["telegram", "whatsapp", "email"]
+                await channels._deliver("telegram", state.get_call(cid), first, None)
+                await channels._deliver("email", state.get_call(cid), first, None)
+            assert delivered[0]["chat_id"] == "-100123"
+            assert delivered[1]["to"] == ["override@example.invalid"]
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"first": {"channels": [
+                {"kind": "whatsapp", "handle": "+15550000000", "enabled": True},
+                {"kind": "telegram", "handle": "@unresolved", "enabled": True}]}}}))
+            assert channels.targets(first)["whatsapp"] == "!first"
+            assert channels.targets(first)["telegram"] == "101"
+            for broken in ('{', '[]', '{"contacts": []}', '{"contacts":{"first":[]}}',
+                           '{"contacts":{"first":{"channels":{}}}}'):
+                channels.ACCOUNT_PATH.write_text(broken)
+                assert channels.targets(bare) == fallback
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"first": {"channels": [
+                {"kind": kind, "handle": "", "enabled": False} for kind in ("telegram", "whatsapp", "email")]}}}))
+            assert channels.enabled(first) == []
+            channels.ACCOUNT_PATH.unlink()
+            flow.reset_demo()
+            calls = []
+            for contact in (first, second):
+                cid = flow.start_call(None)
+                state.update_call(cid, state="pending", contact_id=contact.id)
+                calls.append(state.get_call(cid))
+            sent = {"!first": [], "!second": []}
+            release = asyncio.Event()
+            def beeper_http(request):
+                chat = unquote(request.url.path).split("/")[3]
+                if request.method == "POST":
+                    sent[chat].append(json.loads(request.content)["text"])
+                    return httpx.Response(200, json={"chatID": chat, "pendingMessageID": "~pending"})
+                items = []
+                if sent[chat]:
+                    items = [{"id": "question", "text": sent[chat][0], "isSender": True},
+                             {"id": "confirmation", "text": "Thanks. Call ended.", "isSender": True}]
+                    if chat == "!first" or release.is_set():
+                        items.insert(0, {"id": "reply", "text": "YES", "isSender": False})
+                return httpx.Response(200, json={"items": items, "hasMore": False})
+            with httpx.Client(transport=httpx.MockTransport(beeper_http)) as client, patch.object(
+                settings, "REAL_BEEPER", True), patch.object(channels.httpx, "request", client.request):
+                tasks = [asyncio.create_task(channels._deliver("whatsapp", call, contact, None))
+                         for call, contact in zip(calls, (first, second))]
+                await asyncio.wait_for(tasks[0], 3)
+                assert state.get_call(calls[0].call_id).state == "confirmed" and state.get_call(calls[1].call_id).state == "pending"
+                assert len(sent["!first"]) == 2 and len(sent["!second"]) == 1
+                release.set()
+                await asyncio.wait_for(tasks[1], 3)
+                assert state.get_call(calls[1].call_id).state == "confirmed"
+            channels.ACCOUNT_PATH.write_text(json.dumps({"contacts": {"lena": {"channels": [
+                {"kind": "whatsapp", "handle": "!disabled", "enabled": False}]}}}))
+            cid = await channel_question()
+            ping = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "ping.sent")
+            assert ping["channels"] == ["telegram", "email"]
+            await flow.on_tap(cid, "no")
+            channels.ACCOUNT_PATH.write_text('{')
+            cid = await channel_question()
+            ping = next(e.data for e in state.events_since(0) if e.call_id == cid and e.type == "ping.sent")
+            assert ping["channels"] == ["telegram", "whatsapp", "email"]
+            await flow.on_tap(cid, "no")
+            flow.reset_demo()
+        assert channels._why(RuntimeError("private detail")) == "RuntimeError"
+        assert channels._why(httpx.HTTPStatusError("private detail", request=httpx.Request("GET", "https://example.invalid"),
+                                                 response=httpx.Response(500))) == "HTTPStatusError"
+    c.portal.call(contact_channels)
+    ok("channels: contact targets, account preferences, separate chats and other-person replies")
     async def channel_transports():
         import asyncio
         import httpx
@@ -216,6 +318,46 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         flow.reset_demo()
     c.portal.call(channel_transports)
     ok("channels: Resend payload and signed links, Beeper requests and own-account replies")
+    # Catch setup overwriting a full contact with only its new chat id.
+    import contextlib
+    import io
+    import tempfile
+    from scripts import beeper_setup
+    with tempfile.TemporaryDirectory() as tmp:
+        builtin, overlay = Path(tmp) / "contacts.json", Path(tmp) / "contacts.local.json"
+        record = {"id": "friend", "name": "Friend", "relationship": "friend", "challenge_question": "Code?",
+                  "challenge_answer": "demo", "telegram_chat_id": "123"}
+        builtin.write_text(json.dumps([record]))
+        with patch.object(beeper_setup, "CONTACTS_PATH", builtin), patch.dict(os.environ, {"BEEPER_ACCESS_TOKEN": ""}):
+            for chat in ("!first", "!second"):
+                output = io.StringIO()
+                with patch.object(sys, "argv", ["beeper_setup", "--set-contact", "friend", chat]), contextlib.redirect_stdout(output):
+                    beeper_setup.main()
+                assert output.getvalue().strip() == f"friend {len(chat)}"
+                assert json.loads(overlay.read_text()) == [{**record, "whatsapp_chat_id": chat}]
+        pages = iter([{"items": [{"title": "Other", "network": "WhatsApp", "type": "single", "id": "!other"}],
+                       "hasMore": True, "oldestCursor": "next"},
+                      {"items": [{"title": "Demo Friend", "network": "WhatsApp", "type": "single", "id": "!friend"}],
+                       "hasMore": False}])
+        def chats(method, path, **kwargs):
+            assert method == "GET" and path == "/v1/chats"
+            return next(pages)
+        output = io.StringIO()
+        with patch.object(beeper_setup, "beeper_request", chats), patch.dict(os.environ, {"BEEPER_ACCESS_TOKEN": "test"}), patch.object(
+            sys, "argv", ["beeper_setup", "--find", "FRIEND"]), contextlib.redirect_stdout(output):
+            beeper_setup.main()
+        assert output.getvalue().strip() == "Demo Friend\tWhatsApp\tsingle\t!friend"
+    ok("Beeper setup: find chats across pages and preserve full contact overlays without a token")
+    # A half-written overlay must not break contact loading.
+    from guard.brain import contacts as brain_contacts
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "contacts.json"
+        base.write_text(json.dumps([record]))
+        for broken in ("{", "{}", '[{"name": "no id"}]', '[{"id": "friend", "relationship": 5}]'):
+            (Path(tmp) / "contacts.local.json").write_text(broken)
+            with patch.object(brain_contacts, "_PATH", base), patch.object(brain_contacts, "_contacts", None):
+                assert [x.id for x in brain_contacts._all()] == ["friend"]
+    ok("contacts: bad overlay file is ignored")
     async def audience_claims():
         for method, display in (("gift cards", "$2,000 in gift cards"), ("wire", "$2,000 by wire")):
             cid = flow.start_call("+15550990001")
@@ -262,6 +404,77 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         )
         assert output == f"{expected_base}/#k={sim_key}\n"
     ok("sim auth: derived header only; local page link")
+    # Finals alone must resolve specific expectations without an identity tool call.
+    async def expected_without_tool():
+        import asyncio
+
+        async def scene(lines, decision=None):
+            cid = flow.start_call(None)
+            for line in lines:
+                await flow.on_transcript(cid, "caller", line)
+            await asyncio.sleep(0.9)
+            call = state.get_call(cid)
+            evs = [e for e in state.events_since(0) if e.call_id == cid]
+            assert not any(e.type == "claim" for e in evs)
+            assert call.decided_by == decision, (lines, call)
+            assert any(e.data.get("kind") == "forward" for e in evs) == (decision == "expected")
+            if decision == "expected_but_money":
+                assert any(e.type == "owner.notified" and "Don't pay" in e.data["text"] for e in evs)
+            return cid
+
+        opening = "Hi, I've got a parcel for you, the desk lamp order, I'm at the door"
+        await scene([opening], "expected")
+        await scene([opening + ", hurry, don't tell anyone"], "lookup")
+        for request in ("There is a fee to pay", "What is your card number?"):
+            await scene([opening, request], "expected_but_money")
+        for words in ("I've got a parcel for you", "it's about your order",
+                      "This is Jakob with your desk lamp parcel"):
+            await scene([words])
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", "Hello")
+        await flow.verify_caller(cid, None)
+        await flow.on_transcript(cid, "caller", opening)
+        await asyncio.sleep(0.9)
+        assert state.get_call(cid).decided_by == "lookup"
+
+    c.portal.call(expected_without_tool)
+    ok("expected finals: no name or tool needed; money, vague claims and circle claims get no shortcut")
+    for name, reason, late, decision in (
+        ("", "I am the courier with your desk lamp parcel", None, "expected"),
+        ("", "I am the courier with your desk lamp parcel", "There is a customs fee, what's your card number", "expected_but_money"),
+        ("", "Your desk lamp parcel requires a fee and card number", None, "expected_but_money"),
+        ("Jakob", "Desk lamp parcel", None, None),
+    ):
+        cid = flow.start_call(None)
+        reply = c.post("/vapi/tool/verify_caller", json={"message": {"call": {"id": cid},
+            "toolCalls": [{"id": "delivery", "function": {"arguments": {
+                "claimed_name": name, "reason": reason}}}]}})
+        assert reply.status_code == 200
+        if late:
+            time.sleep(0.3)  # lands inside the wait, like a final transcript after the tool summary
+            c.portal.call(flow.on_transcript, cid, "caller", late)
+        deadline = time.time() + 3
+        while state.get_call(cid).state == "screening" and time.time() < deadline:
+            time.sleep(0.02)
+        assert state.get_call(cid).decided_by == decision, (reason, late, state.get_call(cid))
+        if name:
+            assert state.get_call(cid).state == "pending", "a circle claim must still ask the person"
+            c.portal.call(flow.on_tap, cid, "yes")
+    ok("expected tool: money within the wait blocks the shortcut; a clean courier line is put through; circle claims still ask")
+    for reason, flagged, decision in (("package", False, "lookup"), ("package, there is a fee to pay, card number", True, "lookup")):
+        cid = flow.start_call(None)
+        c.portal.call(flow.verify_caller, cid, "FedEx", reason)
+        call = state.get_call(cid)
+        evs = [e for e in state.events_since(0) if e.call_id == cid]
+        assert call.decided_by == decision, (reason, call)
+        took = any(e.data.get("kind") == "take_message" for e in evs)
+        if flagged:
+            assert not took and not any(e.data.get("kind") == "forward" for e in evs)
+            assert any(e.type == "owner.notified" and "Don't send money" in e.data["text"] for e in evs), evs
+        else:
+            assert call.state == "unverified" and took
+            assert any(e.type == "owner.notified" and "delivery or appointment" in e.data["text"] for e in evs)
+    ok("courier naming no item: message taken; with a fee request no shortcut and a warning")
     delivery_id, delivery_events = run(c, "Delivery driver, expected", {
         "caller_number": "+15550440001",
         "lines": ["Hi, I'm the driver with your desk lamp, are you home?"]}, "confirmed",
@@ -276,7 +489,8 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     original_partial = flow.on_partial
     def capture_fee_partial(call_id, role, text):
         original_partial(call_id, role, text)
-        fee_partials.append(flow.live())
+        live = flow.live()  # words only: "ts" is a float that can contain "1111" by chance
+        fee_partials.append({r: (live[r] or {}).get("text") for r in ("caller", "agent")})
     with patch.object(flow, "on_partial", side_effect=capture_fee_partial):
         fee_id, fee_events = run(c, "Fake delivery fee", {
             "caller_number": "+15550440002",
@@ -286,6 +500,13 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             "agent_lines": {"0": "Who is calling, and what is it about?",
                             "2": "My card number is 4111 1111 1111 1111."},
             "word_s": 0.001}, "unverified", ["decision", "action", "owner.notified"])
+        # The transcript safety net can decide before the assistant finishes speaking.
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            fee_events = [e for e in c.get("/events").json() if e["call_id"] == fee_id]
+            if any("[card number]" in e["data"].get("text", "") for e in fee_events if e["type"] == "transcript"):
+                break
+            time.sleep(0.05)
     assert any(e["type"] == "context.expected" for e in fee_events)
     assert c.get(f"/calls/{fee_id}").json()["decided_by"] == "expected_but_money"
     assert any(e["data"].get("kind") == "expected_but_money" for e in fee_events)
@@ -293,8 +514,10 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert any("Don't pay" in e["data"].get("text", "") for e in fee_events if e["type"] == "owner.notified")
     assert all("4111" not in json.dumps(e) and "1111" not in json.dumps(e) for e in fee_events)
     assert any("[card number]" in e["data"].get("text", "") for e in fee_events if e["type"] == "transcript")
-    assert all("4111" not in json.dumps(part) and "1111" not in json.dumps(part) for part in fee_partials), "fee scene leaked card digits live"
-    assert any("[card number]" in json.dumps(part) for part in fee_partials)
+    partial_texts = [part[role] for part in fee_partials
+                     for role in ("caller", "agent") if part[role]]
+    assert all("4111" not in text and "1111" not in text for text in partial_texts), "fee scene leaked card digits live"
+    assert any("[card number]" in text for text in partial_texts)
     ok("fee scene: card masked live and in final events, no expected-call shortcut, owner warned")
     generic_id, generic_events = run(c, "Generic delivery takes a message", {
         "lines": ["I'm a driver with a delivery, are you home?"]}, "unverified",
@@ -382,6 +605,63 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     from guard.brain import context
     from scripts import senso_load
     import httpx
+    from tempfile import TemporaryDirectory
+    with TemporaryDirectory() as directory, patch.object(context, "_LOCAL_PATH", Path(directory) / "expected.local.json", create=True):
+        local = context._LOCAL_PATH
+        assert context.expected("blue vase parcel") is None
+        row = {"id": "local-vase", "kind": "delivery", "who": "vase courier",
+               "keywords": {"specific": ["blue vase"], "generic": ["parcel"]},
+               "note": "Delivery for your vase order."}
+        local.write_text(json.dumps([row]))
+        assert context.expected("blue vase parcel").source_id == "local-vase"
+        with patch.dict(os.environ, {"FAKE": "0", "REAL_SENSO": "1"}), patch.object(context, "_search", return_value=None):
+            assert context.expected("blue vase parcel").source_id == "local-vase", "local additions must not need a Senso upload"
+        local.write_text(json.dumps([{**row, "until": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()}]))
+        assert context.expected("blue vase parcel") is None
+        local.write_text(json.dumps([{**row, "id": "order-desk-lamp"}]))
+        assert context.expected("desk lamp parcel") is None
+        assert context.expected("blue vase parcel").source_id == "order-desk-lamp"
+        local.unlink()
+        assert context.expected("desk lamp parcel").source_id == "order-desk-lamp"
+        today = datetime.now(timezone.utc).date()
+        for until, live in ((today.isoformat(), True), ((today - timedelta(days=1)).isoformat(), False),
+                            ((datetime.now(timezone.utc) + timedelta(hours=1)).replace(tzinfo=None).isoformat(), True),
+                            ("not a date", True)):
+            local.write_text(json.dumps([{**row, "until": until}]))
+            assert bool(context.expected("blue vase parcel")) == live, until
+        local.write_text(json.dumps([{"id": "order-desk-lamp", "expected": False}, row]))
+        assert context.expected("desk lamp parcel") is None
+        assert context.expected("blue vase parcel").source_id == "local-vase"
+        assert context.expected("coffee beans delivery").source_id == "order-coffee"
+        class FakeClient:
+            def __init__(self, *a, **k): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def post(self, *a, **k):
+                class R:
+                    def raise_for_status(self): pass
+                    def json(self): return {"results": [{"title": "order-desk-lamp", "score": 0.9, "rank": 1}]}
+                return R()
+        with patch.dict(os.environ, {"SENSO_API_KEY": "x"}), patch.object(context.httpx, "Client", FakeClient):
+            rows, disabled, _ = context._load()
+            assert "order-desk-lamp" in disabled
+            assert context._search("desk lamp parcel", rows, disabled) is None, "a Senso hit on a switched-off id"
+        off = [{"id": "order-desk-lamp", "expected": False}]
+        local.write_text(json.dumps(off))
+        assert context.expected("desk lamp parcel") is None
+        for bad in ("", "{half", '{"id": "x"}'):
+            local.write_text(bad)
+            assert context.expected("desk lamp parcel") is None, "last good overlay keeps the entry off"
+            assert context.expected("coffee beans delivery").source_id == "order-coffee", bad
+        local.write_text(json.dumps([7, {"no": "id"}] + off))
+        assert context.expected("desk lamp parcel") is None, "one bad row must not drop the others"
+        for bad in ("", "{half", '{"id": "x"}'):
+            context._last_good = None  # fresh process
+            local.write_text(bad)
+            assert context.expected("desk lamp parcel").source_id == "order-desk-lamp", bad
+            assert context.expected("coffee beans delivery").source_id == "order-coffee", bad
+        local.unlink()
+    ok("expectation overlay: live additions, replacements, expiry and removal")
     assert len(context.records()) == 5
     for words, kind in (("desk lamp", "delivery"), ("coffee beans", "delivery"),
                         ("Oak Clinic office callback", "callback"), ("washing machine repair", "appointment")):
