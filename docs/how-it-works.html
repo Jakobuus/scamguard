@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Is this you? How the call guard works</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --bg:#0E1823; --panel:#15222F; --panel2:#1B2B3B; --line:#2A3D50; --ink:#E6EAEE; --muted:#9AA6B1; --faint:#66778A;
+  --c-screen:#2B4A6E; --c-check:#F2B705; --c-denied:#C4122F; --c-ok:#0B7A43; --c-known:#12705F;
+  --c-expected:#2560A6; --c-unver:#E5701C;
+  --display:"Avenir Next Condensed","Avenir Next","Helvetica Neue",system-ui,sans-serif;
+  --text:"Avenir Next","Helvetica Neue",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --navh:112px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:500 17px/1.45 var(--text);font-variant-numeric:tabular-nums}
+code,.mono{font-family:var(--mono);font-size:.82em;color:#C9D4DE}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--c-check);outline-offset:2px}
+
+header{padding:16px 40px 12px;display:flex;align-items:center;gap:28px}
+header h1{font:800 46px/0.9 var(--display);white-space:nowrap;letter-spacing:-.015em;margin:0}
+header p{margin:0;max-width:58ch;color:var(--muted);font-size:16px;line-height:1.35}
+.commit{margin-left:auto;text-align:right;color:var(--muted);font-size:13px;max-width:330px}
+.commit code{font-size:15px;color:var(--ink);background:var(--panel2);padding:3px 8px;border-radius:6px}
+
+nav{position:sticky;top:0;z-index:20;background:rgba(14,24,35,.97);border-bottom:1px solid var(--line);padding:4px 40px 8px}
+.tabs{display:flex;gap:6px}
+.tabs button{background:none;border:0;padding:8px 16px 10px;font:600 20px/1 var(--display);color:var(--muted);cursor:pointer;border-radius:10px 10px 0 0;border-bottom:3px solid transparent}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
+.tabs button:hover{color:var(--ink)}
+.spbar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:6px;font-size:13px;color:var(--muted)}
+.spbar .badge{font-size:12.5px;padding:0 8px 0 6px}
+.spbar .hint{margin-right:4px}
+
+.badge{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--sp);border-radius:999px;padding:1px 9px 1px 7px;
+  font:600 13px/1.5 var(--text);color:var(--ink);background:color-mix(in srgb,var(--sp) 14%,transparent);cursor:pointer;white-space:nowrap}
+.badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--sp)}
+.badge.on{background:var(--sp);color:#0E1823}
+.badge.on::before{background:#0E1823}
+.clear{background:none;border:1px solid var(--line);border-radius:999px;padding:1px 10px;font-size:13px;color:var(--muted);cursor:pointer}
+
+main{padding:14px 40px 60px}
+section[hidden]{display:none}
+.intro{color:var(--muted);max-width:95ch;margin:0 0 10px;font-size:15.5px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:28px;align-items:start}
+.panel{position:sticky;top:calc(var(--navh) + 12px);max-height:calc(100vh - var(--navh) - 24px);overflow:auto;background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.panel h3{font:700 24px/1.1 var(--display);margin:0 0 10px}
+.panel .k{color:var(--muted);font-size:13px;margin:14px 0 3px}
+.panel p{margin:0 0 6px;font-size:15.5px}
+.panel ul{margin:4px 0 0;padding-left:18px;font-size:15px}
+.panel li{margin:3px 0}
+.empty{color:var(--muted);font-size:15px}
+
+/* scenarios */
+.scen{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.scen button{background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:5px 11px;font-size:14.5px;font-weight:600;cursor:pointer;color:var(--muted)}
+.scen button[aria-pressed=true]{border-color:var(--tone,var(--ink));color:var(--ink);background:color-mix(in srgb,var(--tone,#fff) 22%,var(--panel))}
+.outcome{font-size:15.5px;margin:0 0 8px;color:var(--muted)}
+.outcome b{color:var(--ink)}
+
+.seq{--lanew:76px}
+.lanehead{position:sticky;top:var(--navh);z-index:6;box-shadow:0 6px 8px -4px var(--bg);background:var(--bg);display:grid;grid-template-columns:34px 280px calc(var(--lanew)*8);gap:0 12px;padding:6px 0 8px;border-bottom:1px solid var(--line)}
+.lanehead .lanes{display:grid;grid-template-columns:repeat(8,var(--lanew))}
+.lanehead .lanes div{font:600 13px/1.15 var(--text);color:var(--muted);text-align:center;padding:0 2px}
+.row{display:grid;grid-template-columns:34px 280px calc(var(--lanew)*8);gap:0 12px;align-items:center;padding:3px 0;border-radius:8px;cursor:pointer;
+  border-left:4px solid transparent;transition:opacity .15s;position:relative;z-index:0}
+.row:hover{background:var(--panel)}
+.row.sel{background:var(--panel2)}
+.row .n{font:700 17px/1 var(--display);color:var(--faint);text-align:right}
+.row .say{font-size:15px;line-height:1.28}
+.row .meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.row .meta .badge{font-size:11.5px;padding:0 7px 0 5px}
+.row .meta .badge::before{width:6px;height:6px}
+.time{font:600 12px/1.6 var(--text);color:var(--c-check);border:1px solid color-mix(in srgb,var(--c-check) 50%,transparent);border-radius:999px;padding:0 7px}
+.row svg{display:block;overflow:visible}
+.dim{opacity:.22}
+.hl{box-shadow:inset 0 0 0 1.5px var(--hl)}
+
+/* modules */
+.map{position:relative}
+.map svg.edges{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:0}
+.map .cols,.map .tools,.map .legend{position:relative;z-index:1}
+.cols{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:34px;position:relative}
+.grp h4,.tools h4{font:700 19px/1 var(--display);margin:0 0 10px;color:var(--muted)}
+.mod{position:relative;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:8px 10px 9px;margin-bottom:12px;cursor:pointer;transition:opacity .15s}
+.mod:hover{border-color:var(--muted)}
+.mod.sel{border-color:var(--ink);background:var(--panel2)}
+.mod .f{font:600 12.5px/1.25 var(--mono);color:var(--ink)}
+.mod .d{font-size:13.5px;line-height:1.3;color:var(--muted);margin-top:3px}
+.mod .meta{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.mod .meta .badge{font-size:11px;padding:0 6px 0 5px}
+.mod .meta .badge::before{width:6px;height:6px}
+.tools{margin-top:22px}
+.tools .tgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 18px}
+.legend{font-size:14px;color:var(--muted);margin:0 0 14px}
+
+/* tables */
+table{border-collapse:collapse;width:100%;font-size:15px}
+th{font:700 15px/1.2 var(--text);color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1.5px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.hlrow td{background:color-mix(in srgb,var(--hl) 12%,transparent)}
+.st{display:inline-block;border-radius:6px;padding:1px 8px;font-size:13px;font-weight:600;white-space:nowrap}
+.st-real{background:#0B7A4333;color:#7FE0AE;border:1px solid #0B7A43}
+.st-stand{background:#E5701C26;color:#F6B07A;border:1px solid #E5701C}
+.st-none{background:#C4122F26;color:#F08A9A;border:1px solid #C4122F}
+.st-script{background:#2560A633;color:#9CC2F0;border:1px solid #2560A6}
+.ev td:first-child{white-space:nowrap}
+.note{margin-top:18px;color:var(--muted);font-size:14.5px;max-width:95ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head>
+<body>
+<header>
+  <div>
+    <h1>Is this you?</h1>
+  </div>
+  <p>An AI phone agent answers calls for Mum. When a caller claims to be someone she trusts, the guard asks that real person on their own phone before anything happens.</p>
+  <div class="commit">Generated from commit <code id="commit"></code><br>Fake mode is the default: every outside service below is off until its switch is on.</div>
+</header>
+<nav id="nav">
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="call" aria-selected="true">A call, step by step</button>
+    <button role="tab" data-tab="map" aria-selected="false">What calls what</button>
+    <button role="tab" data-tab="sponsors" aria-selected="false">Where the sponsors come in</button>
+    <button role="tab" data-tab="events" aria-selected="false">Events</button>
+  </div>
+  <div class="spbar" id="spbar"><span class="hint">Highlight a sponsor everywhere:</span></div>
+</nav>
+<main>
+  <section id="tab-call">
+    <p class="intro">Pick a scenario. Each row is one step, top to bottom; the arrow shows who hands what to whom. Click a row for the file, function and event behind it.</p>
+    <div class="scen" id="scen"></div>
+    <div class="outcome" id="outcome"></div>
+    <div class="layout">
+      <div class="seq" id="seq"></div>
+      <aside class="panel" id="stepPanel"><p class="empty">Click a step to see the code behind it.</p></aside>
+    </div>
+  </section>
+  <section id="tab-map" hidden>
+    <p class="intro">One box per file. Lines are real calls between files. Click a box to see its main functions and who calls them; its lines light up.</p>
+    <div class="layout">
+      <div class="map" id="map"></div>
+      <aside class="panel" id="modPanel"><p class="empty">Click a file to see its functions and who calls them.</p></aside>
+    </div>
+  </section>
+  <section id="tab-sponsors" hidden>
+    <p class="intro">Every outside product the code mentions. Status is what the code does today, not what was planned. Click a name to light up its steps and files in the other tabs.</p>
+    <div id="spTable"></div>
+    <p class="note" id="spNote"></p>
+  </section>
+  <section id="tab-events" hidden>
+    <p class="intro">Everything the server records is an event. The audience screen reads only these (plus in-progress words from <code>GET /live</code>), and they are the audit trail. Every event passes through <code>redact.redact_event</code> before it is stored, and gets a <code>redacted</code> list when something was masked.</p>
+    <div id="evTable"></div>
+  </section>
+</main>
+<script>
+/* ======================================================================
+   All content lives in DATA. Update it when the code changes.
+   ====================================================================== */
+const DATA = {
+  commit: "3d288e2",
+  lanes: [
+    ["caller","Caller"],["agent","Phone agent (Vapi)"],["server","Guard server"],["classifier","Classifier"],
+    ["lookup","Lookup"],["phone","Phones"],["db","Database"],["screen","Audience screen"]
+  ],
+  tones: {denied:"#C4122F", ok:"#0B7A43", known:"#12705F", expected:"#2560A6", unver:"#E5701C"},
+  sponsors: {
+    vapi:        {name:"Vapi", color:"#2DD4BF", status:"real", what:"The phone agent: answers Mum's number, turns speech into text, calls the guard's two tools, and speaks, transfers or hangs up when the guard says so.",
+                  where:"guard/vapi.py: webhook, verify_caller, check_code_word, say, hangup, forward, add_message; scripts/vapi_setup.py: assistant_payload", flag:"REAL_VAPI=1 (+ VAPI_SERVER_SECRET; transfer needs TRANSFER_TO_NUMBER)"},
+    singlestore: {name:"SingleStore", color:"#B88CFF", status:"real", what:"Stores calls and events. One conditional update decides each call, so the first answer wins exactly once.",
+                  where:"guard/state.py: SingleStoreBackend.decide, set_pending, emit (HTTPS Data API); scripts/db_check.py", flag:"REAL_DB=1 (+ SINGLESTORE_URL). Falls back to memory if the service fails."},
+    superlinked: {name:"Superlinked", color:"#F2C94C", status:"real", what:"Inference engine models: flag risk in the caller's words, pull out the claim (name, amount, method), and optionally find personal data to mask.",
+                  where:"guard/brain/classify.py: flags (fastino/GLiNER2.5-Decide), claim (urchade/gliner_multi-v2.1); guard/brain/redact.py: redact; scripts/sie_warm.py", flag:"REAL_SIE=1 (+ SIE_API_KEY); masking pass also needs REDACT_SIE=1. Keyword rules otherwise."},
+    senso:       {name:"Senso", color:"#FFB878", status:"real", what:"Searches the stored expected calls (deliveries, callbacks, appointments) so an expected caller can pass.",
+                  where:"guard/brain/context.py: expected, _search; scripts/senso_load.py: load", flag:"REAL_SENSO=1 (+ SENSO_API_KEY). Local file data/expected.json otherwise."},
+    cognee:      {name:"Cognee", color:"#FF8FC7", status:"real", what:"Family memory: adds a short note about a contact to the lookup, and learns from verified outcomes. It never decides a call.",
+                  where:"guard/brain/memory.py: warm, note, remember; guard/brain/contacts.py: candidates, _remember", flag:"REAL_COGNEE=1 (+ COGNEE_URL)"},
+    amplitude:   {name:"Amplitude", color:"#7C8CFF", status:"real", what:"Analytics: every event is sent with each call as one session. No numbers, links or transcript text.",
+                  where:"guard/telemetry.py: on_event, to_amplitude (subscribed in guard/app.py lifespan)", flag:"REAL_AMPLITUDE=1 (+ AMPLITUDE_API_KEY). Not listed in /health."},
+    firedrill:   {name:"Firedrill", color:"#FF6B4A", status:"stand", what:"Scam drill: 22 scam and 12 legitimate caller texts scored against the classifier. The code only says these are the personas to load into Firedrill; it never calls Firedrill.",
+                  where:"drill/run.py: run; drill/scenarios.json; guard/brain/drill.py: POST /analyze", flag:"none"},
+    persona:     {name:"Persona", color:"#8E99A6", status:"none", what:"Identity check. A client exists, but nothing in the server calls it; the step-up was removed from the answer path and a check asserts it stays off.",
+                  where:"guard/persona.py: start (never called)", flag:"REAL_PERSONA=1 (has no effect on calls)"},
+    telegram:    {name:"Telegram", color:"#47B4F5", status:"real", what:"Asks the real person with Yes/No buttons, sends the “Not me” notice, and warns Mum.",
+                  where:"guard/telegram.py: send_ping, send_notice, notify_owner, webhook; scripts/telegram_setup.py", flag:"REAL_TELEGRAM=1 (+ TELEGRAM_BOT_TOKEN, chat ids, APP_SECRET)"},
+    beeper:      {name:"Beeper / WhatsApp", color:"#7EE05B", status:"real", what:"Asks the same question on WhatsApp through the local Beeper Desktop API and reads a typed NO or YES.",
+                  where:"guard/channels.py: _whatsapp, beeper_request, reply_answer; scripts/beeper_setup.py", flag:"REAL_BEEPER=1 (+ BEEPER_ACCESS_TOKEN, BEEPER_CHAT_ID)"},
+    resend:      {name:"Resend", color:"#E8EDF2", status:"real", what:"Sends the question by email with signed No and Yes links that open a one-button page.",
+                  where:"guard/channels.py: _email, answer_page, answer_post", flag:"REAL_EMAIL=1 (+ RESEND_API_KEY, PING_EMAIL_TO, PUBLIC_BASE_URL, APP_SECRET)"},
+    elevenlabs:  {name:"ElevenLabs", color:"#C9A27A", status:"script", what:"Makes the cloned-voice scam clips played on stage. Runs before the demo, outside the server.",
+                  where:"scripts/make_clips.py: main; scripts/play_scene.py plays the saved clips", flag:"REAL_ELEVENLABS=1 (+ ELEVENLABS_API_KEY), script only"}
+  },
+  statusText: {real:"Real API path behind a flag", stand:"Local stand-in only", none:"Not in the code path", script:"Real API path behind a flag (offline script)"},
+
+  /* ---- steps: from lane, to lane, plain words, detail ---- */
+  steps: {
+    ring:   {f:"caller",t:"agent", say:"The phone rings; the agent answers and asks who is calling",
+             what:"Vapi answers Mum's number with the assistant set up by the setup script. First line: “Hello, this is Mum's assistant. Who is calling and what is it about?” Its rules: never offer a name, never agree to pay.",
+             code:"scripts/vapi_setup.py", fn:"assistant_payload()", sp:["vapi"], time:"calls end after 120 s at most"},
+    start:  {f:"agent",t:"server", say:"Vapi tells the server a call has started",
+             what:"A status update “in-progress” arrives at the webhook. The server creates the call and keeps Vapi's control link, so it can later speak, transfer or hang up on this call.",
+             code:"guard/vapi.py → guard/flow.py", fn:"vapi.webhook → flow.start_call", ev:["call.started"], sp:["vapi"]},
+    store:  {f:"server",t:"db", say:"The call is saved with the state “screening”",
+             what:"SingleStore (tables calls and events) when its switch is on, otherwise memory. If SingleStore fails, the server switches to memory for the rest of the run.",
+             code:"guard/state.py", fn:"state.create_call (SingleStoreBackend or MemoryBackend)", sp:["singlestore"]},
+    words:  {f:"agent",t:"server", say:"Words arrive while spoken, then as finished lines",
+             what:"In-progress words go to flow.on_partial: memory only, never stored, served at GET /live. Finished lines go to flow.on_transcript. A spoken code word is masked as •••• before anything is stored or shown.",
+             code:"guard/vapi.py → guard/flow.py", fn:"vapi.webhook → flow.on_partial / flow.on_transcript", ev:["transcript"], sp:["vapi"]},
+    flags:  {f:"server",t:"classifier", say:"Each finished caller line is checked: identity claim, money, urgency, secrecy",
+             what:"All caller words so far are checked again. “Needs verification” means: claims to be family or an authority AND asks for money. With the switch on, Superlinked's decision model answers four yes/no questions; otherwise, or on any error, keyword rules answer.",
+             code:"guard/brain/classify.py", fn:"classify.flags()", ev:["flags"], sp:["superlinked"], time:"model budget 1.2 s"},
+    emit:   {f:"server",t:"db", say:"Every event is masked, saved, then passed on",
+             what:"state.emit first runs redact_event: card, phone and account numbers, codes, addresses and emails become placeholders such as [card number]; names and amounts stay. Then the event is stored and handed to the subscribers: Amplitude telemetry and the live-words tracker. The engine pass in masking is opt-in and only for finished lines.",
+             code:"guard/state.py, guard/brain/redact.py, guard/telemetry.py", fn:"state.emit → redact.redact_event → backend.emit → telemetry.on_event", sp:["singlestore","amplitude","superlinked"], time:"masking engine budget 0.4 s when on"},
+    screen: {f:"server",t:"screen", say:"The audience screen shows each new event",
+             what:"The screen asks for new events every half second and for in-progress words five times a second. It only reads; it never decides.",
+             code:"web/index.html → guard/app.py", fn:"poll() → GET /events?since=…; pollLive() → GET /live", time:"every 500 ms / 200 ms"},
+    tool:   {f:"agent",t:"server", say:"The agent asks the server to check the caller (tool verify_caller)",
+             what:"The agent calls verify_caller as soon as the caller gives a name or a relationship. The server answers at once (tell the caller you are trying to reach her, and that they may say the family code word) and runs the check in the background. The screen's scene buttons play the same steps through guard/sim.py.",
+             code:"guard/vapi.py → guard/flow.py", fn:"POST /vapi/tool/verify_caller → flow.spawn(flow.verify_caller)", sp:["vapi"], time:"tool timeout 20 s"},
+    claim:  {f:"server",t:"classifier", say:"The claim is pulled out: who, how much, how to pay",
+             what:"Name, relationship, amount and payment method from the caller's words. With the switch on, Superlinked's extraction model; otherwise text patterns. Amount and method become the question wording, for example “$2,000 by wire”.",
+             code:"guard/brain/classify.py, guard/telegram.py", fn:"classify.claim(), telegram.asks_for()", ev:["claim"], sp:["superlinked"], time:"model budget 1.5 s"},
+    lookup: {f:"server",t:"lookup", say:"Is the caller someone from Mum's circle?",
+             what:"The claimed name or nickname is matched against data/contacts.json (one letter off is allowed for names of 5+ letters). Result: which contact, and whether the calling number is one of theirs. With Cognee on, a family memory line is added to the note; it never changes the match.",
+             code:"guard/brain/contacts.py, guard/brain/memory.py", fn:"contacts.candidates(), memory.note()", ev:["contact.lookup"], sp:["cognee"]},
+    pending:{f:"server",t:"db", say:"The call is reserved for one question: screening → pending",
+             what:"One conditional update: only a call still in “screening” can become “pending”, so the question cannot go out twice. Just before asking: the same number already denied today for this contact is denied at once (repeat_attempt); after 5 questions for one contact in a day the call is marked unverified (ping_cap).",
+             code:"guard/state.py, guard/flow.py", fn:"state.set_pending(), contacts.denied_today()", sp:["singlestore"]},
+    ask:    {f:"server",t:"phone", say:"The question goes out on every channel at once",
+             what:"“Someone is calling Mum as you, asking for $2,000 by wire. Is this you?” Telegram always (Yes/No buttons; in fake mode only logged). WhatsApp through Beeper when its switch is on (reply NO or YES). Email through Resend when its switch is on (signed links). Each channel is sent in the background; one failing does not stop the others.",
+             code:"guard/channels.py, guard/telegram.py", fn:"channels.send_ping → _deliver → telegram.send_ping / _whatsapp / _email", ev:["ping.sent"], sp:["telegram","beeper","resend"]},
+    timer:  {f:"server",t:"server", say:"A 20-second timer starts",
+             what:"flow._timeout waits settings.TIMEOUT_S (20 seconds unless TIMEOUT_S is set) and then marks the call unverified, unless an answer won first.",
+             code:"guard/flow.py, guard/settings.py", fn:"flow._timeout()", time:"20 s"},
+
+    answerNo:{f:"phone",t:"server", say:"The real person answers No; the first answer wins",
+             what:"WhatsApp: the server reads the chat every second for up to 90 s. Telegram: the button press arrives at /telegram/webhook with a signed code. Email: the link opens /answer and its button posts the answer. All three call the same function.",
+             code:"guard/channels.py, guard/telegram.py → guard/flow.py", fn:"flow.on_tap(call_id, \"no\", channel)", sp:["telegram","beeper","resend"], time:"WhatsApp read every 1 s, up to 90 s"},
+    decDenied:{f:"server",t:"db", tone:"denied", say:"First answer wins: one atomic update to “denied”",
+             what:"state.decide runs one UPDATE … WHERE state='pending'. Only one answer can change the row. Every later answer (another channel, the timer) changes nothing and gets “Too late, already decided.”",
+             code:"guard/flow.py → guard/state.py", fn:"flow._resolve → state.decide", ev:["decision"], sp:["singlestore"]},
+    learnNo:{f:"server",t:"lookup", say:"The attempt is remembered",
+             what:"The same number claiming this person again today is denied without asking, and later questions add “(attempt 2 today)”. With Cognee on, it is told someone pretended to be Jakob: no numbers, no transcript.",
+             code:"guard/brain/contacts.py, guard/brain/memory.py", fn:"contacts.learn → memory.remember", sp:["cognee"]},
+    hangup: {f:"server",t:"agent", tone:"denied", say:"The agent says goodbye and hangs up",
+             what:"“This call is not who it claims to be. Goodbye.” then hang up. With Vapi on these go to the call's control link; in fake mode only the events are written.",
+             code:"guard/flow.py → guard/vapi.py", fn:"flow._act → vapi.say, vapi.hangup", ev:["action"], sp:["vapi"]},
+    warnNo: {f:"server",t:"phone", say:"Mum is warned: “That wasn't Jakob. Don't send money.”",
+             what:"Sent on Telegram to the owner's chat.", code:"guard/flow.py → guard/telegram.py", fn:"flow._notify → telegram.notify_owner", ev:["owner.notified"], sp:["telegram"]},
+    endNo:  {f:"server",t:"screen", tone:"denied", say:"The screen turns red: denied, call ended",
+             what:"flow._act writes call.ended. When Vapi later sends its end-of-call report, the webhook adds call.ended only if it is not already there.",
+             code:"guard/flow.py, guard/vapi.py", fn:"flow._act, vapi.webhook", ev:["call.ended"]},
+    timerNoop:{f:"server",t:"server", say:"20 s later the timer fires and changes nothing",
+             what:"The timer tries to mark the call unverified, but the call is no longer pending, so state.decide returns False and nothing happens.",
+             code:"guard/flow.py", fn:"flow._timeout → flow._resolve → state.decide (False)"},
+
+    answerYes:{f:"phone",t:"server", say:"The real person answers Yes",
+             what:"Same path as a No, on whichever channel answers first.", code:"guard/channels.py, guard/telegram.py → guard/flow.py", fn:"flow.on_tap(call_id, \"yes\", channel)", sp:["telegram","beeper","resend"]},
+    decYes: {f:"server",t:"db", tone:"ok", say:"One atomic update to “confirmed”", what:"Same single update as for a No.",
+             code:"guard/flow.py → guard/state.py", fn:"flow._resolve → state.decide", ev:["decision"], sp:["singlestore"]},
+    learnYes:{f:"server",t:"lookup", say:"The new number is learned",
+             what:"The calling number is added to Jakob's known numbers (in memory, until reset). With Cognee on, it is told Jakob really called from a new number.",
+             code:"guard/brain/contacts.py", fn:"contacts.learn → memory.remember", sp:["cognee"]},
+    forward:{f:"server",t:"agent", tone:"ok", say:"The call is put through to Mum",
+             what:"With Vapi on, a transfer to TRANSFER_TO_NUMBER. Without a transfer number the agent says “You are verified. She will call you right back.” and ends the call.",
+             code:"guard/flow.py → guard/vapi.py", fn:"flow._act → vapi.forward", ev:["action"], sp:["vapi"]},
+    endYes: {f:"server",t:"screen", tone:"ok", say:"The screen turns green: confirmed", what:"Shows who answered on which channel and how many seconds it took.", code:"web/index.html", fn:"render()", ev:["decision"]},
+
+    timeout:{f:"server",t:"db", tone:"unver", say:"20 s pass with no answer: pending → unverified",
+             what:"The timer wins the atomic update. The question stays open: a late No can still end the call.",
+             code:"guard/flow.py → guard/state.py", fn:"flow._timeout → flow._resolve → state.decide", ev:["decision"], sp:["singlestore"], time:"20 s"},
+    learnAtt:{f:"server",t:"lookup", say:"The attempt is remembered", what:"Counts toward “(attempt n today)” and the daily cap. An unverified call never teaches a number.",
+             code:"guard/brain/contacts.py", fn:"contacts.learn"},
+    askCode:{f:"server",t:"agent", say:"The agent is told to ask for the family code word",
+             what:"A system message to the agent: “I could not reach her. If you know the family code word, please say it now.” The agent must not hint at the word.",
+             code:"guard/flow.py → guard/vapi.py", fn:"flow._act → vapi.add_message", ev:["action"], sp:["vapi"]},
+    warnUnv:{f:"server",t:"phone", say:"Mum is warned: “Unverified. Don't send money.”",
+             what:"Sent on Telegram to the owner's chat.", code:"guard/flow.py → guard/telegram.py", fn:"flow._notify → telegram.notify_owner", ev:["owner.notified"], sp:["telegram"]},
+    sayCode:{f:"caller",t:"agent", say:"The caller says the code word",
+             what:"The word shows as •••• in the transcript; in-progress words from the caller are hidden while a code word may be spoken.", sp:["vapi"]},
+    codeTool:{f:"agent",t:"server", say:"The agent passes on exactly what was said (tool check_code_word)",
+             what:"Code compares it with the contact's code word: exact, as a whole word, or one letter off for words of 5+ letters. Two tries; two misses hang up (code_word_failed). The agent never knows the word.",
+             code:"guard/vapi.py → guard/flow.py", fn:"POST /vapi/tool/check_code_word → flow.on_code_word", sp:["vapi"]},
+    decCode:{f:"server",t:"db", tone:"ok", say:"Code word right: unverified → confirmed",
+             what:"The only allowed way from unverified to confirmed. It also wins if spoken while the question is still pending.",
+             code:"guard/flow.py → guard/state.py", fn:"flow._resolve → state.decide(…, 'confirmed', 'code_word')", ev:["decision"], sp:["singlestore"]},
+    noticeCode:{f:"server",t:"phone", say:"Jakob gets a “Not me” notice",
+             what:"On Telegram: “Someone reached Mum with your code word. Not you? Tap below.” Tapping Not me hangs up and warns Mum (action late_denial).",
+             code:"guard/flow.py → guard/telegram.py", fn:"telegram.send_notice", ev:["notice.sent"], sp:["telegram"]},
+    endCode:{f:"server",t:"screen", tone:"ok", say:"The screen shows: confirmed by code word", what:"The code word itself never appears.", code:"web/index.html", fn:"render()"},
+
+    expLook:{f:"server",t:"lookup", say:"Not from the circle: is this an expected call?",
+             what:"The words are compared with data/expected.json; with Senso on, Senso searches the same records, bounded to 2.5 s, and falls back to the file. A record needs one of its specific terms, here “desk lamp”.",
+             code:"guard/flow.py → guard/brain/context.py", fn:"flow._expected_call → context.expected", ev:["contact.lookup","context.expected"], sp:["senso"], time:"Senso bounded to 2.5 s"},
+    expRes: {f:"server",t:"db", say:"Reserved without asking anyone", what:"pending with no contact: nobody gets a question.",
+             code:"guard/state.py", fn:"state.set_pending(call_id, None)", sp:["singlestore"]},
+    decExp: {f:"server",t:"db", tone:"expected", say:"No money, urgency or secrecy: confirmed as expected",
+             what:"Any of those words, or a sensitive request, would block the shortcut.", code:"guard/flow.py → guard/state.py", fn:"flow._resolve(…, 'confirmed', 'expected')", ev:["decision"], sp:["singlestore"]},
+    tellExp:{f:"server",t:"phone", say:"Mum is told: “Expected: delivery for your desk lamp order. Putting the call through.”",
+             what:"Sent on Telegram to the owner's chat.", code:"guard/flow.py → guard/telegram.py", fn:"flow._notify → telegram.notify_owner", ev:["owner.notified"], sp:["telegram"]},
+    endExp: {f:"server",t:"screen", tone:"expected", say:"The screen shows the expected call and its source", what:"The trail names the record and whether it came from the file or Senso.", code:"web/index.html", fn:"render()", ev:["context.expected"]},
+
+    feeLook:{f:"server",t:"lookup", say:"Not from the circle, and no specific order named",
+             what:"“parcel” is a generic delivery word, but no record's specific term is said and money is asked, so the expected-call shortcut is refused and the normal lookup says: nobody in the circle.",
+             code:"guard/flow.py → guard/brain/context.py, guard/brain/contacts.py", fn:"flow._expected_call (returns False) → contacts.lookup", ev:["contact.lookup"], sp:["senso"]},
+    decFee: {f:"server",t:"db", tone:"unver", say:"Nobody to ask: marked unverified",
+             what:"The call is not put through and no one gets a question.", code:"guard/flow.py → guard/state.py", fn:"flow._resolve(…, 'unverified', 'lookup')", ev:["decision"], sp:["singlestore"]},
+    askWho: {f:"server",t:"agent", say:"The agent asks: “Who are you and why are you calling?”",
+             what:"A system message; the call stays with the agent and is not put through.", code:"guard/flow.py → guard/vapi.py", fn:"flow._act → vapi.add_message", ev:["action"], sp:["vapi"]},
+    endUnv: {f:"server",t:"screen", tone:"unver", say:"The screen turns orange: unverified", what:"Mum's warning shows under “What Mum was told”.", code:"web/index.html", fn:"render()"},
+
+    decEbm: {f:"server",t:"db", tone:"unver", say:"Expected order, but asks for money: unverified",
+             what:"The record matches, but money blocks the shortcut.", code:"guard/flow.py → guard/state.py", fn:"flow._resolve(…, 'unverified', 'expected_but_money')", ev:["action","decision"], sp:["singlestore"]},
+    warnEbm:{f:"server",t:"phone", say:"Mum is warned: “Caller claims to be your delivery but asks for money. Don't pay.”",
+             what:"Sent after the general “Unverified. Don't send money.”", code:"guard/flow.py → guard/telegram.py", fn:"flow._notify → telegram.notify_owner", ev:["owner.notified"], sp:["telegram"]},
+
+    lookKnown:{f:"server",t:"lookup", say:"It is Jakob, calling from his saved number",
+             what:"The number is in Jakob's known numbers in data/contacts.json.", code:"guard/brain/contacts.py", fn:"contacts.candidates()", ev:["contact.lookup"], sp:["cognee"]},
+    decKnown:{f:"server",t:"db", tone:"known", say:"Known number, no money: confirmed without asking",
+             what:"Allowed only when the flags exist and “needs verification” is false. A known number asking for money still gets the question.",
+             code:"guard/flow.py → guard/state.py", fn:"flow._resolve(…, 'confirmed', 'known_number')", ev:["decision"], sp:["singlestore"]},
+    noticeKnown:{f:"server",t:"phone", say:"Jakob gets a heads-up: “You are calling Mum right now. Not you? Tap below.”",
+             what:"On Telegram only. Not me hangs up and warns Mum (action late_denial).", code:"guard/flow.py → guard/telegram.py", fn:"telegram.send_notice", ev:["notice.sent"], sp:["telegram"]},
+    endKnown:{f:"server",t:"screen", tone:"known", say:"The screen shows: known number", what:"", code:"web/index.html", fn:"render()"},
+
+    lateNo: {f:"phone",t:"server", say:"Jakob answers No after the 20 seconds",
+             what:"WhatsApp is still read for up to 90 s while the call is pending or unverified. on_tap allows one exception: a No after the timeout.",
+             code:"guard/channels.py, guard/telegram.py → guard/flow.py", fn:"flow.on_tap (late No)", sp:["telegram","beeper","resend"]},
+    decLate:{f:"server",t:"db", tone:"denied", say:"Atomic update: unverified → denied",
+             what:"Allowed only for a No answer.", code:"guard/flow.py → guard/state.py", fn:"flow._resolve(…, 'denied', 'tap') → state.decide", ev:["decision"], sp:["singlestore"]}
+  },
+  /* caller lines per scenario (taken from web/index.html scenes) */
+  lines: {
+    scam:"Mum, it's me, I'm in trouble. I need you to wire $2000 right now. Don't tell dad, it's a secret.",
+    real:"Hi Mum, it's Jakob. Can you pick me up at five?",
+    delivery:"Hi, I'm the driver with your desk lamp, are you home?",
+    fee:"Your parcel is held, pay a 40 dollar customs fee with a gift card",
+    ebm:"Hi, I'm the driver with your desk lamp, you need to pay a 40 dollar customs fee first"
+  },
+  scenarios: [
+    {id:"scam_no", label:"Scam call, answered No", tone:"denied", line:"scam", button:"Scam, tap No",
+     outcome:"<b>Denied.</b> Call hung up, Mum warned.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","screen","tool","claim","lookup","pending","ask","timer","answerNo","decDenied","learnNo","hangup","warnNo","endNo","timerNoop"]},
+    {id:"real_yes", label:"Real person answers Yes", tone:"ok", line:"real", button:"Real, tap Yes",
+     outcome:"<b>Confirmed.</b> Call put through; the new number is learned. Note: an unknown number claiming Jakob is asked even without money.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","tool","claim","lookup","pending","ask","timer","answerYes","decYes","learnYes","forward","endYes"]},
+    {id:"code", label:"No answer → code word → put through", tone:"ok", line:"scam", button:"Scam, no answer (code word spoken on the live call)",
+     outcome:"<b>Unverified, then confirmed by code word.</b> Jakob gets a “Not me” notice.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","tool","claim","lookup","pending","ask","timer","timeout","learnAtt","askCode","warnUnv","sayCode","codeTool","decCode","forward","noticeCode","endCode"]},
+    {id:"delivery", label:"Expected delivery passes", tone:"expected", line:"delivery", button:"Delivery driver, expected",
+     outcome:"<b>Confirmed as expected.</b> Nobody is asked. On a real call this check runs only if the agent calls verify_caller, which it is told to do when the caller gives a name or relationship.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","tool","claim","expLook","expRes","decExp","forward","tellExp","endExp"]},
+    {id:"fee", label:"Fake delivery fee blocked", tone:"unver", line:"fee", button:"Fake delivery fee",
+     outcome:"<b>Unverified.</b> Not put through, nobody asked, Mum warned.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","tool","claim","feeLook","pending","decFee","askWho","warnUnv","endUnv"]},
+    {id:"ebm", label:"Expected order, but asks for money", tone:"unver", line:"ebm", button:null,
+     outcome:"<b>Unverified.</b> Mum gets two warnings. No screen button for this one.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","tool","claim","expLook","expRes","decEbm","askWho","warnUnv","warnEbm","endUnv"]},
+    {id:"known", label:"Known number passes with a notice", tone:"known", line:"real", button:null,
+     outcome:"<b>Confirmed by known number.</b> Jakob gets a heads-up he can answer with Not me. No screen button.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","tool","claim","lookKnown","decKnown","forward","noticeKnown","endKnown"]},
+    {id:"late", label:"Late No after the timeout", tone:"denied", line:"scam", button:null,
+     outcome:"<b>Unverified, then denied.</b> The late No ends the call while the code-word question is open.",
+     steps:["ring","start","store","SPEAK","words","flags","emit","tool","claim","lookup","pending","ask","timer","timeout","askCode","warnUnv","lateNo","decLate","hangup","warnNo","endNo"]}
+  ],
+
+  /* ---- modules ---- */
+  groups: [["entry","Screen and entry"],["flow","Call flow"],["brain","Brain"],["chan","Channels"],["store","Storage and events"]],
+  modules: [
+    {id:"web", file:"web/index.html", g:"entry", say:"The audience screen: shows the call, the claim, the question, the decision and the trail.", fns:[["poll()","reads new events every 500 ms"],["pollLive()","reads in-progress words every 200 ms"],["scene(k)","plays a demo scene via /sim/call"]]},
+    {id:"app", file:"guard/app.py", g:"entry", say:"Starts the server, plugs in all routes, serves the screen and the event list.", fns:[["GET /events","events since an id"],["GET /live","in-progress words"],["GET /health","which services are real or fake"],["GET /calls/{id}","one call"],["GET /c/{id}","verified-agent badge page"],["lifespan","subscribes telemetry.on_event and flow.track_live"]]},
+    {id:"vapi", file:"guard/vapi.py", g:"entry", say:"Talks to Vapi: receives call events and tool calls, sends say, transfer, hang up.", sp:["vapi"], fns:[["webhook","POST /vapi/webhook: start, transcripts, end"],["verify_caller","POST /vapi/tool/verify_caller"],["check_code_word","POST /vapi/tool/check_code_word"],["say, hangup, forward, add_message","actions on the live call"]]},
+    {id:"sim", file:"guard/sim.py", g:"entry", say:"Plays a scripted call without a phone, for the screen buttons and checks.", fns:[["POST /sim/call","plays lines, then verify_caller, then an optional answer"],["POST /sim/tap","answers a simulated call"],["POST /sim/reset","clears today's attempts"]]},
+    {id:"flow", file:"guard/flow.py", g:"flow", say:"The rules of a call: when to ask, who wins, what to do after.", fns:[["start_call","creates the call"],["on_transcript / on_partial","finished lines and live words"],["verify_caller","claim, lookup, expected call, ask"],["_expected_call","expected-call shortcut"],["on_tap","an answer from any channel"],["on_code_word","checks the code word"],["_timeout","the 20 s wait"],["_resolve → _act","one decision, then the action"],["_notify","warns Mum"]]},
+    {id:"cred", file:"guard/credential.py", g:"flow", say:"One hard-coded demo credential for a verified AI agent caller.", fns:[["check(token)","returns agent, principal, scope"]]},
+    {id:"persona", file:"guard/persona.py", g:"flow", say:"Persona identity-check client. Not called by anything in the server.", sp:["persona"], fns:[["start(contact_id)","would create an inquiry link"]]},
+    {id:"classify", file:"guard/brain/classify.py", g:"brain", say:"Reads the caller's words: risk flags and the claim.", sp:["superlinked"], fns:[["flags(text)","identity, money, urgency, secrecy"],["claim(text)","name, relationship, amount, method"],["_request","bounded model call"]]},
+    {id:"redact", file:"guard/brain/redact.py", g:"brain", say:"Masks personal data before anything is stored or shown.", sp:["superlinked"], fns:[["redact_event(data)","masks every text field of an event"],["redact(text)","rules, optional engine pass"]]},
+    {id:"contacts", file:"guard/brain/contacts.py", g:"brain", say:"Mum's circle: matches names, knows numbers, remembers attempts.", sp:["cognee"], fns:[["candidates / lookup","who the caller claims to be"],["learn(call)","attempts and new numbers"],["denied_today, attempts_today","repeat callers"],["close(a, b)","one-letter tolerance"]]},
+    {id:"context", file:"guard/brain/context.py", g:"brain", say:"Expected calls: deliveries, callbacks, appointments.", sp:["senso"], fns:[["expected(text)","best matching expectation"],["records()","data/expected.json"]]},
+    {id:"memory", file:"guard/brain/memory.py", g:"brain", say:"Family memory notes; never decides.", sp:["cognee"], fns:[["warm","prefetch notes in the background"],["note(contact_id)","cached memory line"],["remember(text)","adds a verified fact"]]},
+    {id:"drill", file:"guard/brain/drill.py", g:"brain", say:"Text-only check endpoint used by the scam drill.", sp:["firedrill"], fns:[["POST /analyze","flags for a message; challenge if risky"]]},
+    {id:"channels", file:"guard/channels.py", g:"chan", say:"Sends the question on every enabled channel; WhatsApp and email answers.", sp:["telegram","beeper","resend"], fns:[["send_ping","fans the question out"],["enabled()","telegram, plus whatsapp and email when on"],["_whatsapp","Beeper send and read replies"],["_email","Resend with signed links"],["GET/POST /answer","email answer page"]]},
+    {id:"telegram", file:"guard/telegram.py", g:"chan", say:"Telegram buttons, notices and Mum's warnings; signs every answer link.", sp:["telegram"], fns:[["send_ping","question with Yes/No"],["send_notice","“Not me” notice"],["notify_owner","warns Mum"],["webhook","POST /telegram/webhook"],["ping_text, asks_for","question wording"],["callback_data, verify_callback","signed answers"]]},
+    {id:"state", file:"guard/state.py", g:"store", say:"Calls and events in memory or SingleStore; the one atomic decision.", sp:["singlestore"], fns:[["decide","the atomic decision"],["set_pending","reserve for one question"],["emit","mask, store, notify subscribers"],["create_call, get_call, update_call","call records"],["events_since","the trail"]]},
+    {id:"telemetry", file:"guard/telemetry.py", g:"store", say:"Sends every event to Amplitude in the background.", sp:["amplitude"], fns:[["on_event","queues an event"],["to_amplitude","maps it, drops numbers and text"]]},
+    {id:"contracts", file:"guard/contracts.py", g:"store", say:"The shapes of Call, Event, Flags, Claim, Contact, Expectation. Used almost everywhere.", fns:[["Call, Event, Flags, Claim","data models"]]},
+    {id:"settings", file:"guard/settings.py", g:"store", say:"Reads the switches: FAKE, REAL_*, TIMEOUT_S, OWNER_NAME. Used almost everywhere.", fns:[["TIMEOUT_S","20 s default"],["services()","real or fake per service"]]},
+    /* tools */
+    {id:"check", file:"scripts/check.py", g:"tools", say:"make check: plays every scene in fake mode, must pass before a push.", fns:[["main","runs all scene checks"]]},
+    {id:"checkr", file:"scripts/check_redact.py", g:"tools", say:"Checks the masking of personal data.", fns:[["main","offline masking checks"]]},
+    {id:"vapisetup", file:"scripts/vapi_setup.py", g:"tools", say:"Configures the Vapi assistant, its two tools and the phone number.", sp:["vapi"], fns:[["assistant_payload","prompt, tools, webhook"]]},
+    {id:"tgsetup", file:"scripts/telegram_setup.py", g:"tools", say:"Registers the Telegram webhook, finds chat ids, self-tests signatures.", sp:["telegram"], fns:[["selftest","signed answers round-trip"]]},
+    {id:"bpsetup", file:"scripts/beeper_setup.py", g:"tools", say:"Lists Beeper chats or sends one test message.", sp:["beeper"], fns:[["main","list chats / --send-test"]]},
+    {id:"sensoload", file:"scripts/senso_load.py", g:"tools", say:"Loads the expected-call records into Senso.", sp:["senso"], fns:[["load","one document per record"]]},
+    {id:"siewarm", file:"scripts/sie_warm.py", g:"tools", say:"Warms both Superlinked models before a demo.", sp:["superlinked"], fns:[["main","warm-up requests"]]},
+    {id:"dbcheck", file:"scripts/db_check.py", g:"tools", say:"Proves two competing answers give one winner on SingleStore.", sp:["singlestore"], fns:[["main","parallel decide test"]]},
+    {id:"clips", file:"scripts/make_clips.py", g:"tools", say:"Makes the caller voice clips with ElevenLabs.", sp:["elevenlabs"], fns:[["main","clone voice, render lines"]]},
+    {id:"play", file:"scripts/play_scene.py", g:"tools", say:"Plays the saved clips on stage, line by line.", sp:["elevenlabs"], fns:[["play","afplay one clip"]]},
+    {id:"drillrun", file:"drill/run.py", g:"tools", say:"Scores 34 scam and legitimate caller texts against the classifier.", sp:["firedrill"], fns:[["run","in-process or via /analyze"]]}
+  ],
+  /* [from, to, what it calls] — verified imports and calls */
+  edges: [
+    ["web","app","GET /events, /live, /health"],["web","sim","POST /sim/call, /sim/reset"],
+    ["app","state","subscribe, get_call, events_since"],["app","flow","live, track_live"],["app","telemetry","on_event (subscriber)"],["app","cred","check"],
+    ["app","vapi","includes router"],["app","channels","includes router"],["app","telegram","includes router"],["app","sim","includes router"],["app","drill","includes router"],
+    ["vapi","flow","start_call, on_transcript, on_partial, verify_caller, on_code_word"],["vapi","state","emit, get_call, update_call"],
+    ["sim","flow","start_call, on_partial, on_transcript, verify_caller, on_tap, on_credential, reset_demo"],
+    ["flow","classify","flags, claim"],["flow","contacts","candidates, lookup, learn, denied_today, get"],["flow","context","expected, records"],["flow","redact","redact"],
+    ["flow","channels","send_ping"],["flow","telegram","ping_text, asks_for, send_notice, notify_owner"],["flow","vapi","say, hangup, forward, add_message"],
+    ["flow","state","create_call, update_call, set_pending, decide, emit"],["flow","cred","check"],
+    ["channels","telegram","send_ping, ping_text, callback_data, verify_callback"],["channels","flow","on_tap"],["channels","state","get_call"],
+    ["telegram","flow","on_tap"],["telegram","contacts","attempts_today"],["telegram","state","get_call"],
+    ["state","redact","redact_event"],["state","telemetry","on_event (each emit)"],
+    ["redact","classify","_request, _enabled"],["contacts","memory","warm, note, remember"],
+    ["drill","classify","flags"],["drill","contacts","get"],
+    ["check","app","TestClient, all scenes"],["vapisetup","settings","OWNER_NAME"],["tgsetup","telegram","callback_data, verify_callback"],
+    ["bpsetup","channels","beeper_request, message_path"],["sensoload","context","records"],["siewarm","classify","_post, models"],
+    ["dbcheck","state","SingleStoreBackend, decide"],["drillrun","classify","flags"],["drillrun","drill","POST /analyze"],["checkr","redact","redact, redact_event"]
+  ],
+
+  /* ---- events ---- */
+  events: [
+    ["call.started","A call begins","caller_number (last four digits only)","flow.start_call"],
+    ["transcript","Each finished line","role (caller or agent), text (masked)","flow.on_transcript"],
+    ["flags","After each caller line","authority_or_kinship, money, urgency, secrecy, needs_verification, risk, latency_ms, source (sie or fake)","flow.on_transcript"],
+    ["claim","When the agent asks for a check","claimed_name, relationship, amount, method, quote, asks_for","flow.verify_caller"],
+    ["contact.lookup","After the circle lookup","contact {id, name, relationship} or null, number_known, note","flow.verify_caller, flow._expected_call"],
+    ["context.expected","An expected call matched","kind, who, why, source_id, source (file or senso), score","flow._expected_call"],
+    ["ping.sent","The question went out","contact_id, channels, timeout_s, text","flow.verify_caller"],
+    ["notice.sent","A “Not me” heads-up went out","contact_id, channels [telegram], timeout_s null, text","flow.verify_caller (known number), flow.on_code_word"],
+    ["decision","A call is decided (also the code-word upgrade)","state, by (tap, timeout, lookup, known_number, code_word, expected, expected_but_money, repeat_attempt, ping_cap, credential), seconds_to_decide, channel (for answers)","flow._resolve, flow._expected_call"],
+    ["action","Something is done on the call","kind: say, hangup, forward, challenge, ask_name, take_message, late_denial, code_word_failed, expected_but_money, out_of_scope; text","vapi.say/hangup/forward/add_message, flow"],
+    ["owner.notified","Mum was told something","text","flow._notify"],
+    ["credential.verified","An AI agent caller showed a valid credential","agent, principal, scope","flow.on_credential"],
+    ["call.ended","The call is over","(none)","flow._act (denied), vapi.webhook (end-of-call report)"]
+  ]
+};
+
+/* ====================================================================== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+let activeSp = null, scenario = DATA.scenarios[0], selStep = null, selMod = null;
+
+$("commit").textContent = DATA.commit;
+function badge(k, small){ const s = DATA.sponsors[k]; return `<span class="badge${activeSp===k?" on":""}" style="--sp:${s.color}" data-sp="${k}" tabindex="0" role="button">${esc(s.name)}</span>`; }
+
+/* sponsor bar */
+function renderBar(){
+  $("spbar").innerHTML = `<span class="hint">Highlight a sponsor everywhere:</span>` +
+    Object.keys(DATA.sponsors).map(k => badge(k)).join("") + (activeSp ? ` <button class="clear" data-clear>Clear</button>` : "");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-sp]");
+  if (b) { e.stopPropagation(); activeSp = activeSp === b.dataset.sp ? null : b.dataset.sp; renderAll(); return; }
+  if (e.target.closest("[data-clear]")) { activeSp = null; renderAll(); }
+});
+document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-sp],.row,.mod")) { e.preventDefault(); e.target.click(); } });
+
+/* tabs */
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("main section").forEach(s => s.hidden = s.id !== "tab-" + b.dataset.tab);
+  if (b.dataset.tab === "map") drawEdges();
+});
+
+/* ---------- 1. sequence ---------- */
+function stepsOf(sc){
+  return sc.steps.map(id => {
+    if (id === "SPEAK") return {id:"speak", f:"caller", t:"agent", say:`The caller speaks: “${DATA.lines[sc.line]}”`,
+      what:"Vapi turns the speech into text. Lines are the ones the screen's scene buttons play" + (sc.button ? ` (button “${sc.button}”).` : "; this scene has no button."), sp:["vapi"]};
+    return {id, ...DATA.steps[id]};
+  });
+}
+function renderScen(){
+  $("scen").innerHTML = DATA.scenarios.map(s => `<button aria-pressed="${s===scenario}" style="--tone:${DATA.tones[s.tone]}" data-sc="${s.id}">${esc(s.label)}</button>`).join("");
+  $("scen").querySelectorAll("button").forEach(b => b.onclick = () => { scenario = DATA.scenarios.find(s => s.id === b.dataset.sc); selStep = null; renderSeq(); renderScen(); stepPanel(); });
+  $("outcome").innerHTML = "Ends: " + scenario.outcome;
+}
+const LW = 76;
+function laneX(k){ const W = LW; return (DATA.lanes.findIndex(l => l[0] === k) + .5) * W; }
+function arrowSvg(st){
+  const W = LW*8, H = 30, y = H/2, col = st.tone ? DATA.tones[st.tone] : "#9AA6B1";
+  let g = DATA.lanes.map((l,i) => `<line x1="${(i+.5)*LW}" y1="0" x2="${(i+.5)*LW}" y2="${H}" stroke="#2A3D50" stroke-width="1"/>`).join("");
+  const a = laneX(st.f), b = laneX(st.t);
+  if (a === b) g += `<circle cx="${a}" cy="${y}" r="9" fill="none" stroke="${col}" stroke-width="2.5"/><circle cx="${a}" cy="${y}" r="3.5" fill="${col}"/>`;
+  else {
+    const dir = b > a ? 1 : -1, x1 = a + dir*6, x2 = b - dir*9;
+    g += `<circle cx="${a}" cy="${y}" r="4.5" fill="${col}"/><line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${col}" stroke-width="${st.tone?3.5:2.5}"/>` +
+         `<path d="M${b - dir*1},${y} L${b - dir*12},${y-6.5} L${b - dir*12},${y+6.5} Z" fill="${col}"/>`;
+  }
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${g}</svg>`;
+}
+function renderSeq(){
+  const st = stepsOf(scenario);
+  let h = `<div class="lanehead"><div></div><div style="font:600 13px var(--text);color:var(--muted);align-self:end">Step</div><div class="lanes">${DATA.lanes.map(l => `<div>${esc(l[1])}</div>`).join("")}</div></div>`;
+  st.forEach((s, i) => {
+    const sp = s.sp || [], dim = activeSp && !sp.includes(activeSp);
+    const hl = activeSp && !dim ? ` hl" style="--hl:${DATA.sponsors[activeSp].color}` : "";
+    const tone = s.tone ? ` style="border-left-color:${DATA.tones[s.tone]}"` : "";
+    h += `<div class="row${selStep===i?" sel":""}${dim?" dim":""}${hl}" data-i="${i}" tabindex="0" role="button"${hl?"":tone}>
+      <div class="n">${i+1}</div>
+      <div><div class="say">${esc(s.say)}</div>${(sp.length||s.time) ? `<div class="meta">${sp.map(k=>badge(k)).join("")}${s.time?`<span class="time">${esc(s.time)}</span>`:""}</div>`:""}</div>
+      <div>${arrowSvg(s)}</div></div>`;
+  });
+  $("seq").innerHTML = h;
+  $("seq").querySelectorAll(".row").forEach(r => r.onclick = () => { selStep = +r.dataset.i; renderSeq(); stepPanel(); });
+}
+function stepPanel(){
+  if (selStep == null) { $("stepPanel").innerHTML = `<p class="empty">Click a step to see the code behind it.</p>`; return; }
+  const s = stepsOf(scenario)[selStep], ln = k => DATA.lanes.find(l => l[0]===k)[1];
+  $("stepPanel").innerHTML = `<h3>${selStep+1}. ${esc(s.say)}</h3>
+    <p style="color:var(--muted);font-size:14px">${esc(ln(s.f))}${s.f!==s.t?" → "+esc(ln(s.t)):""}</p>
+    ${s.what?`<div class="k">What happens</div><p>${esc(s.what)}</p>`:""}
+    ${s.code?`<div class="k">File</div><p><code>${esc(s.code)}</code></p>`:""}
+    ${s.fn?`<div class="k">Function</div><p><code>${esc(s.fn)}</code></p>`:""}
+    ${s.ev?`<div class="k">Event written</div><p>${s.ev.map(e=>`<code>${esc(e)}</code>`).join(", ")}</p>`:""}
+    ${s.time?`<div class="k">Timing from the code</div><p>${esc(s.time)}</p>`:""}
+    ${(s.sp||[]).length?`<div class="k">Sponsor</div><p>${s.sp.map(k=>badge(k)).join(" ")}</p>`:""}`;
+}
+
+/* ---------- 2. module map ---------- */
+function modCard(m){
+  const sp = m.sp || [], dim = activeSp && !sp.includes(activeSp) && selMod !== m.id;
+  const hl = activeSp && !dim ? ` hl" style="--hl:${DATA.sponsors[activeSp].color}` : "";
+  return `<div class="mod${selMod===m.id?" sel":""}${dim?" dim":""}${hl}" id="m-${m.id}" data-m="${m.id}" tabindex="0" role="button">
+    <div class="f">${esc(m.file).replace(/\//g,"/<wbr>")}</div><div class="d">${esc(m.say)}</div>${sp.length?`<div class="meta">${sp.map(k=>badge(k)).join("")}</div>`:""}</div>`;
+}
+function renderMap(){
+  let h = `<svg class="edges" id="edges"></svg><p class="legend">Lines run from the file that calls to the file it calls. <code>settings.py</code> and <code>contracts.py</code> are used by nearly every file; their lines are left out.</p><div class="cols">`;
+  for (const [g, name] of DATA.groups) h += `<div class="grp"><h4>${esc(name)}</h4>${DATA.modules.filter(m=>m.g===g).map(modCard).join("")}</div>`;
+  h += `</div><div class="tools"><h4>Tools and scripts (run by hand, not part of a call)</h4><div class="tgrid">${DATA.modules.filter(m=>m.g==="tools").map(modCard).join("")}</div></div>`;
+  $("map").innerHTML = h;
+  $("map").querySelectorAll(".mod").forEach(c => c.onclick = () => { selMod = selMod === c.dataset.m ? null : c.dataset.m; renderMap(); modPanel(); });
+  drawEdges();
+}
+function drawEdges(){
+  const svg = $("edges"); if (!svg || $("tab-map").hidden) return;
+  const box = $("map").getBoundingClientRect();
+  svg.setAttribute("width", box.width); svg.setAttribute("height", box.height);
+  let out = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="context-stroke"/></marker></defs>`;
+  const rect = id => { const r = $("m-"+id).getBoundingClientRect(); return {l:r.left-box.left, r:r.right-box.left, t:r.top-box.top, b:r.bottom-box.top, cy:(r.top+r.bottom)/2-box.top, cx:(r.left+r.right)/2-box.left}; };
+  const later = [];
+  for (const [a, b] of DATA.edges) {
+    if (!$("m-"+a) || !$("m-"+b)) continue;
+    const A = rect(a), B = rect(b), on = selMod && (selMod === a || selMod === b);
+    let d;
+    if (A.t > B.b + 10) d = `M${A.cx},${A.t} C${A.cx},${A.t-40} ${B.cx},${B.b+40} ${B.cx},${B.b}`;           // tool row upward
+    else if (Math.abs(A.cx - B.cx) < 20) { const x = A.r; d = `M${x},${A.cy} C${x+38},${A.cy} ${x+38},${B.cy} ${B.r},${B.cy}`; } // same column
+    else if (B.cx > A.cx) d = `M${A.r},${A.cy} C${A.r+40},${A.cy} ${B.l-40},${B.cy} ${B.l},${B.cy}`;
+    else d = `M${A.l},${A.cy} C${A.l-40},${A.cy} ${B.r+40},${B.cy} ${B.r},${B.cy}`;
+    const col = !on ? "#3A5068" : (selMod === a ? "#E6EAEE" : "#F2B705");
+    const p = `<path d="${d}" fill="none" stroke="${col}" stroke-width="${on?2.4:1.2}" opacity="${selMod && !on ? .12 : on ? 1 : .55}" marker-end="url(#ah)"/>`;
+    on ? later.push(p) : (out += p);
+  }
+  svg.innerHTML = out + later.join("");
+}
+function modPanel(){
+  if (!selMod) { $("modPanel").innerHTML = `<p class="empty">Click a file to see its functions and who calls them.</p>`; return; }
+  const m = DATA.modules.find(x => x.id === selMod), file = id => DATA.modules.find(x => x.id === id).file;
+  const inc = DATA.edges.filter(e => e[1] === m.id), outg = DATA.edges.filter(e => e[0] === m.id);
+  $("modPanel").innerHTML = `<h3><code style="font-size:18px;color:var(--ink)">${esc(m.file)}</code></h3><p>${esc(m.say)}</p>
+    <div class="k">Main functions</div><ul>${m.fns.map(f=>`<li><code>${esc(f[0])}</code> ${esc(f[1])}</li>`).join("")}</ul>
+    <div class="k" style="color:#F2B705">Called by (yellow lines)</div>${inc.length?`<ul>${inc.map(e=>`<li><code>${esc(file(e[0]))}</code> uses <code>${esc(e[2])}</code></li>`).join("")}</ul>`:`<p class="empty">Nothing in the server calls this file.</p>`}
+    <div class="k">Calls (white lines)</div>${outg.length?`<ul>${outg.map(e=>`<li><code>${esc(file(e[1]))}</code>: <code>${esc(e[2])}</code></li>`).join("")}</ul>`:`<p class="empty">No calls to other files drawn here.</p>`}
+    ${(m.sp||[]).length?`<div class="k">Sponsor</div><p>${m.sp.map(k=>badge(k)).join(" ")}</p>`:""}`;
+}
+window.addEventListener("resize", drawEdges);
+
+/* ---------- 3. sponsors ---------- */
+function renderSponsors(){
+  const cls = {real:"st-real", stand:"st-stand", none:"st-none", script:"st-script"};
+  $("spTable").innerHTML = `<table><thead><tr><th style="width:150px">Sponsor</th><th>What it does here</th><th style="width:300px">File and function</th><th style="width:230px">Switch</th><th style="width:170px">Status in the code</th></tr></thead><tbody>` +
+    Object.entries(DATA.sponsors).map(([k,s]) => `<tr class="${activeSp===k?"hlrow":""}" style="--hl:${s.color}"><td>${badge(k)}</td><td>${esc(s.what)}</td><td><code>${esc(s.where)}</code></td><td><code>${esc(s.flag)}</code></td><td><span class="st ${cls[s.status]}">${esc(DATA.statusText[s.status])}</span></td></tr>`).join("") + `</tbody></table>`;
+  $("spNote").innerHTML = "FAKE=1 (the default) turns every switch off. On errors or time-outs a real path logs one line and the call goes on; the classifier, Senso and SingleStore switch to their local stand-ins. The phone agent's conversation model is OpenAI gpt-4.1, set in <code>scripts/vapi_setup.py</code>.";
+}
+
+/* ---------- 4. events ---------- */
+function renderEvents(){
+  $("evTable").innerHTML = `<table class="ev"><thead><tr><th>Event</th><th>When</th><th>Key fields</th><th>Written by</th></tr></thead><tbody>` +
+    DATA.events.map(e => `<tr><td><code style="font-size:14px;color:var(--ink)">${esc(e[0])}</code></td><td>${esc(e[1])}</td><td><code>${esc(e[2])}</code></td><td><code>${esc(e[3])}</code></td></tr>`).join("") + `</tbody></table>
+    <p class="note">In-progress words are not events: they live in memory only and are read from <code>GET /live</code>. Amplitude receives every event with transcript text replaced by its length.</p>`;
+}
+
+function renderAll(){ renderBar(); renderScen(); renderSeq(); stepPanel(); renderMap(); modPanel(); renderSponsors(); renderEvents(); }
+renderAll();
+const setNav = () => document.documentElement.style.setProperty("--navh", $("nav").offsetHeight + "px");
+setNav(); window.addEventListener("resize", setNav);
+</script>
+</body></html>
