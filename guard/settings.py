@@ -23,6 +23,7 @@ def _flag(name: str, default: str = "0") -> bool:
 FAKE = _flag("FAKE", "1")
 OWNER_NAME = os.environ.get("OWNER_NAME") or "Mum"
 TIMEOUT_S = float(os.environ.get("TIMEOUT_S", "20"))
+EXPECTED_QUIET_S = float(os.environ.get("EXPECTED_QUIET_S", "2.5"))  # caller silence before an expected call is put through
 
 
 def _real(name: str) -> bool:

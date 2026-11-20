@@ -130,7 +130,7 @@ def checks():
         with patch.object(classify, 'flags', side_effect=capture), patch.object(classify, 'claim', side_effect=capture_claim):
             await sim._play(call_id, sim.SimCall(lines=[line], word_s=0))
         assert seen == [line], seen
-        assert claims == [line], claims
+        assert claims and set(claims) == {line}, claims  # the safety net may classify too
         events = [e for e in state.events_since(0) if e.call_id == call_id]
         transcript = next(e for e in events if e.type == 'transcript')
         assert '[card number]' in transcript.data['text']

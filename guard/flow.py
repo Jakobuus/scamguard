@@ -12,7 +12,11 @@ _tasks: set = set()
 _caller_text: dict[str, str] = {}
 _asked_name: set[str] = set()
 _verification_started: set[str] = set()
-_expected_checks: dict[str, int] = {}
+_caller_activity: dict[str, float] = {}
+_net_tasks: dict[str, asyncio.Task] = {}
+_late_warned: set[str] = set()
+_MONEY_RE = (r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card|wire|transfer|cash|"
+             r"crypto|bitcoin|dollars?|customs|deposit|card number)\b|\$")
 _late_denials: set[str] = set()
 _code_tries: dict[str, int] = {}
 _pings: dict[tuple, int] = {}
@@ -30,7 +34,9 @@ def reset_demo() -> None:
     _cap_notified.clear()
     _caller_text.clear()
     _verification_started.clear()
-    _expected_checks.clear()
+    _caller_activity.clear()
+    _net_tasks.clear()
+    _late_warned.clear()
     scripts.reset()
 
 
@@ -72,6 +78,8 @@ def _code_word_eligible(call_id):
 
 def on_partial(call_id, role, text) -> None:
     """Keep only the latest in-progress words per call and role, masked like finals."""
+    if role == "caller":
+        _caller_activity[call_id] = time.time()
     if role == "caller" and _code_word_eligible(call_id):
         _partials.get(call_id, {}).pop(role, None)
         return
@@ -149,24 +157,44 @@ async def on_transcript(call_id, role, text) -> None:
         state.update_call(call_id, flags=f)
         state.emit(call_id, "flags", f.model_dump())
         spawn(scripts.on_text(call_id, _caller_text[call_id], f))  # fire-and-forget, never blocks the call
+        _caller_activity[call_id] = time.time()
         call = state.get_call(call_id)
-        if (call and call.state == "screening" and call_id not in _verification_started
-                and _expected_checks.get(call_id, 0) < 3):
-            _expected_checks[call_id] = _expected_checks.get(call_id, 0) + 1
-            spawn(_expected_without_tool(call_id))
+        if (call and call.state == "screening" and call_id not in _verification_started):
+            task = _net_tasks.get(call_id)
+            if task is None or task.done():  # one pending task per call; new words only move its clock
+                _net_tasks[call_id] = asyncio.create_task(_expected_net(call_id))
+                _tasks.add(_net_tasks[call_id])
+                _net_tasks[call_id].add_done_callback(_tasks.discard)
+        elif (call and call.state == "confirmed" and call.decided_by == "expected"
+                and call_id not in _late_warned
+                and (f.money or f.urgency or f.secrecy or re.search(_MONEY_RE, text, re.I))):
+            _late_warned.add(call_id)
+            state.emit(call_id, "action", {"kind": "late_warning"})
+            await _notify(call_id, "The caller you were expecting is now asking for money. Don't pay; hang up.")
 
 
 def verification_started(call_id) -> None:
     _verification_started.add(call_id)
 
 
+async def _expected_net(call_id) -> None:
+    """Transcript safety net: one task per call. Money shows -> act at once; otherwise wait for caller quiet."""
+    while True:
+        await asyncio.sleep(0.1)
+        call = state.get_call(call_id)
+        if (not call or call.state != "screening" or call_id in _verification_started
+                or call_id not in _live_calls):
+            return
+        text = _caller_text.get(call_id, "")
+        money = bool((call.flags and call.flags.money) or re.search(_MONEY_RE, text, re.I))
+        quiet = time.time() - _caller_activity.get(call_id, 0) >= settings.EXPECTED_QUIET_S
+        if money or quiet:  # a money request never needs the wait: it can only block, never forward
+            await _expected_without_tool(call_id)
+            return
+
+
 async def _expected_without_tool(call_id) -> None:
-    # HACK: allow adjacent final fragments to arrive before deciding, with three checks per call.
-    await asyncio.sleep(0.75)
     call = state.get_call(call_id)
-    if (not call or call.state != "screening" or call_id in _verification_started
-            or call_id not in _live_calls):
-        return
     text = _caller_text.get(call_id, "")
     def circle_claim():
         claim = classify.claim(text)
@@ -202,9 +230,7 @@ async def _expected_call(call_id, found, without_tool=False) -> bool:
         if call is None or call.state != "screening":
             return call, False, False
         latest = _caller_text.get(call_id, "")
-        money = bool((call.flags and call.flags.money) or re.search(
-            r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card|wire|transfer|cash|"
-            r"crypto|bitcoin|dollars?|customs|deposit|card number)\b|\$", latest, re.I))
+        money = bool((call.flags and call.flags.money) or re.search(_MONEY_RE, latest, re.I))
         blocked = (call.flags is None or money or call.flags.urgency or call.flags.secrecy
                    or call.flags.needs_verification)
         return call, money, blocked
