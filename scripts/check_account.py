@@ -27,6 +27,7 @@ import shutil  # noqa: E402
 ORIG_PATH = contacts._PATH
 shutil.copy(ORIG_PATH, tmp / "contacts.json")
 contacts._PATH = tmp / "contacts.json"
+account.EXPECTED_PATH = tmp / "expected.local.json"
 contacts._contacts = None
 seen = []
 
@@ -86,6 +87,17 @@ try:
     ok(st.status_code == 200 and {"headline", "outcomes", "over_time", "channels_answered", "tactics", "recent"} <= set(st.json()), "stats")
     g = call(c, "get", "/api/graph")
     ok(g.status_code == 200 and {"source", "nodes", "edges"} <= set(g.json()), "graph")
+    ex = call(c, "get", "/api/expected").json()
+    ok(len(ex) > 0 and all(e["builtin"] for e in ex), "expected list")
+    r = call(c, "post", "/api/expected", json={"kind": "delivery", "who": "courier for the tea order", "keywords": ["tea"]})
+    ok(r.status_code == 201 and r.json()["expected"] and not r.json()["builtin"], "expected add")
+    ok(call(c, "post", "/api/expected", json={"kind": "delivery", "who": "x", "keywords": []}).status_code == 422, "expected needs keyword")
+    eid = r.json()["id"]
+    ok(call(c, "put", f"/api/expected/{eid}", json={"expected": False}).json()["expected"] is False, "expected switch off")
+    b = ex[0]["id"]
+    ok(call(c, "put", f"/api/expected/{b}", json={"expected": False}).json()["builtin"], "built-in switch off")
+    ok(call(c, "delete", f"/api/expected/{b}").status_code == 409, "built-in not deletable")
+    ok(call(c, "delete", f"/api/expected/{eid}").json() == {"ok": True}, "expected delete")
     ok(call(c, "post", "/api/auth/logout").json() == {"ok": True}, "logout")
     ok(not any(WORD in s for s in seen), "code word never in a response")
 finally:

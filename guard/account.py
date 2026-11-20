@@ -23,6 +23,8 @@ router = APIRouter()
 _DATA = Path(__file__).resolve().parent.parent / "data"
 ACCOUNT_PATH = _DATA / "account.local.json"
 CONTACTS_PATH = _DATA / "contacts.local.json"
+EXPECTED_PATH = _DATA / "expected.local.json"
+_EXPECTED_BUILTIN = _DATA / "expected.json"
 _LOCK = threading.Lock()
 COOKIE = "guard_session"
 KINDS = ("whatsapp", "telegram", "email", "call")
@@ -395,6 +397,119 @@ def delete_contact(cid: str, request: Request):
         _save_local_contacts([e for e in _load_local_contacts() if e.get("id") != cid])
         data["contacts"].pop(cid, None)
         _save(data)
+    return {"ok": True}
+
+
+# ---------- expected calls ----------
+_EXPECTED_KINDS = ("delivery", "callback", "appointment")
+_GENERIC = {"delivery": ["parcel", "driver", "delivery", "courier"],
+            "callback": ["office", "callback", "returning"],
+            "appointment": ["appointment", "visit", "repair"]}
+
+
+def _read_list(path: Path) -> list[dict]:
+    if path.exists():
+        try:
+            return json.loads(path.read_text())
+        except ValueError:
+            return []
+    return []
+
+
+def _expected_out(rec: dict, builtin: set) -> dict:
+    kind = rec.get("kind", "delivery")
+    return {"id": rec["id"], "kind": kind, "who": rec.get("who", ""),
+            "note": rec.get("note") or f"Expecting a {kind}: {rec.get('who', '')}.",
+            "keywords": list((rec.get("keywords") or {}).get("specific") or []),
+            "expected": rec.get("expected", True), "builtin": rec["id"] in builtin}
+
+
+def _expected_merged() -> tuple[list[dict], set]:
+    base = _read_list(_EXPECTED_BUILTIN)
+    builtin = {r["id"] for r in base}
+    merged = {r["id"]: r for r in base}
+    for r in _read_list(EXPECTED_PATH):
+        merged[r["id"]] = {**merged.get(r["id"], {}), **r}
+    return list(merged.values()), builtin
+
+
+def _clean_words(raw) -> list[str]:
+    return [str(w).strip() for w in raw or [] if str(w).strip()]
+
+
+@router.get("/api/expected")
+def list_expected(request: Request):
+    _user(request)
+    with _LOCK:
+        recs, builtin = _expected_merged()
+        return [_expected_out(r, builtin) for r in recs]
+
+
+@router.post("/api/expected", status_code=201)
+def add_expected(body: dict, request: Request):
+    _user(request)
+    who = str(body.get("who") or "").strip()
+    words = _clean_words(body.get("keywords"))
+    kind = body.get("kind") if body.get("kind") in _EXPECTED_KINDS else "delivery"
+    if not who:
+        raise HTTPException(422, "Say who is going to call.")
+    if not words:
+        raise HTTPException(422, "Add at least one word the caller will say.")
+    with _LOCK:
+        recs, builtin = _expected_merged()
+        rec = {"id": _slug(who, {r["id"] for r in recs}), "kind": kind, "who": who,
+               "keywords": {"specific": words, "generic": list(_GENERIC[kind])},
+               "note": str(body.get("note") or "").strip() or f"Expecting a {kind}: {who}.", "expected": True}
+        local = _read_list(EXPECTED_PATH)
+        local.append(rec)
+        EXPECTED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        EXPECTED_PATH.write_text(json.dumps(local, indent=2))
+        return _expected_out(rec, builtin)
+
+
+@router.put("/api/expected/{eid}")
+def edit_expected(eid: str, body: dict, request: Request):
+    _user(request)
+    with _LOCK:
+        recs, builtin = _expected_merged()
+        rec = next((r for r in recs if r["id"] == eid), None)
+        if rec is None:
+            raise HTTPException(404, "No such expected call.")
+        rec = json.loads(json.dumps(rec))  # full copy for the overlay
+        kind_changed = body.get("kind") in _EXPECTED_KINDS and body["kind"] != rec.get("kind")
+        if body.get("kind") in _EXPECTED_KINDS:
+            rec["kind"] = body["kind"]
+        if str(body.get("who") or "").strip():
+            rec["who"] = str(body["who"]).strip()
+        if body.get("note") is not None:
+            rec["note"] = str(body["note"]).strip() or f"Expecting a {rec['kind']}: {rec['who']}."
+        kw = rec.setdefault("keywords", {})
+        if body.get("keywords") is not None:
+            words = _clean_words(body["keywords"])
+            if not words:
+                raise HTTPException(422, "Add at least one word the caller will say.")
+            kw["specific"] = words
+        if kind_changed or not kw.get("generic"):
+            kw["generic"] = list(_GENERIC[rec["kind"]])
+        if body.get("expected") is not None:
+            rec["expected"] = bool(body["expected"])
+        local = [r for r in _read_list(EXPECTED_PATH) if r.get("id") != eid] + [rec]
+        EXPECTED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        EXPECTED_PATH.write_text(json.dumps(local, indent=2))
+        return _expected_out(rec, builtin)
+
+
+@router.delete("/api/expected/{eid}")
+def delete_expected(eid: str, request: Request):
+    _user(request)
+    with _LOCK:
+        recs, builtin = _expected_merged()
+        if eid in builtin:
+            raise HTTPException(409, "Built-in entries can only be switched off.")
+        local = _read_list(EXPECTED_PATH)
+        if not any(r.get("id") == eid for r in local):
+            raise HTTPException(404, "No such expected call.")
+        EXPECTED_PATH.write_text(json.dumps([r for r in local if r.get("id") != eid], indent=2))
     return {"ok": True}
 
 

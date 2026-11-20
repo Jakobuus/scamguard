@@ -6,7 +6,7 @@
 - `python -m guard.brain.memory ask "who is Jakob?"` runs one search, for checking the setup.
 
 Real only with REAL_COGNEE=1 and FAKE=0. COGNEE_URL is the API base (cloud or self-hosted),
-COGNEE_API_KEY goes in the X-Api-Key header. Endpoints follow Cognee's REST API
+COGNEE_API_KEY goes in the X-Api-Key header and COGNEE_TENANT_ID (Cognee Cloud) in X-Tenant-Id. Endpoints follow Cognee's REST API
 (/api/v1/add, /api/v1/cognify, /api/v1/search); check them against the docs if a call 404s.
 Numbers, code words and chat ids are never sent to Cognee and never shown from it.
 """
@@ -35,8 +35,10 @@ def real() -> bool:
 def _client(timeout: float = 2.5):
     import httpx
 
-    return httpx.Client(base_url=os.environ["COGNEE_URL"].rstrip("/"), timeout=timeout,
-                        headers={"X-Api-Key": os.environ.get("COGNEE_API_KEY", "")})
+    headers = {"X-Api-Key": os.environ.get("COGNEE_API_KEY", "")}
+    if os.environ.get("COGNEE_TENANT_ID"):  # Cognee Cloud wants the tenant id beside the key
+        headers["X-Tenant-Id"] = os.environ["COGNEE_TENANT_ID"]
+    return httpx.Client(base_url=os.environ["COGNEE_URL"].rstrip("/"), timeout=timeout, headers=headers)
 
 
 def scrub(text: str, secrets: list[str] = (), limit: int = 180) -> str:
@@ -48,22 +50,34 @@ def scrub(text: str, secrets: list[str] = (), limit: int = 180) -> str:
     return " ".join(out.split())[:limit]
 
 
+def _texts(node) -> list[str]:
+    """Collect answer strings from whatever shape Cognee returns (list, dict or str)."""
+    if isinstance(node, str):
+        return [node] if node.strip() else []
+    if isinstance(node, list):
+        return [t for item in node for t in _texts(item)]
+    if isinstance(node, dict):
+        for key in ("search_result", "text", "answer", "result"):
+            if key in node:
+                return _texts(node[key])
+    return []
+
+
+def _ask(http, query: str, search_type: str) -> list[str]:
+    # No `datasets` field: Cognee fails the whole request on a name it can't resolve,
+    # and a family tenant holds one dataset. The server searches everything we own.
+    r = http.post("/api/v1/search", json={"query": query, "search_type": search_type})
+    r.raise_for_status()
+    return _texts(r.json())
+
+
 def _search(query: str, timeout: float = 2.5) -> str:
     with _client(timeout) as http:
-        r = http.post("/api/v1/search", json={"query": query, "search_type": "GRAPH_COMPLETION",
-                                              "datasets": [DATASET]})
-        r.raise_for_status()
-        body = r.json()
-    if isinstance(body, list) and body:
-        first = body[0]
-        if isinstance(first, dict):
-            first = first.get("search_result") or first.get("text") or first.get("answer") or ""
-        if isinstance(first, list):
-            first = first[0] if first else ""
-        return str(first)
-    if isinstance(body, dict):
-        return str(body.get("answer") or body.get("result") or "")
-    return str(body or "")
+        answer = " ".join(_ask(http, query, "GRAPH_COMPLETION"))
+        if answer and "could not find" not in answer.lower():
+            return answer
+        # The graph answer was empty: fall back to the stored facts that match.
+        return " ".join(_ask(http, query, "CHUNKS")[:3])
 
 
 def _prefetch(contacts) -> None:
@@ -130,6 +144,12 @@ def seed_texts() -> list[str]:
     return [scrub(t, limit=2000) for t in texts]
 
 
+def _detail(e: Exception) -> str:
+    """Server error text for the CLI only (a response body never contains our key)."""
+    r = getattr(e, "response", None)
+    return f": {r.status_code} {r.text[:300]}" if r is not None else ""
+
+
 def _main(argv: list[str]) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     cmd = argv[1] if len(argv) > 1 else "preview"
@@ -145,14 +165,14 @@ def _main(argv: list[str]) -> int:
             print(f"Seeded {len(seed_texts())} facts into dataset '{DATASET}' and cognified.")
             return 0
         except Exception as e:
-            print(f"Cognee seed failed ({type(e).__name__}).")
+            print(f"Cognee seed failed ({type(e).__name__}){_detail(e)}.")
             return 1
     if cmd == "ask":
         try:
             print(_search(" ".join(argv[2:]) or "Who is in the family?", timeout=30))
             return 0
         except Exception as e:
-            print(f"Cognee search failed ({type(e).__name__}).")
+            print(f"Cognee search failed ({type(e).__name__}){_detail(e)}.")
             return 1
     print(__doc__)
     return 2
