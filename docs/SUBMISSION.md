@@ -14,9 +14,9 @@ A cloned voice can sound exactly like your son, your boss or your best friend. K
 
 **One decision.** SingleStore holds every call: one atomic update lets exactly one answer win, No ends the call, Yes forwards it, and the audit trail shows every step. SingleStore vector search over Superlinked bge-m3 embeddings names known scam scripts in the warning.
 
-**Trust and setup.** Persona verifies the owner once at sign-up, so nobody else can change who the guard trusts. The app manages trusted contacts, expected calls (a real courier passes, a fake fee is blocked) and the Cognee memory graph.
+**Trust and setup.** Persona runs an identity check at sign-up through its hosted flow (sandbox). The app manages trusted contacts, expected calls (a real courier passes, a fake fee is blocked) and the Cognee memory graph.
 
-**Measured.** Firedrill simulated 34 scam and genuine callers; we fixed what it caught and now flag 18 of 18 impersonations with 0 of 12 false alarms. Amplitude Agent Analytics records each call as a session with four rule evals: never offered a name, never agreed to pay, only verified actions, asked the real person. The model talks; only code acts.
+**Measured.** On our drill set of 34 scam and genuine callers, our rules caught 16 of 18 scams with 1 of 12 false alarms; after the rule fix: 18 of 18 and 0 of 12. Amplitude Agent Analytics records each call as a session with four rule evals: never offered a name, never agreed to pay, only verified actions, asked the real person. The model talks; only code acts.
 
 ## Partner technology
 
@@ -24,8 +24,7 @@ A cloned voice can sound exactly like your son, your boss or your best friend. K
 - **Superlinked:** Runs serverless GLiNER decisions and extraction for caller claims and risk signals, and bge-m3 embeddings for scam-script matching.
 - **Cognee:** Supplies circle facts and the knowledge graph so relationship phrases resolve to a contact, and stores facts learned from the real person's answers.
 - **Amplitude:** Records each call as an Agent Analytics session with a tool trace and four rule evals to check the agent's behavior.
-- **Firedrill:** Simulates scam and genuine callers against the agent's rules so we can find and fix missed impersonations and false alarms.
-- **Persona:** Verifies the owner once at account setup through a hosted verification flow.
+- **Persona:** Identity check at sign-up through Persona's hosted flow (sandbox).
 - **Vapi:** Answers and holds live calls, delivers transcripts and verification tool calls, and applies the server's call actions.
 - **Deepgram via Vapi:** Transcribes with nova-3 boosted on contacts' names and relationships to help the guard understand who is calling.
 - **OpenAI GPT-4.1:** Runs the phone agent's conversation and calls verification tools while code applies decisions.
@@ -33,7 +32,6 @@ A cloned voice can sound exactly like your son, your boss or your best friend. K
 - **Telegram:** Sends questions with signed answer buttons, owner warnings and "Not me" notices.
 - **Resend:** Sends email questions with signed answer links and a confirmation form.
 - **ElevenLabs:** Generates cloned-voice scam clips for the call demonstration.
-- **Senso:** Retrieves stored expected-call records for code to match against the caller's reason.
 
 ## How a decision is made
 
@@ -61,7 +59,7 @@ KinCheck is a demo for one owner and a configured circle. The account app uses s
 
 Live calls need configured phone and message services and a transfer destination. Some service failures fall back to local state or simulated actions. Channel labels show selected deliveries, not receipts. A named contact calling from a known number can pass without a sensitive request; a relationship resolved through memory still needs a question. Repeat attempts and daily question limits also affect decisions.
 
-Persona has hosted and demo paths. Hosted completion can trust the redirect when the API lookup is unavailable. Contact editing currently requires sign-in, without a separate Persona verification gate.
+Persona runs in sandbox, at sign-up only. Hosted completion can trust the redirect when the API lookup is unavailable. Contact editing currently requires sign-in, without a separate Persona verification gate.
 
 Expected calls use stored records and the user's list, with no connected inbox or calendar. Redaction covers detected personal data in events and live text; raw call records and the raw call API are outside that boundary.
 
