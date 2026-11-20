@@ -504,7 +504,17 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             rows, disabled, _ = context._load()
             assert "order-desk-lamp" in disabled
             assert context._search("desk lamp parcel", rows, disabled) is None, "a Senso hit on a switched-off id"
-        for bad in ("", "{half", '{"id": "x"}', '[1, 2]'):
+        off = [{"id": "order-desk-lamp", "expected": False}]
+        local.write_text(json.dumps(off))
+        assert context.expected("desk lamp parcel") is None
+        for bad in ("", "{half", '{"id": "x"}'):
+            local.write_text(bad)
+            assert context.expected("desk lamp parcel") is None, "last good overlay keeps the entry off"
+            assert context.expected("coffee beans delivery").source_id == "order-coffee", bad
+        local.write_text(json.dumps([7, {"no": "id"}] + off))
+        assert context.expected("desk lamp parcel") is None, "one bad row must not drop the others"
+        for bad in ("", "{half", '{"id": "x"}'):
+            context._last_good = None  # fresh process
             local.write_text(bad)
             assert context.expected("desk lamp parcel").source_id == "order-desk-lamp", bad
             assert context.expected("coffee beans delivery").source_id == "order-coffee", bad

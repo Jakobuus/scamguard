@@ -39,14 +39,27 @@ def _safe(default):
     return wrap
 
 
+_last_good = None  # (path, rows): last overlay parsed successfully in this process
+
+
 def _overlay():
+    global _last_good
     try:
         stat = _LOCAL_PATH.stat()
     except FileNotFoundError:
+        _last_good = None
         return []
-    rows = _local_records(_LOCAL_PATH, stat.st_mtime_ns, stat.st_size)
-    if not isinstance(rows, list) or not all(isinstance(r, dict) and isinstance(r.get("id"), str) for r in rows):
-        raise ValueError("Bad overlay shape")
+    try:
+        rows = _local_records(_LOCAL_PATH, stat.st_mtime_ns, stat.st_size)
+        if not isinstance(rows, list):
+            raise ValueError("Bad overlay shape")
+    except Exception as exc:
+        # Keep switched-off entries off: reuse the last good overlay, else base rows only.
+        logging.getLogger(__name__).warning("Invalid local expectations (%s); using last good overlay",
+                                            type(exc).__name__)
+        return _last_good[1] if _last_good and _last_good[0] == _LOCAL_PATH else []
+    rows = [r for r in rows if isinstance(r, dict) and isinstance(r.get("id"), str)]
+    _last_good = (_LOCAL_PATH, rows)
     return rows
 
 
@@ -82,11 +95,7 @@ def _expiry_passed(until, now):
 def _load():
     """Active rows, ids switched off, and ids that came from the local overlay."""
     base = json.loads(_PATH.read_text())
-    try:
-        overlay = _overlay()
-    except Exception:
-        logging.getLogger(__name__).warning("Invalid local expectations; using base only")
-        overlay = []
+    overlay = _overlay()
     rows = {row["id"]: row for row in base}
     for row in overlay:
         rows[row["id"]] = {**rows.get(row["id"], {}), **row}
