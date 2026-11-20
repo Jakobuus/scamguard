@@ -26,5 +26,16 @@
     "email": null,
     "challenge_question": "What is the family code word?",
     "challenge_answer": "Chocolate"
+  },
+  {
+    "id": "erick",
+    "name": "Erick",
+    "nicknames": [],
+    "relationship": "teammate",
+    "known_numbers": [],
+    "telegram_chat_id": null,
+    "email": null,
+    "challenge_question": "What is the team code word?",
+    "challenge_answer": "Pineapple"
   }
 ]
