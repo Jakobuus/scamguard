@@ -26,6 +26,8 @@
   <button onclick="scene('scam_no')">Scam, tap No</button>
   <button onclick="scene('real_yes')">Real, tap Yes</button>
   <button onclick="scene('scam_none')">Scam, no answer</button>
+  <button onclick="scene('delivery')">Delivery driver, expected</button>
+  <button onclick="scene('delivery_fee')">Fake delivery fee</button>
 </div>
 <script>
 const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -36,6 +38,8 @@ if (fragment.has("k")) {
 const FLAGS = {authority_or_kinship:"Kinship / authority", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
 const SCAM = ["Mum, it's me, I'm in trouble.", "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
 const SCENES = {
+  delivery: {caller_number:"+15550440001", lines:["Hi, I'm the driver with your desk lamp, are you home?"]},
+  delivery_fee: {caller_number:"+15550440002", lines:["Your parcel is held, pay a 40 dollar customs fee with a gift card"]},
   scam_no: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:"no", tap_after_s:4},
   real_yes: {claimed_name:"Jakob", caller_number:"+15550100002", lines:["Hi Mum, it's Jakob.", "Can you pick me up at five?"], tap:"yes", tap_after_s:4},
   scam_none: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:null, tap_after_s:0},

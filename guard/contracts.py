@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -19,6 +20,15 @@ class Lookup(BaseModel):
     contact: Contact | None = None
     number_known: bool = False
     note: str = ""
+
+
+class Expectation(BaseModel):
+    kind: Literal["delivery", "callback", "appointment"]
+    who: str
+    why: str
+    source_id: str
+    source: Literal["file", "senso"]
+    score: float
 
 
 class Claim(BaseModel):
@@ -49,7 +59,7 @@ class Call(BaseModel):
     flags: Flags | None = None
     started_at: datetime
     decided_at: datetime | None = None
-    decided_by: str | None = None  # "tap" | "timeout" | "credential" | "lookup" | "known_number" | "repeat_attempt" | "stepup" | "stepup_unavailable" | "code_word" | "ping_cap"
+    decided_by: str | None = None  # "tap" | "timeout" | "credential" | "lookup" | "known_number" | "repeat_attempt" | "stepup" | "stepup_unavailable" | "code_word" | "ping_cap" | "expected" | "expected_but_money"
 
 
 class Event(BaseModel):

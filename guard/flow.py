@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 
 from guard import credential, persona, settings, state, telegram, vapi
-from guard.brain import classify, contacts
+from guard.brain import classify, contacts, context
 
 _tasks: set = set()
 _caller_text: dict[str, str] = {}
@@ -52,6 +52,35 @@ async def on_transcript(call_id, role, text) -> None:
         state.emit(call_id, "flags", f.model_dump())
 
 
+async def _expected_call(call_id, found) -> bool:
+    if found:
+        return False
+    text = _caller_text.get(call_id, "")
+    expectation = await asyncio.to_thread(context.expected, text)
+    if expectation is None:
+        return False
+    call = state.get_call(call_id)  # Flags may have changed during retrieval.
+    if call is None or call.state != "screening":
+        return True
+    latest = _caller_text.get(call_id, "")
+    blocked = (call.flags is None or call.flags.money or call.flags.needs_verification
+               or re.search(r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card)\b", latest, re.I))
+    # Both backends already provide the atomic screening -> pending -> decision
+    # path. Reserve it without a ping, keeping state backend ownership intact.
+    if not state.set_pending(call_id, None):
+        return True
+    if blocked:
+        state.emit(call_id, "action", {"kind": "expected_but_money"})
+        if await _resolve(call_id, "unverified", "expected_but_money"):
+            await _notify(call_id, f"Caller claims to be your {expectation.kind} but asks for money. Don't pay.")
+    else:
+        state.emit(call_id, "context.expected", expectation.model_dump())
+        if await _resolve(call_id, "confirmed", "expected"):
+            why = expectation.why[:1].lower() + expectation.why[1:]
+            await _notify(call_id, f"Expected: {why} Putting the call through.")
+    return True
+
+
 async def verify_caller(call_id, claimed_name) -> None:
     call = state.get_call(call_id)
     if call is None or call.state != "screening":
@@ -60,6 +89,8 @@ async def verify_caller(call_id, claimed_name) -> None:
     claim.claimed_name = claim.claimed_name or claimed_name
     state.update_call(call_id, claimed_name=claim.claimed_name)
     found = contacts.candidates(claim, call.caller_number)
+    if await _expected_call(call_id, found):
+        return
     # A relationship alone never supplies a name to the caller, even with one match.
     if found and (len(found) > 1 or not claim.claimed_name):
         if call_id not in _asked_name:

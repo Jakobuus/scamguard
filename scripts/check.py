@@ -86,6 +86,116 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         )
         assert output == f"{expected_base}/#k={sim_key}\n"
     ok("sim auth: derived header only; local page link")
+    delivery_id, delivery_events = run(c, "Delivery driver, expected", {
+        "caller_number": "+15550440001",
+        "lines": ["Hi, I'm the driver with your desk lamp, are you home?"]}, "confirmed",
+        ["context.expected", "decision", "action", "owner.notified"])
+    assert c.get(f"/calls/{delivery_id}").json()["decided_by"] == "expected"
+    assert not any(e["type"] == "ping.sent" for e in delivery_events)
+    assert any(e["data"].get("kind") == "forward" for e in delivery_events)
+    assert any("desk lamp" in e["data"].get("text", "") for e in delivery_events if e["type"] == "owner.notified")
+    fee_id, fee_events = run(c, "Fake delivery fee", {
+        "caller_number": "+15550440002",
+        "lines": ["Your parcel is held, pay a 40 dollar customs fee with a gift card"]}, "unverified",
+        ["decision", "action", "owner.notified"])
+    assert c.get(f"/calls/{fee_id}").json()["decided_by"] == "expected_but_money"
+    assert any(e["data"].get("kind") == "expected_but_money" for e in fee_events)
+    assert not any(e["data"].get("kind") == "forward" for e in fee_events)
+    async def contact_money():
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", "This is Jakob, pay for my desk lamp parcel with gift cards")
+        await flow.verify_caller(cid, None)
+        events = [e for e in state.events_since(0) if e.call_id == cid]
+        assert state.get_call(cid).state == "pending"
+        assert not any(e.type == "context.expected" for e in events)
+        assert not any(e.data.get("kind") == "forward" for e in events)
+        await flow.on_tap(cid, "yes")
+    with patch.object(flow, "_pings", {}):
+        c.portal.call(contact_money)
+    async def expected_safety():
+        from guard.contracts import Flags
+        for text in ("Desk lamp parcel requires a fee", "Desk lamp driver needs payment details"):
+            cid = flow.start_call(None)
+            await flow.on_transcript(cid, "caller", text)
+            await flow.verify_caller(cid, None)
+            assert state.get_call(cid).decided_by == "expected_but_money"
+            assert not any(e.call_id == cid and e.data.get("kind") == "forward" for e in state.events_since(0))
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", "Desk lamp driver")
+        def flags_changed(text):
+            state.update_call(cid, flags=Flags(money=True))
+            return original_expected(text)
+        original_expected = flow.context.expected
+        with patch.object(flow.context, "expected", side_effect=flags_changed):
+            await flow.verify_caller(cid, None)
+        assert state.get_call(cid).decided_by == "expected_but_money"
+        # The same flow starts in screening on either state backend. The SQL
+        # transport is simulated here; no live database is needed for checks.
+        for backend in (state.MemoryBackend(), state.SingleStoreBackend()):
+            with patch.object(state, "backend", backend):
+                cid = flow.start_call(None)
+                await flow.on_transcript(cid, "caller", "Desk lamp driver")
+                if isinstance(backend, state.SingleStoreBackend):
+                    writes = []
+                    def execute(sql, *args):
+                        writes.append((sql, args))
+                        return 1
+                    backend.available = True
+                    with patch.object(backend, "_exec", side_effect=execute), patch.object(backend, "get_call", side_effect=lambda call_id: backend.calls[call_id]):
+                        await flow.verify_caller(cid, None)
+                    assert any("state='screening'" in sql for sql, _ in writes)
+                    assert any("state='pending'" in sql and args[1] == "expected" for sql, args in writes if sql.startswith("UPDATE calls SET state=?"))
+                else:
+                    await flow.verify_caller(cid, None)
+                assert backend.calls[cid].state == "confirmed"
+                assert backend.calls[cid].decided_by == "expected"
+    c.portal.call(expected_safety)
+    from guard.brain import context
+    from scripts import senso_load
+    import httpx
+    assert len(context.records()) == 5
+    for words, kind in (("desk lamp", "delivery"), ("coffee beans", "delivery"),
+                        ("doctor office callback", "callback"), ("washing machine repair", "appointment")):
+        assert context.expected(words).kind == kind
+    assert context.expected("archived receipt book") is None
+    assert context.expected("just saying hello") is None
+    with patch.object(context, "_search", side_effect=AssertionError("network forbidden")):
+        for switches in ({"FAKE": "1", "REAL_SENSO": "1"}, {"FAKE": "0", "REAL_SENSO": "0"}):
+            with patch.dict(os.environ, switches):
+                assert context.expected("desk lamp").source == "file"
+    def senso_response(request):
+        assert request.url.path == "/api/v1/org/search/context"
+        assert json.loads(request.content) == {"query": "desk lamp"}
+        return httpx.Response(200, json={"results": [
+            {"title": "order-desk-lamp", "score": 0.9, "rank": 1}]})
+    client_type = httpx.Client
+    with patch.dict(os.environ, {"FAKE": "0", "REAL_SENSO": "1", "SENSO_API_KEY": "test-key"}):
+        with patch.object(context.httpx, "Client", side_effect=lambda **kw: client_type(
+                transport=httpx.MockTransport(senso_response), **kw)):
+            match = context.expected("desk lamp")
+            assert match.source == "senso" and match.source_id == "order-desk-lamp"
+        with patch.object(context, "_search", side_effect=RuntimeError("private detail")), patch.object(context.logging, "getLogger") as logger:
+            assert context.expected("desk lamp").source == "file"
+            logger.return_value.warning.assert_called_once_with("Senso unavailable; using file expectations")
+        with patch.object(context.queue.Queue, "get", side_effect=context.queue.Empty), patch.object(context, "_search", return_value=None):
+            assert context.expected("desk lamp").source == "file"
+    uploads = []
+    polls = []
+    def load_response(request):
+        if request.method == "POST":
+            row = json.loads(request.content)
+            uploads.append(row)
+            return httpx.Response(202, json={"kb_node_id": row["title"]})
+        polls.append(request.url.path)
+        assert len(uploads) == 5, "upload all documents before polling"
+        return httpx.Response(200, json={"content": {"processing_status": "complete"}})
+    with httpx.Client(base_url=context._BASE, transport=httpx.MockTransport(load_response), timeout=2.5) as client:
+        senso_load.load(client, context.records())
+    assert len(uploads) == len(polls) == 5
+    assert {row["title"] for row in uploads} == {row["id"] for row in context.records()}
+    preview = subprocess.check_output([sys.executable, "scripts/senso_load.py"], text=True)
+    assert preview.strip() == "File expectations: 5 records; no upload"
+    ok("expectations: local records, Senso switches, retrieval, error/timeout fallback, loader preview")
     scam = {"claimed_name": "Jakob", "caller_number": "+15550999999", "lines": SCAM}
     scam_id, scam_events = run(c, "scam, tap no", {**scam, "tap": "no", "tap_after_s": 0.5}, "denied",
         BASE + ["owner.notified", "call.ended"])

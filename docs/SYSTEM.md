@@ -11,8 +11,8 @@ real thing, keep the signature". Main always runs; nobody waits for anybody.
 
 - Fake a whole call without a phone: `POST /sim/call` (see 5). Neither lane needs Vapi to test.
 - Per-service switches in `.env`: `REAL_VAPI`, `REAL_TELEGRAM`, `REAL_DB`, `REAL_SIE`, `REAL_COGNEE`,
-  `REAL_PERSONA` (each `0`/`1`). `FAKE=1` forces all to 0.
-- `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed), trust-gap scenes, code-word recovery and daily ping-cap scenes, and contract checks.
+  `REAL_PERSONA`, `REAL_SENSO` (each `0`/`1`). `FAKE=1` forces all to 0.
+- `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed), trust-gap scenes, code-word recovery, daily ping-cap and expected-call scenes, and contract checks.
   **Run it before every push.** If it fails, don't push.
 
 ## 2. Lanes and file ownership
@@ -21,8 +21,8 @@ Stack: Python 3.12+, FastAPI, `uv`, one static HTML page. No frontend framework.
 
 | Lane | Owns | Delivers |
 |---|---|---|
-| **A Call path and demo** | `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`, `web/`, `scripts/`, `README.md` | Call handling, verification taps, the audience screen and the demo checks |
-| **B Brains** | `guard/brain/*`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/` | Flags, claim extraction, contact matching and learning, drill score, identity step-up, scoped credentials and telemetry |
+| **A Call path and demo** | `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`, `guard/brain/context.py`, `guard/brain/classify.py`, `web/`, `scripts/`, `README.md` | Call handling, flags, claim extraction, expected calls, verification taps, the audience screen and the demo checks |
+| **B Brains** | `guard/brain/contacts.py`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/` | Contact matching and learning, drill score, identity step-up, scoped credentials and telemetry |
 
 Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as `OWNER_NAME` live in
 `guard/settings.py`; its default is `Mum`.
@@ -37,7 +37,7 @@ Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as 
   sentences. It follows system instructions for name/challenge questions without revealing expected answers.
 - It politely ends sales/survey calls and takes a short message for other harmless callers.
 - No model output hangs up or forwards a call: only the real person's tap, the timeout, a valid code word or a valid
-  credential decides. The flow also enforces the explicit known-number and repeat-attempt policies below.
+  credential or a matching expected call decides. Expectations never authorise money. The flow also enforces the explicit known-number and repeat-attempt policies below.
   Flags alone never decide a call.
 
 ## 3. The call's life (one state machine, owned by lane A)
@@ -46,13 +46,13 @@ Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as 
 started → screening → pending ─┬─ confirmed   (Yes, optionally followed by step-up) → forward
             │                  ├─ denied      (No, failed step-up, repeat attempt) → hang up
             │                  └─ unverified  (timeout or failed lookup)           → challenge
-            ├─ confirmed      (known number, no sensitive identity claim)         → forward
+            ├─ confirmed      (known number or expectation, no sensitive request)         → forward
             └─ agent_verified (valid credential within scope)                     → forward
 any → ended
 ```
 
 `verify_caller` extracts a claim from the caller transcript so far, using its `claimed_name` argument
-only as a fallback. No match resolves unverified by `lookup`. Multiple candidates, or a relationship
+only as a fallback. No contact match first checks expected calls below; no expectation resolves unverified by `lookup`. Multiple candidates, or a relationship
 without a name even if only one contact matches, trigger `ask_name` without a ping and leave the call
 in `screening`. A later named attempt can proceed; a second ambiguous attempt resolves unverified.
 No candidate's name is suggested to the caller.
@@ -83,6 +83,40 @@ If Persona is really enabled (`REAL_PERSONA=1`, `FAKE=0`), no link or an excepti
 by `stepup_unavailable`. With Persona off, no link confirms by `tap`. Duplicate Yes taps cannot skip
 step-up; No and the existing timeout still work. Every winning decision calls `contacts.learn(call)`;
 only confirmation by `tap` or `stepup` teaches a new number, never `known_number`.
+
+### Expected calls
+
+Lane A owns `guard/brain/context.py` and `guard/brain/classify.py`. An unknown caller can match
+`context.expected(caller_text) -> Expectation | None` when no circle candidate was found. Circle
+claims keep the existing verification path, including when the caller mentions an expected order.
+`data/expected.json` holds five stand-in records: two deliveries arriving today, an office callback,
+a repair appointment, and an unrelated completed-order receipt marked `expected: false`. Each has
+`id`, `kind`, `who`, `keywords`, and `note`. The best keyword-token overlap of at least 0.2 wins;
+the unrelated record never permits a call. These are current demo expectations, not a calendar.
+
+A match with no latest `money` or `needs_verification` flag emits `context.expected`, confirms by
+`expected`, forwards without a ping, and notifies the owner with the expectation's reason:
+"Expected: delivery for your desk lamp order. Putting the call through."
+Flags are checked again after retrieval; explicit fee, gift-card and payment-detail words also block.
+A match with a sensitive request emits action `expected_but_money`, resolves `unverified` by
+`expected_but_money`, and warns the owner: "Caller claims to be your delivery but asks for money.
+Don't pay." It never forwards. Both state backends accept this flow from screening through the
+existing atomic `set_pending` and `decide` functions, without sending a ping. No state backend file
+changes are needed. Missing flags also prevent forwarding.
+
+Senso is used only with `REAL_SENSO=1` and `FAKE=0`; `SENSO_API_KEY` is read inside the context
+module. `POST https://apiv2.senso.ai/api/v1/org/search/context` uses `X-API-Key` and `{query}`.
+The top ranked passage title must equal a local record id, have score at least 0.2, and overlap
+that record's keywords. Retrieved text cannot create expectations. HTTP operations have a short
+timeout, and the whole search waits at most 2.5 seconds; errors log one fixed line with no service
+response or key, then use the file result. A valid empty result means no expectation.
+
+Run `uv run python scripts/senso_load.py` for a keyless file preview. With the same real-service
+switches enabled, it posts each record to `/api/v1/org/kb/raw` with the record id as title, then
+polls `/api/v1/org/kb/nodes/{kb_node_id}` every five seconds until all five report
+`content.processing_status == "complete"`. Loading is bounded, each request times out after 2.5
+seconds, and any failure (including a duplicate upload) logs one fixed line and keeps file mode.
+Use `FAKE=0 REAL_SENSO=1 uv run python scripts/senso_load.py` after configuring the key.
 
 ### Code word and daily ping cap
 
@@ -154,6 +188,14 @@ class Flags:
     latency_ms: int
     source: str                       # "sie" | "fake"
 
+class Expectation:
+    kind: str                        # delivery | callback | appointment
+    who: str
+    why: str                         # one sentence for the owner
+    source_id: str                    # local record id
+    source: str                      # file | senso
+    score: float
+
 class Claim:
     claimed_name: str | None
     relationship: str | None          # e.g. "son"
@@ -171,7 +213,7 @@ class Call:
     started_at: datetime
     decided_at: datetime | None
     decided_by: str | None            # tap | timeout | credential | lookup |
-                                      # known_number | repeat_attempt | stepup | stepup_unavailable | code_word | ping_cap
+                                      # known_number | repeat_attempt | stepup | stepup_unavailable | code_word | ping_cap | expected | expected_but_money
 
 class Event:
     id: int                           # increasing
@@ -191,8 +233,9 @@ Functions (Python, same process):
 
 | Function | Owner | Contract |
 |---|---|---|
-| `classify.flags(text) -> Flags` | B | Rolling caller transcript. Never raises; errors fall back to fake flags. Fake keywords include money and purchase requests. |
-| `classify.claim(text) -> Claim` | B | Fake regex extracts a name after "it's"/"this is", relationship words, a dollar amount and payment method; quote preserves the source text. |
+| `context.expected(caller_text: str) -> Expectation \| None` | A | Best current expectation from file or gated Senso retrieval; errors fall back to file within 2.5 seconds. Never authorises money. |
+| `classify.flags(text) -> Flags` | A | Rolling caller transcript. Never raises; errors fall back to fake flags. Fake keywords include money and purchase requests. |
+| `classify.claim(text) -> Claim` | A | Fake regex extracts a name after "it's"/"this is", relationship words, a dollar amount and payment method; quote preserves the source text. |
 | `contacts.candidates(claim: Claim, caller_number) -> list[Lookup]` | B | Match name or nickname when present, otherwise relationship. Return every matching contact; never infer a name from caller number. |
 | `contacts.lookup(claimed_name, caller_number) -> Lookup` | B | Compatible name lookup; missing match returns `contact=None`. Cognee may enrich notes but never decides. |
 | `contacts.attempts_today(contact_id, caller_number=None) -> int` | B | Count today's denied and unverified attempts (UTC in the fake), restricted to that contact/number pair when a number is supplied. |
@@ -238,12 +281,13 @@ HTTP (all JSON):
 | `call.started` | `{caller_number}` (masked on the screen) |
 | `transcript` | `{role: "caller"\|"agent", text}` |
 | `flags` | `Flags`, including `needs_verification` |
+| `context.expected` | `Expectation`; emitted only for a safe matched call, never a circle claim asking for money |
 | `contact.lookup` | `{contact: {id, name, relationship} \| null, number_known, note}`; never numbers, emails or chat ids |
 | `ping.sent` | `{contact_id, channels: ["telegram"], text}`; text includes available claim amount/method and the configured owner label |
 | `notice.sent` | `{contact_id, channels: ["telegram"], text}`; non-blocking known-number or code-word heads-up |
 | `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide}`; `by` is one of the documented `decided_by` values |
-| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial"\|"code_word_failed", text}` or `{kind: "stepup", link}` or `{kind: "code_word_failed"}` |
-| `owner.notified` | `{text}`; includes a warning not to send money and the third-attempt warning when blocked |
+| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial"\|"code_word_failed"\|"expected_but_money", text}` or `{kind: "stepup", link}` or `{kind: "code_word_failed"\|"expected_but_money"}` |
+| `owner.notified` | `{text}`; expected-call reason when forwarded, or a warning not to send money and the third-attempt warning when blocked |
 | `credential.verified` | `{agent, principal, scope}`; only emitted after the scope check passes |
 | `call.ended` | `{}` |
 
