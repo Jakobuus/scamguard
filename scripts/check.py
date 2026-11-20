@@ -513,7 +513,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert any("Don't pay" in e["data"].get("text", "") for e in fee_events if e["type"] == "owner.notified")
     assert all("4111" not in json.dumps(e) and "1111" not in json.dumps(e) for e in fee_events)
     assert any("[card number]" in e["data"].get("text", "") for e in fee_events if e["type"] == "transcript")
-    partial_texts = [part[role]["text"] for part in fee_partials
+    partial_texts = [part[role] for part in fee_partials
                      for role in ("caller", "agent") if part[role]]
     assert all("4111" not in text and "1111" not in text for text in partial_texts), "fee scene leaked card digits live"
     assert any("[card number]" in text for text in partial_texts)
