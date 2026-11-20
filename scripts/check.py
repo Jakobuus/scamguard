@@ -476,6 +476,9 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             # Auth succeeds; the deliberately invalid body then fails validation.
             assert c.post(route, json={"tap": "invalid"},
                           headers={"X-Sim-Key": sim_key}).status_code == 422
+        for route in ("/sim/scam-call", "/sim/scam-call/stop"):
+            assert c.post(route).status_code == 403
+            assert c.post(route, headers={"X-Sim-Key": "wrong"}).status_code == 403
         with patch.dict(os.environ, {"APP_SECRET": ""}):
             assert c.post("/sim/call", json={}, headers={"X-Sim-Key": sim_key}).status_code == 403
     for base, expected_base in (("https://demo.example/", "https://demo.example"),
@@ -485,7 +488,14 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             env={**os.environ, "APP_SECRET": "test-app-secret", "PUBLIC_BASE_URL": base}, timeout=30,
         )
         assert output == f"{expected_base}/#k={sim_key}\n"
-    ok("sim auth: derived header only; local page link")
+    r = c.post("/sim/scam-call").json()
+    assert r["started"] is False and r["reason"], r
+    assert c.post("/sim/scam-call/stop").json()["stopped"] is False
+    with patch.object(settings, "REAL_VAPI", True), patch.object(settings, "FAKE", False), \
+            patch.dict(os.environ, {"APP_SECRET": "test-app-secret", "VAPI_SCAM_PHONE_ID": ""}):
+        r = c.post("/sim/scam-call", headers={"X-Sim-Key": sim_key}).json()
+        assert r["started"] is False and "VAPI_SCAM_PHONE_ID" in r["reason"], r
+    ok("sim auth: derived header only; local page link; scam call refuses without key, fake mode or number")
     # Finals alone must resolve specific expectations without an identity tool call.
     async def expected_without_tool():
         import asyncio
@@ -1697,5 +1707,16 @@ _words = {c.challenge_answer.casefold() for c in contacts._all() if c.challenge_
 assert not _words & {k.casefold() for k in _t["keyterm"]}, "code word leaked into transcriber"
 assert _p["backgroundSpeechDenoisingPlan"]["smartDenoisingPlan"]["enabled"] is True
 ok("vapi payload: transcriber boosts owner and contact names, no code words, denoising on")
+_spec = _iu.spec_from_file_location("vapi_scam_caller", Path(__file__).with_name("vapi_scam_caller.py"))
+scam = _iu.module_from_spec(_spec)
+_spec.loader.exec_module(scam)
+_p = scam.assistant_payload("voice-x")
+assert _p["name"] == "scam-caller" and _p["voice"] == {"provider": "11labs", "voiceId": "voice-x", "model": "eleven_turbo_v2_5"}
+assert "server" not in _p and "tools" not in _p["model"] and _p["serverMessages"] == [], "scam leg must not reach our webhook"
+assert _p["firstMessageMode"] == "assistant-waits-for-user" and _p["maxDurationSeconds"] == 75
+_sys = _p["model"]["messages"][0]["content"]
+assert "consented" in _sys and settings.OWNER_NAME in _sys and "hackathon" in _sys
+assert not _words & set(re.findall(r"\w+", _sys.casefold())), "scam caller must not know a code word"
+ok("scam caller payload: cloned voice, waits for the guard, no webhook or tools, no code word")
 _timer.cancel()
 print("ALL OK")
