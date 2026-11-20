@@ -10,8 +10,25 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from guard import settings  # noqa: E402
+from guard.brain import contacts  # noqa: E402
 
 log = logging.getLogger(__name__)
+
+
+def boost_terms() -> list[str]:
+    """Words the transcriber should favour: names and relationships from the data, plus call vocabulary.
+    Never includes code words."""
+    terms = [settings.OWNER_NAME]
+    for c in contacts._all():
+        terms += [c.name, *c.nicknames, c.relationship]
+    terms += ["teammate", "son", "daughter", "hackathon", "delivery", "parcel", "code word"]
+    seen, out = set(), []
+    for t in terms:
+        t = (t or "").strip()
+        if t and t.casefold() not in seen:
+            seen.add(t.casefold())
+            out.append(t)
+    return out
 
 
 def assistant_payload(base_url: str, secret: str = "") -> dict:
@@ -19,6 +36,11 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
     return {
         "name": f"{settings.OWNER_NAME.lower()}-guard",
         "firstMessage": f"Hello, this is {settings.OWNER_NAME}'s assistant. Who is calling and what is it about?",
+        # Deepgram nova-3 takes boosted vocabulary as `keyterm` (`keywords` is for older models).
+        "transcriber": {"provider": "deepgram", "model": "nova-3", "language": "en", "smartFormat": True,
+                        "keyterm": boost_terms(), "endpointing": 300},
+        "backgroundSpeechDenoisingPlan": {"smartDenoisingPlan": {"enabled": True}},
+        "startSpeakingPlan": {"waitSeconds": 0.8},
         "model": {
             "provider": "openai",
             "model": "gpt-4.1",
@@ -33,6 +55,7 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
                 "and their own words about who they are and why they call in reason. "
                 "If they have not said who they are or why they call after your greeting, ask once more, briefly, "
                 "and then call verify_caller with their reply. "
+                "If you did not clearly understand who is calling, ask them once to repeat their name slowly before you call verify_caller. "
                 "Call verify_caller only once per call. After it, say one short sentence that you are trying to reach "
                 "the owner and that the caller may say the family code word if they cannot use their phone, then stay "
                 "quiet until the caller speaks or a system message arrives. Never repeat that you are checking or holding. "

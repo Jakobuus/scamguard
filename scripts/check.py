@@ -1541,5 +1541,19 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
                 "unverified", ["claim"])
     assert not any(e["type"] == "contact.lookup" and e["data"].get("resolved_by") for e in ev)
     ok("memory through the simulator: teammate resolves to Erick and is asked, Yes is learned, a timeout is not, a friend is not guessed, /memory answers")
+# Vapi assistant payload: transcriber boosts names, never code words.
+import importlib.util as _iu
+_spec = _iu.spec_from_file_location("vapi_setup", Path(__file__).with_name("vapi_setup.py"))
+vapi_setup = _iu.module_from_spec(_spec)
+_spec.loader.exec_module(vapi_setup)
+_p = vapi_setup.assistant_payload("https://example.test")
+_t = _p["transcriber"]
+assert _t["provider"] == "deepgram" and _t["keyterm"], _t
+assert settings.OWNER_NAME in _t["keyterm"] and "Erick" in _t["keyterm"], _t["keyterm"]
+assert all(c.name in _t["keyterm"] for c in contacts._all())
+_words = {c.challenge_answer.casefold() for c in contacts._all() if c.challenge_answer}
+assert not _words & {k.casefold() for k in _t["keyterm"]}, "code word leaked into transcriber"
+assert _p["backgroundSpeechDenoisingPlan"]["smartDenoisingPlan"]["enabled"] is True
+ok("vapi payload: transcriber boosts owner and contact names, no code words, denoising on")
 _timer.cancel()
 print("ALL OK")
