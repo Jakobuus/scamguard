@@ -57,19 +57,40 @@ async def _expected_call(call_id, found) -> bool:
         return False
     text = _caller_text.get(call_id, "")
     expectation = await asyncio.to_thread(context.expected, text)
-    if expectation is None:
+    if expectation is None and not any(
+        record.get("expected", True) and any(context._contains(term, text)
+                                            for term in record["keywords"]["generic"])
+        for record in context.records()
+    ):
         return False
     call = state.get_call(call_id)  # Flags may have changed during retrieval.
     if call is None or call.state != "screening":
         return True
     latest = _caller_text.get(call_id, "")
-    blocked = (call.flags is None or call.flags.money or call.flags.needs_verification
-               or re.search(r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card)\b", latest, re.I))
+    money = bool((call.flags and call.flags.money) or re.search(
+        r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card|wire|transfer|cash|"
+        r"crypto|bitcoin|dollars?|customs|deposit|card number)\b|\$", latest, re.I))
+    blocked = (call.flags is None or money or call.flags.urgency or call.flags.secrecy
+               or call.flags.needs_verification)
+    if expectation is None and money:
+        return False  # Generic money claims retain the ordinary unverified path.
     # Both backends already provide the atomic screening -> pending -> decision
     # path. Reserve it without a ping, keeping state backend ownership intact.
     if not state.set_pending(call_id, None):
         return True
-    if blocked:
+    if expectation is None or (blocked and not money):
+        # Resolve atomically without _act's identity challenge and money warning.
+        if state.decide(call_id, "unverified", "lookup"):
+            call = state.get_call(call_id)
+            contacts.learn(call)
+            state.emit(call_id, "decision", {"state": "unverified", "by": "lookup",
+                       "seconds_to_decide": round((call.decided_at - call.started_at).total_seconds(), 1)})
+            instruction = "Take a short message for the owner. Do not put the caller through."
+            vapi.add_message(call_id, instruction)
+            state.emit(call_id, "action", {"kind": "take_message", "text": instruction})
+            mentioned = f"your {expectation.who}" if expectation else "a delivery or appointment"
+            await _notify(call_id, f"A caller mentioned {mentioned}. I took a message instead of putting them through.")
+    elif money:
         state.emit(call_id, "action", {"kind": "expected_but_money"})
         if await _resolve(call_id, "unverified", "expected_but_money"):
             await _notify(call_id, f"Caller claims to be your {expectation.kind} but asks for money. Don't pay.")

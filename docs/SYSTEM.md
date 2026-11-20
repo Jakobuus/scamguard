@@ -91,23 +91,32 @@ Lane A owns `guard/brain/context.py` and `guard/brain/classify.py`. An unknown c
 claims keep the existing verification path, including when the caller mentions an expected order.
 `data/expected.json` holds five stand-in records: two deliveries arriving today, an office callback,
 a repair appointment, and an unrelated completed-order receipt marked `expected: false`. Each has
-`id`, `kind`, `who`, `keywords`, and `note`. The best keyword-token overlap of at least 0.2 wins;
-the unrelated record never permits a call. These are current demo expectations, not a calendar.
+`id`, `kind`, `who`, `keywords: {specific, generic}`, and `note`; keywords contain lists of
+specific item or organisation terms and generic call words. These are current demo expectations,
+not a calendar; the unrelated record never permits a call.
 
-A match with no latest `money` or `needs_verification` flag emits `context.expected`, confirms by
-`expected`, forwards without a ping, and notifies the owner with the expectation's reason:
+A match requires a whole specific term in the caller's words (also for Senso's returned record),
+with generic words only raising the keyword-token overlap score, which must reach 0.2.
+It forwards by `expected` only when latest flags exist and `money`, `urgency`, `secrecy`, and
+`needs_verification` are all false and no money wording is present; money blocks resolve
+`unverified` by `expected_but_money` and warn the owner, while other blocks and generic-only
+callers take a short message via action `take_message` instead of forwarding.
+
+Safe matches emit `context.expected`, confirm without a ping, and notify the owner with the reason:
 "Expected: delivery for your desk lamp order. Putting the call through."
-Flags are checked again after retrieval; explicit fee, gift-card and payment-detail words also block.
-A match with a sensitive request emits action `expected_but_money`, resolves `unverified` by
-`expected_but_money`, and warns the owner: "Caller claims to be your delivery but asks for money.
-Don't pay." It never forwards. Both state backends accept this flow from screening through the
-existing atomic `set_pending` and `decide` functions, without sending a ping. No state backend file
-changes are needed. Missing flags also prevent forwarding.
+Flags are checked again after retrieval; money wording includes fee, gift card, payment, pay, bank,
+credit card, debit card, wire, transfer, cash, crypto, bitcoin, dollar(s), `$`, customs, deposit,
+and card number. Money blocks retain action `expected_but_money` and the warning:
+"Caller claims to be your delivery but asks for money. Don't pay."
+Other blocked matches resolve `unverified` by `lookup`, send the assistant a system message to take
+a short message, and notify the owner: "A caller mentioned your <who>. I took a message instead
+of putting them through." Generic-only money claims keep the ordinary unverified path.
+Both state backends use the existing atomic `set_pending` and `decide` functions without a ping.
 
 Senso is used only with `REAL_SENSO=1` and `FAKE=0`; `SENSO_API_KEY` is read inside the context
 module. `POST https://apiv2.senso.ai/api/v1/org/search/context` uses `X-API-Key` and `{query}`.
 The top ranked passage title must equal a local record id, have score at least 0.2, and overlap
-that record's keywords. Retrieved text cannot create expectations. HTTP operations have a short
+a whole specific term in that record's keywords. Retrieved text cannot create expectations. HTTP operations have a short
 timeout, and the whole search waits at most 2.5 seconds; errors log one fixed line with no service
 response or key, then use the file result. A valid empty result means no expectation.
 
@@ -286,7 +295,7 @@ HTTP (all JSON):
 | `ping.sent` | `{contact_id, channels: ["telegram"], text}`; text includes available claim amount/method and the configured owner label |
 | `notice.sent` | `{contact_id, channels: ["telegram"], text}`; non-blocking known-number or code-word heads-up |
 | `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide}`; `by` is one of the documented `decided_by` values |
-| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial"\|"code_word_failed"\|"expected_but_money", text}` or `{kind: "stepup", link}` or `{kind: "code_word_failed"\|"expected_but_money"}` |
+| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial"\|"code_word_failed"\|"expected_but_money"\|"take_message", text}` or `{kind: "stepup", link}` or `{kind: "code_word_failed"\|"expected_but_money"}` |
 | `owner.notified` | `{text}`; expected-call reason when forwarded, or a warning not to send money and the third-attempt warning when blocked |
 | `credential.verified` | `{agent, principal, scope}`; only emitted after the scope check passes |
 | `call.ended` | `{}` |

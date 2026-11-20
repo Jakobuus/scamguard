@@ -96,11 +96,26 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert any("desk lamp" in e["data"].get("text", "") for e in delivery_events if e["type"] == "owner.notified")
     fee_id, fee_events = run(c, "Fake delivery fee", {
         "caller_number": "+15550440002",
-        "lines": ["Your parcel is held, pay a 40 dollar customs fee with a gift card"]}, "unverified",
+        "lines": ["Your desk lamp parcel is held, pay a 40 dollar customs fee with a gift card"]}, "unverified",
         ["decision", "action", "owner.notified"])
     assert c.get(f"/calls/{fee_id}").json()["decided_by"] == "expected_but_money"
     assert any(e["data"].get("kind") == "expected_but_money" for e in fee_events)
     assert not any(e["data"].get("kind") == "forward" for e in fee_events)
+    generic_id, generic_events = run(c, "Generic delivery takes a message", {
+        "lines": ["I'm a driver with a delivery, are you home?"]}, "unverified",
+        ["decision", "action", "owner.notified"])
+    assert any(e["data"].get("kind") == "take_message" for e in generic_events)
+    assert not any(e["data"].get("kind") == "forward" for e in generic_events)
+    cash_id, cash_events = run(c, "Expected delivery asks for cash", {
+        "lines": ["driver with your desk lamp, I need 40 dollars cash right now"]}, "unverified",
+        ["decision", "action", "owner.notified"])
+    assert c.get(f"/calls/{cash_id}").json()["decided_by"] == "expected_but_money"
+    assert not any(e["data"].get("kind") == "forward" for e in cash_events)
+    _, pressure_events = run(c, "Expected delivery with pressure", {
+        "lines": ["driver with your desk lamp, hurry, I leave in one minute, don't tell anyone"]}, "unverified",
+        ["decision", "action", "owner.notified"])
+    assert any(e["data"].get("kind") == "take_message" for e in pressure_events)
+    assert not any(e["data"].get("kind") == "forward" for e in pressure_events)
     async def contact_money():
         cid = flow.start_call(None)
         await flow.on_transcript(cid, "caller", "This is Jakob, pay for my desk lamp parcel with gift cards")
@@ -114,12 +129,31 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         c.portal.call(contact_money)
     async def expected_safety():
         from guard.contracts import Flags
-        for text in ("Desk lamp parcel requires a fee", "Desk lamp driver needs payment details"):
+        for text in ("Desk lamp parcel requires a fee", "Desk lamp driver needs payment details",
+                     *(f"Desk lamp driver requests {word}" for word in (
+                         "wire", "transfer", "cash", "crypto", "bitcoin", "dollars", "$40",
+                         "customs", "deposit", "card number"))):
             cid = flow.start_call(None)
             await flow.on_transcript(cid, "caller", text)
+            state.update_call(cid, flags=Flags())  # Wording blocks even if the classifier misses it.
             await flow.verify_caller(cid, None)
             assert state.get_call(cid).decided_by == "expected_but_money"
             assert not any(e.call_id == cid and e.data.get("kind") == "forward" for e in state.events_since(0))
+        # Each risk flag independently blocks; missing flags also fail closed.
+        for flags in (None, Flags(urgency=True), Flags(secrecy=True), Flags(needs_verification=True)):
+            cid = flow.start_call(None)
+            await flow.on_transcript(cid, "caller", "Desk lamp driver")
+            state.update_call(cid, flags=flags)
+            await flow.verify_caller(cid, None)
+            events = [e for e in state.events_since(0) if e.call_id == cid]
+            assert state.get_call(cid).state == "unverified"
+            assert any(e.data.get("kind") == "take_message" for e in events)
+            assert any(e.data.get("kind") == "challenge" and "short message" in e.data.get("text", "") for e in events)
+            assert not any(e.data.get("kind") in ("forward", "expected_but_money") for e in events)
+            assert any(e.type == "owner.notified" and e.data["text"] ==
+                       "A caller mentioned your parcel service for the desk lamp order arriving today. "
+                       "I took a message instead of putting them through." for e in events)
+            assert not any(e.type == "owner.notified" and "money" in e.data["text"] for e in events)
         cid = flow.start_call(None)
         await flow.on_transcript(cid, "caller", "Desk lamp driver")
         def flags_changed(text):
@@ -155,17 +189,19 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     import httpx
     assert len(context.records()) == 5
     for words, kind in (("desk lamp", "delivery"), ("coffee beans", "delivery"),
-                        ("doctor office callback", "callback"), ("washing machine repair", "appointment")):
+                        ("Oak Clinic office callback", "callback"), ("washing machine repair", "appointment")):
         assert context.expected(words).kind == kind
     assert context.expected("archived receipt book") is None
     assert context.expected("just saying hello") is None
+    for words in ("driver delivery parcel", "doctor office appointment", "desk", "lamp", "coffeehouse"):
+        assert context.expected(words) is None, words
     with patch.object(context, "_search", side_effect=AssertionError("network forbidden")):
         for switches in ({"FAKE": "1", "REAL_SENSO": "1"}, {"FAKE": "0", "REAL_SENSO": "0"}):
             with patch.dict(os.environ, switches):
                 assert context.expected("desk lamp").source == "file"
     def senso_response(request):
         assert request.url.path == "/api/v1/org/search/context"
-        assert json.loads(request.content) == {"query": "desk lamp"}
+        assert json.loads(request.content)["query"] in ("desk lamp", "driver parcel delivery", "desk")
         return httpx.Response(200, json={"results": [
             {"title": "order-desk-lamp", "score": 0.9, "rank": 1}]})
     client_type = httpx.Client
@@ -174,6 +210,8 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
                 transport=httpx.MockTransport(senso_response), **kw)):
             match = context.expected("desk lamp")
             assert match.source == "senso" and match.source_id == "order-desk-lamp"
+            assert context.expected("driver parcel delivery") is None
+            assert context.expected("desk") is None
         with patch.object(context, "_search", side_effect=RuntimeError("private detail")), patch.object(context.logging, "getLogger") as logger:
             assert context.expected("desk lamp").source == "file"
             logger.return_value.warning.assert_called_once_with("Senso unavailable; using file expectations")

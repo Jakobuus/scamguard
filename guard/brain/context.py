@@ -24,8 +24,19 @@ def _tokens(text):
     return set(re.findall(r"\w+", text.casefold()))
 
 
+def _contains(term, text):
+    # Whole terms, including multiword items, must occur in the caller's words.
+    words = re.findall(r"\w+", term.casefold())
+    caller = " ".join(re.findall(r"\w+", text.casefold()))
+    return bool(words) and f" {' '.join(words)} " in f" {caller} "
+
+
 def _match(record, text):
-    keywords = set().union(*(_tokens(word) for word in record["keywords"]))
+    specific = record["keywords"]["specific"]
+    if not any(_contains(term, text) for term in specific):
+        return 0.0
+    terms = specific + record["keywords"]["generic"]
+    keywords = set().union(*(_tokens(word) for word in terms))
     return len(keywords & _tokens(text)) / len(keywords) if keywords else 0.0
 
 

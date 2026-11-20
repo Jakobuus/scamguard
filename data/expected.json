@@ -1,7 +1,7 @@
 [
-  {"id":"order-desk-lamp","kind":"delivery","who":"parcel service for the desk lamp order arriving today","keywords":["desk", "lamp", "parcel", "driver"],"note":"Delivery for your desk lamp order."},
-  {"id":"order-coffee","kind":"delivery","who":"courier for the coffee order arriving today","keywords":["coffee", "beans", "courier"],"note":"Delivery for your coffee order."},
-  {"id":"office-callback","kind":"callback","who":"doctor's office returning your call","keywords":["doctor", "office", "callback"],"note":"Your doctor's office is returning your call."},
-  {"id":"repair-appointment","kind":"appointment","who":"repair service for the washing machine appointment","keywords":["washing", "machine", "repair", "appointment"],"note":"Repair visit for your washing machine appointment."},
-  {"id":"unrelated-receipt","kind":"delivery","who":"archived receipt for a completed book order","keywords":["archived", "receipt", "book"],"note":"Completed order receipt; no call expected.","expected":false}
+  {"id":"order-desk-lamp","kind":"delivery","who":"parcel service for the desk lamp order arriving today","keywords":{"specific":["desk lamp"],"generic":["parcel","driver","delivery"]},"note":"Delivery for your desk lamp order."},
+  {"id":"order-coffee","kind":"delivery","who":"courier for the coffee order arriving today","keywords":{"specific":["coffee","beans"],"generic":["courier","delivery"]},"note":"Delivery for your coffee order."},
+  {"id":"office-callback","kind":"callback","who":"Oak Clinic's office returning your call","keywords":{"specific":["Oak Clinic"],"generic":["doctor","office","callback","appointment"]},"note":"Your doctor's office is returning your call."},
+  {"id":"repair-appointment","kind":"appointment","who":"repair service for the washing machine appointment","keywords":{"specific":["washing machine"],"generic":["repair","appointment"]},"note":"Repair visit for your washing machine appointment."},
+  {"id":"unrelated-receipt","kind":"delivery","who":"archived receipt for a completed book order","keywords":{"specific":["book"],"generic":["archived","receipt"]},"note":"Completed order receipt; no call expected.","expected":false}
 ]
