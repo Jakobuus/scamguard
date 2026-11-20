@@ -44,9 +44,11 @@ class MemoryBackend:
         # only from screening: a second verify_caller can't reopen a decided call or re-ping
         with self.lock:
             c = self.calls.get(call_id)
-            if c is None or c.state != "screening":
+            # HACK: also from "unverified" by "lookup" (nobody found the first time): a second identification
+            if c is None or not (c.state == "screening" or (c.state == "unverified" and c.decided_by == "lookup")):
                 return False
-            self.calls[call_id] = c.model_copy(update={"state": "pending", "contact_id": contact_id})
+            self.calls[call_id] = c.model_copy(update={"state": "pending", "contact_id": contact_id,
+                                                       "decided_at": None, "decided_by": None})
             return True
 
     def decide(self, call_id, state, by) -> bool:
@@ -221,10 +223,12 @@ class SingleStoreBackend(MemoryBackend):
     def set_pending(self, call_id, contact_id) -> bool:
         call_id = self._bounded("call_id", call_id)
         contact_id = self._bounded("contact_id", contact_id)
-        won = self._exec("UPDATE calls SET state='pending', contact_id=? "
-                         "WHERE call_id=? AND state='screening'", contact_id, call_id) == 1
+        won = self._exec("UPDATE calls SET state='pending', contact_id=?, decided_at=NULL, decided_by=NULL "
+                         "WHERE call_id=? AND (state='screening' OR (state='unverified' AND decided_by='lookup'))",
+                         contact_id, call_id) == 1
         if won and call_id in self.calls:
-            MemoryBackend.update_call(self, call_id, state="pending", contact_id=contact_id)
+            MemoryBackend.update_call(self, call_id, state="pending", contact_id=contact_id,
+                                      decided_at=None, decided_by=None)
         elif not won:
             self.get_call(call_id)
         return won

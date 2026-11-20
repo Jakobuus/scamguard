@@ -15,6 +15,9 @@ _verification_started: set[str] = set()
 _caller_activity: dict[str, float] = {}
 _net_tasks: dict[str, asyncio.Task] = {}
 _late_warned: set[str] = set()
+_reident: dict[str, int] = {}
+_reident_busy: set[str] = set()
+_last_line: dict[str, str] = {}
 _MONEY_RE = (r"\b(fees?|gift cards?|payment|pay|bank|credit card|debit card|wire|transfer|cash|"
              r"crypto|bitcoin|dollars?|customs|deposit|card number)\b|\$")
 _late_denials: set[str] = set()
@@ -37,6 +40,9 @@ def reset_demo() -> None:
     _caller_activity.clear()
     _net_tasks.clear()
     _late_warned.clear()
+    _reident.clear()
+    _reident_busy.clear()
+    _last_line.clear()
     scripts.reset()
 
 
@@ -158,6 +164,7 @@ async def on_transcript(call_id, role, text) -> None:
         state.emit(call_id, "flags", f.model_dump())
         spawn(scripts.on_text(call_id, _caller_text[call_id], f))  # fire-and-forget, never blocks the call
         _caller_activity[call_id] = time.time()
+        _last_line[call_id] = text
         call = state.get_call(call_id)
         if (call and call.state == "screening" and call_id not in _verification_started):
             task = _net_tasks.get(call_id)
@@ -165,6 +172,10 @@ async def on_transcript(call_id, role, text) -> None:
                 _net_tasks[call_id] = asyncio.create_task(_expected_net(call_id))
                 _tasks.add(_net_tasks[call_id])
                 _net_tasks[call_id].add_done_callback(_tasks.discard)
+        elif (call and call.state == "unverified" and call.decided_by == "lookup"
+                and _reident.get(call_id, 0) < 2 and call_id not in _reident_busy):
+            _reident_busy.add(call_id)
+            spawn(_reident_from_text(call_id))
         elif (call and call.state == "confirmed" and call.decided_by == "expected"
                 and call_id not in _late_warned
                 and (f.money or f.urgency or f.secrecy or re.search(_MONEY_RE, text, re.I))):
@@ -297,11 +308,52 @@ def _caller_name(name, text):
     return None if not fallback or own(fallback) else fallback
 
 
+def _reident_find(call, claimed_name):
+    """A single contact from the accumulated text, the newest line, or the tool's name; else (None, [])."""
+    text = _caller_text.get(call.call_id, "")
+    for t in (text, _last_line.get(call.call_id, "")):
+        if t:
+            claim = classify.claim(t)
+            claim.claimed_name = _caller_name(claim.claimed_name, t)
+            found = contacts.candidates(claim, call.caller_number, text)
+            if len(found) == 1:
+                return claim, found
+    if claimed_name:
+        claim = classify.claim(text)
+        claim.claimed_name = claimed_name
+        found = contacts.candidates(claim, call.caller_number, text)
+        if len(found) == 1:
+            return claim, found
+    return None, []
+
+
+async def _reident_from_text(call_id) -> None:
+    try:
+        call = state.get_call(call_id)
+        if call and call.state == "unverified" and call.decided_by == "lookup":
+            claim, found = await asyncio.to_thread(_reident_find, call, None)
+            if found:
+                await verify_caller(call_id, None)
+    finally:
+        _reident_busy.discard(call_id)
+
+
 async def verify_caller(call_id, claimed_name, reason=None) -> None:
     verification_started(call_id)
     call = state.get_call(call_id)
-    if call is None or call.state != "screening":
+    # A call nobody was found for may be identified again, twice at most.
+    reident = bool(call and call.state == "unverified" and call.decided_by == "lookup"
+                   and _reident.get(call_id, 0) < 2)
+    if call is None or (call.state != "screening" and not reident):
         return
+    if reident:
+        claim, found = await asyncio.to_thread(_reident_find, call, claimed_name)
+        _reident[call_id] = _reident.get(call_id, 0) + 1
+        if len(found) != 1:
+            return
+        state.emit(call_id, "claim", {**claim.model_dump(), "asks_for": telegram.asks_for(claim)})
+        state.update_call(call_id, claimed_name=claim.claimed_name)
+        return await _ask_contact(call_id, call, claim, found, reident=True)
     if isinstance(reason, str) and reason.strip():
         _caller_text[call_id] = (_caller_text.get(call_id, "") + " " + _redact(reason)).strip()
         f = classify.flags(_caller_text[call_id])
@@ -314,6 +366,10 @@ async def verify_caller(call_id, claimed_name, reason=None) -> None:
     found = contacts.candidates(claim, call.caller_number, _caller_text.get(call_id, ""))
     if await _expected_call(call_id, found):
         return
+    return await _ask_contact(call_id, call, claim, found)
+
+
+async def _ask_contact(call_id, call, claim, found, reident=False) -> None:
     # A relationship alone never supplies a name to the caller, even with one match.
     if found and not found[0].resolved_by and (len(found) > 1 or not claim.claimed_name):
         if call_id not in _asked_name:
@@ -328,7 +384,7 @@ async def verify_caller(call_id, claimed_name, reason=None) -> None:
     state.emit(call_id, "contact.lookup", {"contact": shown, "number_known": lk.number_known, "note": lk.note,
                "resolved_by": lk.resolved_by, "memory_facts": lk.memory_facts})
     # A match worked out from memory only chooses whom to ask; it never passes on a known number.
-    if (lk.contact and lk.number_known and not lk.resolved_by and call.flags is not None
+    if (lk.contact and lk.number_known and not lk.resolved_by and not reident and call.flags is not None
             and not call.flags.needs_verification):
         state.update_call(call_id, contact_id=lk.contact.id)
         if await _resolve(call_id, "confirmed", "known_number"):
@@ -390,18 +446,31 @@ async def on_tap(call_id, answer, channel="telegram") -> bool:
     return bool(new_state) and await _resolve(call_id, new_state, "tap", channel=channel)
 
 
+def _word_matches(contact, supplied) -> bool:
+    expected = _normalize(contact.challenge_answer)
+    # Speech-to-text may spell the word slightly differently: allow one edit for 5+ letters.
+    return bool(expected) and (hmac.compare_digest(supplied.encode(), expected.encode())
+                               or bool(re.search(r"(?<!\w)" + re.escape(expected) + r"(?!\w)", supplied))
+                               or any(contacts.close(w, expected) for w in supplied.split()))
+
+
 async def on_code_word(call_id, spoken: str) -> str:
     call = state.get_call(call_id)
     contact = contacts.get(call.contact_id) if call and call.contact_id else None
-    if (not contact or call.state not in ("pending", "unverified")
-            or _code_tries.get(call_id, 0) >= 2):
+    supplied = _normalize(spoken)
+    unidentified = (contact is None and call is not None and call.state == "unverified"
+                    and call.decided_by == "lookup")
+    if (not contact and not unidentified) or call.state not in ("pending", "unverified") \
+            or _code_tries.get(call_id, 0) >= 2:
         return "failed"
     _code_tries[call_id] = _code_tries.get(call_id, 0) + 1
-    expected, supplied = _normalize(contact.challenge_answer), _normalize(spoken)
-    # Speech-to-text may spell the word slightly differently: allow one edit for 5+ letters.
-    if expected and (hmac.compare_digest(supplied.encode(), expected.encode())
-                     or re.search(r"(?<!\w)" + re.escape(expected) + r"(?!\w)", supplied)
-                     or any(contacts.close(w, expected) for w in supplied.split())):
+    if unidentified:
+        # Nobody was identified: the word itself identifies, but only when exactly one contact has it.
+        hits = [c for c in contacts._all() if _word_matches(c, supplied)]
+        if len(hits) == 1:
+            contact = hits[0]
+            state.update_call(call_id, contact_id=contact.id)
+    if contact and _word_matches(contact, supplied):
         if not await _resolve(call_id, "confirmed", "code_word"):
             return "failed"
         c = state.get_call(call_id)

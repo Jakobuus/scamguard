@@ -931,11 +931,70 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert state.get_call(cid).state == "pending"
         cid = flow.start_call(None)
         await flow.verify_caller(cid, "Unknown")
-        assert await flow.on_code_word(cid, "Bruno") == "failed"
+        # Nobody identified, but the word belongs to exactly one contact: the word identifies.
+        assert await flow.on_code_word(cid, "Bruno") == "ok"
+        assert state.get_call(cid).contact_id == "jakob" and state.get_call(cid).decided_by == "code_word"
 
     with patch.object(flow, "_pings", {}), patch.object(contacts, "_attempts", []):
         c.portal.call(exercise_code_words)
     ok("code words: timeout recovery, redaction, two tries, denial, pending winner")
+
+    async def exercise_code_word_any():
+        import asyncio
+
+        def events(cid):
+            return [e for e in state.events_since(0) if e.call_id == cid]
+
+        async def garbled():
+            cid = flow.start_call(None)
+            await flow.on_transcript(cid, "caller", "This is Uber.")
+            await flow.verify_caller(cid, "")
+            call = state.get_call(cid)
+            assert call.state == "unverified" and call.decided_by == "lookup", call
+            return cid
+
+        # (a) the code word alone identifies the caller
+        cid = await garbled()
+        assert await flow.on_code_word(cid, "the word is pineapple") == "ok"
+        call = state.get_call(cid)
+        assert call.state == "confirmed" and call.decided_by == "code_word" and call.contact_id == "erick"
+        assert any(e.data.get("kind") == "forward" for e in events(cid))
+        assert any(e.type == "notice.sent" and e.data["contact_id"] == "erick" for e in events(cid))
+        cid = await garbled()
+        assert await flow.on_code_word(cid, "banana") == "retry"
+        assert await flow.on_code_word(cid, "kiwi") == "failed"
+        assert await flow.on_code_word(cid, "pineapple") == "failed"
+        assert state.get_call(cid).state == "unverified"
+        # (d) a word two contacts share is not accepted without identification
+        cid = await garbled()
+        twins = [c.model_copy(update={"challenge_answer": "Pineapple"}) for c in contacts._all()]
+        with patch.object(contacts, "_all", return_value=twins):
+            assert await flow.on_code_word(cid, "pineapple") == "retry"
+        assert state.get_call(cid).state == "unverified"
+        # (b) the caller is understood on a later line: ask the contact
+        flow._pings.clear()
+        cid = await garbled()
+        await flow.on_transcript(cid, "caller", "It's Erick, your teammate from the hackathon")
+        deadline = time.time() + 3
+        while state.get_call(cid).state == "unverified" and time.time() < deadline:
+            await asyncio.sleep(0.05)
+        assert state.get_call(cid).state == "pending" and state.get_call(cid).contact_id == "erick"
+        assert await flow.on_tap(cid, "yes")
+        assert state.get_call(cid).state == "confirmed" and state.get_call(cid).decided_by == "tap"
+        # second identification through the tool
+        cid = await garbled()
+        await flow.verify_caller(cid, "Erick")
+        assert state.get_call(cid).state == "pending" and state.get_call(cid).contact_id == "erick"
+        assert any(e.type == "ping.sent" for e in events(cid))
+        # unknown name stays as it was, at most two attempts
+        cid = await garbled()
+        for _ in range(3):
+            await flow.verify_caller(cid, "Nobody")
+        assert state.get_call(cid).state == "unverified" and flow._reident[cid] == 2
+
+    with patch.object(flow, "_pings", {}), patch.object(contacts, "_attempts", []):
+        c.portal.call(exercise_code_word_any)
+    ok("code word without identification; second identification by tool or later line")
 
     async def exercise_ping_cap():
         ids = []
