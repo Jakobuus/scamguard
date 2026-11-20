@@ -969,6 +969,22 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert "4111" not in blob and "+1555" not in blob and all(
         c.challenge_answer.lower() not in blob.lower() for c in contacts._all() if c.challenge_answer)
     assert any(e["event_type"] == "Call Outcome" and e["event_properties"]["outcome"] == "denied" for e in sent)
+    # default: no transcript text anywhere; tool payloads carry no name or note
+    msgs = [e["event_properties"]["$llm_message"]["text"] for e in sent if "$llm_message" in e["event_properties"]]
+    assert msgs and all(m.startswith("[caller line, ") or m.startswith("[assistant line, ") for m in msgs), msgs
+    for pat in ("in trouble", "wire $2000", "Hello, who", "One moment"):
+        assert pat not in blob, pat
+    toolblob = json.dumps([e for e in sent if e["event_type"] == "[Agent] Tool Call"])
+    assert "Lena" not in toolblob and "note" not in toolblob and "Not someone" not in toolblob, toolblob
+    # opt-in: text present, long digit runs and every code word masked
+    word = next(k.challenge_answer for k in contacts._all() if k.challenge_answer)
+    with patch.dict(os.environ, {"AMPLITUDE_SEND_TEXT": "1"}):
+        shown = telemetry._text("caller", f"ref 12345678 and the word {word} ok")["text"]
+        assert "12345678" not in shown and word.lower() not in shown.lower() and "ref" in shown, shown
+    # cleanup: caps and idle sweep
+    telemetry._calls["old"] = {"wall": 0}
+    telemetry._st("fresh-call", 0)
+    assert "old" not in telemetry._calls
     # a failing rule is reported, not hidden
     bad = telemetry._st("bad", 0)
     bad["agent_lines"] = ["Sure, I'll send the money now."]

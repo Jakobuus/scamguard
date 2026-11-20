@@ -23,7 +23,7 @@ from guard.contracts import Event
 
 URL = "https://api2.amplitude.com/2/httpapi"
 REAL = settings._real("REAL_AMPLITUDE")
-_DROP = {"caller_number", "telegram_chat_id", "chat_id", "email", "link", "known_numbers"}
+_DROP = {"caller_number", "telegram_chat_id", "chat_id", "email", "link", "known_numbers", "note", "quote", "text"}
 _log = logging.getLogger(__name__)
 _q: "queue.Queue[dict]" = queue.Queue(maxsize=2000)
 _sessions: dict[str, int] = {}
@@ -133,11 +133,50 @@ def _has(text: str, word: str) -> bool:
     return re.search(r"(?<!\w)" + re.escape(word) + r"(?!\w)", text, re.I) is not None
 
 
+_CAP = 300
+_IDLE_S = 600
+
+
+def _send_text() -> bool:
+    return os.environ.get("AMPLITUDE_SEND_TEXT", "") == "1"
+
+
+def _text(role: str, text: str) -> dict:
+    """Conversation text only by explicit opt-in; otherwise a placeholder so sessions still work."""
+    if not _send_text():
+        return {"text": f"[{role} line, {len(text)} chars]"}
+    from guard.brain import contacts
+    for c in contacts._all():
+        words = re.findall(r"\w+", c.challenge_answer or "")
+        if words:
+            text = re.sub(r"(?<!\w)" + r"[\W_]+".join(map(re.escape, words)) + r"(?!\w)", "••••", text, flags=re.I)
+    return {"text": re.sub(r"\d{4,}", "••••", text)}
+
+
+def _contact_id(name) -> str | None:
+    from guard.brain import contacts
+    n = (name or "").strip().casefold()
+    for c in contacts._all():
+        if n and n in {c.name.casefold(), c.name.split()[0].casefold(), *(x.casefold() for x in c.nicknames)}:
+            return c.id
+    return None
+
+
+def _sweep() -> None:
+    now = time.time()
+    for k in [k for k, v in _calls.items() if now - v["wall"] > _IDLE_S]:
+        _calls.pop(k, None)
+
+
 def _st(call_id: str, ms: int) -> dict:
-    return _calls.setdefault(call_id, {
+    if call_id not in _calls:
+        _sweep()
+    st = _calls.setdefault(call_id, {"wall": time.time(),
         "turn": 0, "last_role": None, "msg": 0, "msg_id": "", "trace": "", "t0": ms, "last_ms": ms,
         "user_ms": ms, "names_said": "", "agent_lines": [], "caller_lines": 0, "events": [], "done": False,
         "n": 0, "tools": 0})
+    st["wall"] = time.time()
+    return st
 
 
 def _agent(event: Event, st: dict, name: str, props: dict, ms: int, user: bool = True) -> dict:
@@ -167,7 +206,8 @@ def agent_events(event: Event) -> list[dict]:
     d, t, out = event.data, event.type, []
     gap = max(ms - st["last_ms"], 0)
     st["last_ms"] = ms
-    st["events"].append((t, d))
+    if len(st["events"]) < _CAP:
+        st["events"].append((t, d))
     if t == "transcript":
         text = d.get("text") or ""
         if d.get("role") == "caller":
@@ -176,18 +216,19 @@ def agent_events(event: Event) -> list[dict]:
                 st["trace"] = f"trace-{event.call_id}-{st['turn']}"
             st["last_role"], st["msg"] = "caller", st["msg"] + 1
             st["msg_id"], st["user_ms"] = f"{event.call_id}-m{st['msg']}", ms
-            st["names_said"] += " " + text
+            st["names_said"] = (st["names_said"] + " " + text)[-_CAP * 200:]
             st["caller_lines"] += 1
             out.append(_agent(event, st, "[Agent] User Message", {
-                "[Agent] Message ID": st["msg_id"], "$llm_message": {"text": text}}, ms))
+                "[Agent] Message ID": st["msg_id"], "$llm_message": _text("caller", text)}, ms))
         else:
-            st["agent_lines"].append(text)
+            if len(st["agent_lines"]) < _CAP:
+                st["agent_lines"].append(text)
             st["last_role"], st["msg"] = "agent", st["msg"] + 1
             if not st["turn"]:
                 st["turn"], st["trace"] = 1, f"trace-{event.call_id}-1"
             toks = max(len(text) // 4, 1)  # HACK: token counts are estimated from characters
             out.append(_agent(event, st, "[Agent] AI Response", {
-                "[Agent] Message ID": f"{event.call_id}-m{st['msg']}", "$llm_message": {"text": text},
+                "[Agent] Message ID": f"{event.call_id}-m{st['msg']}", "$llm_message": _text("assistant", text),
                 "[Agent] Model Name": MODEL[1], "[Agent] Provider": MODEL[0],
                 "[Agent] Latency Ms": max(ms - st["user_ms"], 0), "[Agent] Input Tokens": toks,
                 "[Agent] Output Tokens": toks, "[Agent] Total Tokens": 2 * toks, "[Agent] Cost USD": 0.0}, ms))
@@ -202,15 +243,15 @@ def agent_events(event: Event) -> list[dict]:
         st["match"] = d
     elif t == "claim":
         if d.get("claimed_name"):
-            st["names_said"] += " " + str(d["claimed_name"])
+            st["names_said"] = (st["names_said"] + " " + str(d["claimed_name"]))[-_CAP * 200:]
         st["claim"] = d
-        out.append(_tool(event, st, ms, "verify_caller", True, gap, {"claimed_name": d.get("claimed_name")},
+        out.append(_tool(event, st, ms, "verify_caller", True, gap, {"claimed_contact_id": _contact_id(d.get("claimed_name")), "name_given": bool(d.get("claimed_name"))},
                          {"relationship": d.get("relationship"), "money": bool(d.get("amount")), "asks_for": d.get("asks_for")}))
     elif t == "contact.lookup":
         c = d.get("contact") or {}
         st["lookup"] = d
-        out.append(_tool(event, st, ms, "lookup", True, 0, {"number_known": d.get("number_known")},
-                         {"contact_id": c.get("id"), "relationship": c.get("relationship"), "note": d.get("note")}))
+        out.append(_tool(event, st, ms, "lookup", True, 0, {},
+                         {"contact_id": c.get("id"), "number_known": d.get("number_known")}))
     elif t == "ping.sent":
         st["ping"] = d
         out.append(_tool(event, st, ms, "ask", True, 0, {"timeout_s": d.get("timeout_s")},
@@ -295,15 +336,20 @@ def _finish_later(call_id: str, state_: str) -> None:
     """Confirmed calls end on the phone side (maybe never reported): close the session after a short wait."""
     def run():
         try:
-            st = _calls.get(call_id)
-            if st and not st["done"]:
-                ms = int(time.time() * 1000)
-                ev = Event(id=10**9, call_id=call_id, ts=__import__("datetime").datetime.now(
-                    __import__("datetime").timezone.utc), type="call.ended", data={})
-                _emit_agent(_finish(ev, st, ms))
+            from datetime import datetime, timezone
+            with _lock:
+                st = _calls.get(call_id)
+                items = []
+                if st and not st["done"]:
+                    ev = Event(id=10**9, call_id=call_id, ts=datetime.now(timezone.utc), type="call.ended", data={})
+                    items = _finish(ev, st, int(time.time() * 1000))
+                _calls.pop(call_id, None)
+            _emit_agent(items)
         except Exception:
             _log.warning("Amplitude session close failed")
-    threading.Timer(10 if state_ in ("confirmed", "agent_verified", "denied") else 90, run).start()
+    t = threading.Timer(10 if state_ in ("confirmed", "agent_verified", "denied") else 90, run)
+    t.daemon = True
+    t.start()
 
 
 def _emit_agent(items: list[dict]) -> None:
