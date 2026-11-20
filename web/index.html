@@ -453,14 +453,14 @@ function renderClaim() {
   }
   const src = {fake: "keyword rules", sie: "Superlinked SIE"}[f.source] || f.source;
   $("clsrc").textContent = S.flags ? `Classifier: ${src}${f.latency_ms ? `, ${f.latency_ms} ms` : ""}${f.risk != null ? `, risk ${Math.round(f.risk * 100)}%` : ""}` : "";
-  const m = S && S.scam, sc = $("scam");
-  if (!m || !m.title) { sc.hidden = true; sc.textContent = ""; }
+  const sm = S && S.scam, sc = $("scam");
+  if (!sm || !ssm.title) { sc.hidden = true; sc.textContent = ""; }
   else {
-    const how = {vector: "Superlinked embeddings + SingleStore vector search", fulltext: "SingleStore full-text search"}[m.method] || "keyword stand-in";
-    const pct = Number.isFinite(+m.score) ? ` · ${Math.round(m.score * 100)}%` : "";
-    const ms = m.latency_ms != null ? ` · ${m.latency_ms} ms` : "";
-    sc.textContent = m.benign ? `Looks like: ${m.title}${pct} · ${how}${ms}` : `Matches a known scam script: ${m.title}${pct} · ${how}${ms}`;
-    sc.className = m.benign ? "" : "warn"; sc.hidden = false;
+    const how = {vector: "Superlinked embeddings + SingleStore vector search", fulltext: "SingleStore full-text search"}[sm.method] || "keyword stand-in";
+    const pct = Number.isFinite(+sm.score) ? ` · ${Math.round(sm.score * 100)}%` : "";
+    const lat = sm.latency_ms != null ? ` · ${sm.latency_ms} ms` : "";
+    sc.textContent = sm.benign ? `Looks like: ${sm.title}${pct} · ${how}${lat}` : `Matches a known scam script: ${sm.title}${pct} · ${how}${lat}`;
+    sc.className = sm.benign ? "" : "warn"; sc.hidden = false;
   }
 }
 
