@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 def assistant_payload(base_url: str, secret: str = "") -> dict:
     headers = {"X-Vapi-Secret": secret} if secret else {}
     return {
-        "name": "mum-guard",
+        "name": f"{settings.OWNER_NAME.lower()}-guard",
         "firstMessage": f"Hello, this is {settings.OWNER_NAME}'s assistant. Who is calling and what is it about?",
         "model": {
             "provider": "openai",

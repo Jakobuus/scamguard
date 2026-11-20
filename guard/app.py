@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
 from guard import account, channels, credential, flow, settings, sim, state, telemetry, telegram, vapi
-from guard.brain import drill
+from guard.brain import contacts, drill
 
 @asynccontextmanager
 async def lifespan(app):
@@ -23,7 +23,10 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 
 @app.get("/health")
 def health():
-    return {"ok": True, "fake": settings.FAKE, "owner_name": settings.OWNER_NAME, "services": settings.services()}
+    c = contacts.get(settings.DEMO_CONTACT_ID)
+    demo = {"id": c.id, "name": c.name, "relationship": c.relationship} if c else None
+    return {"ok": True, "fake": settings.FAKE, "owner_name": settings.OWNER_NAME, "demo_contact": demo,
+            "services": settings.services()}
 
 
 @app.get("/live")

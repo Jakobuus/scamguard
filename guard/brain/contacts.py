@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from guard import settings
 from guard.brain import memory
 from guard.contracts import Call, Claim, Contact, Lookup
 
@@ -27,7 +28,8 @@ def _all() -> list[Contact]:
                     entries[entry["id"]] = merged
                 except Exception:
                     continue
-        _contacts = [Contact(**c) for c in entries.values()]
+        _contacts = [Contact(**c) for c in entries.values()
+                     if c["name"].casefold() != settings.OWNER_NAME.casefold()]  # the owner is never their own contact
         memory.warm(_contacts)  # Cognee prefetch in the background; no-op in fake mode
     return _contacts
 

@@ -1107,6 +1107,57 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert tools["check_code_word"]["server"]["url"].endswith("/vapi/tool/check_code_word")
     ok("trust gaps: notice, late denial, repeat numbers, direct Yes confirmation, safe learning, setup preview")
 
+    # The screen's scripted scenes follow the cast (owner and demo contact from /health).
+    html = Path("web/index.html").read_text()
+    builder = re.search(r"function buildScenes.*?// END_BUILD_SCENES", html, re.S).group(0)
+
+    def scenes_for(owner, name, relationship):
+        out = subprocess.check_output(["node", "-e", builder + f"\nconsole.log(JSON.stringify(buildScenes({json.dumps(owner)}, "
+                                      f"{json.dumps({'name': name, 'relationship': relationship})})))"], text=True, timeout=30)
+        return json.loads(out)
+
+    old = scenes_for("Mum", "Jakob", "son")
+    GREET, HOLD = "Hello, this is Mum's assistant. Who is calling, and what is it about?", "One moment, I am trying to reach her."
+    OLD_SCAM = ["Mum, it's Jakob. I'm in trouble.", "I need $2,000 in gift cards right now.", "Don't tell dad."]
+    assert old["scam_no"] == {"label": "Scam, tap No", "claimed_name": "Jakob", "caller_number": "+15550999999", "lines": OLD_SCAM,
+                              "agent_lines": {"0": GREET, "3": HOLD}, "tap": "no", "tap_after_s": 4}
+    assert old["scam_none"]["lines"] == OLD_SCAM and old["scam_none"]["tap"] is None and old["scam_none"]["claimed_name"] == "Jakob"
+    assert old["real_yes"] == {"label": "Real, tap Yes", "claimed_name": "Jakob", "caller_number": "+15550100002",
+                               "lines": ["Hi Mum, it's Jakob.", "Can you pick me up at five?"],
+                               "agent_lines": {"0": GREET, "2": HOLD}, "tap": "yes", "tap_after_s": 4}
+    assert old["delivery"]["lines"] == ["Hi, I'm the driver with your desk lamp, are you home?"]
+    assert old["delivery_fee"]["lines"][2] == "I'll process that payment now."
+    assert c.get("/health").json()["demo_contact"] == {"id": "jakob", "name": "Jakob", "relationship": "son"}
+    new = scenes_for("Jakob", "Erick", "teammate")
+    assert new["scam_no"]["lines"] == ["Hey Jakob, it's Erick. I'm in trouble.", "I need $2,000 in gift cards right now.",
+                                       "Please don't tell anyone."] and new["scam_no"]["claimed_name"] == "Erick"
+    assert new["real_yes"]["lines"][0] == "Hey Jakob, it's Erick. Do you have a minute?"
+    assert new["delivery"] == old["delivery"] | {"agent_lines": {"0": "Hello, this is Jakob's assistant. Who is calling, and what is it about?"}}
+    assert not any(w in json.dumps(new) for w in ("Mum", "dad", "son"))
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as directory:
+        base = Path(directory) / "contacts.json"
+        base.write_text(Path("data/contacts.json").read_text())
+        base.with_name("contacts.local.json").write_text(json.dumps([
+            {"id": "erick", "name": "Erick", "relationship": "teammate", "known_numbers": [],
+             "challenge_question": "What is the family code word?", "challenge_answer": "test-word"}]))
+        with patch.object(contacts, "_PATH", base), patch.object(contacts, "_contacts", None), patch.object(
+                settings, "OWNER_NAME", "Jakob"), patch.object(settings, "DEMO_CONTACT_ID", "erick"), patch.object(
+                contacts, "_attempts", []), patch.object(flow, "_pings", {}):
+            assert c.get("/health").json()["demo_contact"] == {"id": "erick", "name": "Erick", "relationship": "teammate"}
+            assert contacts.get("jakob") is None and "Jakob" not in [x.name for x in contacts._all()]
+            body = {k: v for k, v in new["scam_no"].items() if k != "label"} | {"tap_after_s": 0.5,
+                    "agent_lines": {int(k): v for k, v in new["scam_no"]["agent_lines"].items()}}
+            _, evs = run(c, "stage cast scam", body, "denied", ["ping.sent", "decision"])
+            lookup = next(e for e in evs if e["type"] == "contact.lookup")
+            assert lookup["data"]["contact"]["name"] == "Erick"
+            ping = next(e for e in evs if e["type"] == "ping.sent")["data"]["text"]
+            assert ping == "Someone is calling Jakob as you, asking for $2,000 in gift cards. Is this you?", ping
+            assert next(e for e in evs if e["type"] == "decision")["data"]["by"] == "tap"
+        assert c.get("/health").json()["demo_contact"]["name"] == "Jakob"  # patches undone
+    ok("stage cast: default scenes unchanged; owner Jakob + Erick scam asks Erick, denied by tap, no Jakob contact")
+
     async def exercise_seams():
         from guard.contracts import Claim
 
