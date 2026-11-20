@@ -153,7 +153,7 @@ def app_page():
     page = Path(__file__).resolve().parent.parent / "web" / "app.html"
     if page.exists():
         return FileResponse(page, headers={"Cache-Control": "no-store"})
-    return HTMLResponse("<!doctype html><title>My Guard</title><p>My Guard is loading.</p>")
+    return HTMLResponse("<!doctype html><title>KinCheck</title><p>KinCheck is loading.</p>")
 
 
 @router.get("/api/config")
