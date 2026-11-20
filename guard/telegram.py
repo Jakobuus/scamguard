@@ -86,7 +86,8 @@ def send_ping(call: Call, contact: Contact, claim=None) -> None:
         log.info("ping %s: %s (call %s)", contact.id, text, call.call_id)
         return
     try:
-        chat_id = contact.telegram_chat_id or os.environ.get("TELEGRAM_CHAT_ID")
+        from guard import channels
+        chat_id = channels.targets(contact).get("telegram")
         if not chat_id:
             raise ValueError("Telegram chat missing")
         # HACK: bounded synchronous request keeps the existing synchronous seam.
@@ -110,7 +111,8 @@ def send_notice(call: Call, contact: Contact) -> None:
         log.info("notice %s: %s (call %s)", contact.id, text, call.call_id)
         return
     try:
-        chat_id = contact.telegram_chat_id or os.environ.get("TELEGRAM_CHAT_ID")
+        from guard import channels
+        chat_id = channels.targets(contact).get("telegram")
         if not chat_id:
             raise ValueError("Telegram chat missing")
         _api("sendMessage", {

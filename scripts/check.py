@@ -203,6 +203,41 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert channels._why(httpx.HTTPStatusError("private detail", request=httpx.Request("GET", "https://example.invalid"),
                                                  response=httpx.Response(500))) == "HTTPStatusError"
     c.portal.call(contact_channels)
+    async def contact_only_own_targets():
+        import asyncio
+        import httpx
+        import tempfile
+        from guard.contracts import Contact
+        base = dict(name="Only", relationship="friend", challenge_question="Code?", challenge_answer="demo")
+        wa = Contact(id="wa-only", whatsapp_chat_id="!own", **base)
+        tg = Contact(id="tg-only", telegram_chat_id="202", **base)
+        none = Contact(id="no-own", **base)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(channels, "ACCOUNT_PATH", Path(tmp) / "none.json"), patch.dict(
+            os.environ, {"REAL_BEEPER": "1", "REAL_EMAIL": "1", "BEEPER_ACCESS_TOKEN": "test", "BEEPER_CHAT_ID": "!global",
+                         "TELEGRAM_CHAT_ID": "999", "TELEGRAM_BOT_TOKEN": "test", "RESEND_API_KEY": "test",
+                         "PING_EMAIL_TO": "global@example.invalid", "PUBLIC_BASE_URL": "https://guard.example",
+                         "APP_SECRET": "channel-test"}):
+            assert channels.enabled(wa) == ["whatsapp"] and channels.targets(wa) == {"whatsapp": "!own"}
+            assert channels.enabled(tg) == ["telegram"] and channels.targets(tg) == {"telegram": "202"}
+            assert channels.enabled(none) == ["telegram", "whatsapp", "email"]
+            assert channels.targets(none) == {"telegram": "999", "whatsapp": "!global", "email": "global@example.invalid"}
+            seen = []
+            def fake(request):
+                body = json.loads(request.content)
+                seen.append((str(request.url), body.get("chat_id"), body.get("to")))
+                return httpx.Response(200, json={"ok": True, "result": {}})
+            call = state.get_call(flow.start_call(None))
+            with httpx.Client(transport=httpx.MockTransport(fake)) as client, patch.object(settings, "REAL_TELEGRAM", True), \
+                 patch.object(httpx, "post", client.post):
+                await asyncio.to_thread(telegram.send_notice, call, wa)
+                assert seen == [], seen  # no Telegram message to the global chat
+                await asyncio.to_thread(telegram.send_notice, call, tg)
+                assert [x[1] for x in seen] == ["202"]
+                seen.clear()
+                await asyncio.to_thread(telegram.send_notice, call, none)
+                assert [x[1] for x in seen] == ["999"]
+    c.portal.call(contact_only_own_targets)
+    ok("channels: global fallbacks only for contacts with no own target")
     ok("channels: contact targets, account preferences, separate chats and other-person replies")
     async def channel_transports():
         import asyncio
@@ -233,7 +268,9 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             with httpx.Client(transport=httpx.MockTransport(email_http)) as client:
                 with patch.object(settings, "REAL_EMAIL", True), patch.object(channels.httpx, "post", client.post):
                     await asyncio.to_thread(channels._email, call, text)
-            req, = requests
+            # A background delivery for the same call may also post; assert on our own request only.
+            req, = [r for r in requests if str(r.url) == "https://api.resend.com/emails"
+                    and json.loads(r.content).get("subject") == text]
             assert str(req.url) == "https://api.resend.com/emails"
             assert req.headers["user-agent"] == "curl/8.7.1"
             assert req.headers["authorization"] == "Bearer test"

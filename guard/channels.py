@@ -24,24 +24,32 @@ ACCOUNT_PATH = Path(__file__).resolve().parent.parent / "data" / "account.local.
 
 
 def targets(contact=None) -> dict[str, str | None]:
-    resolved = {
-        "telegram": getattr(contact, "telegram_chat_id", None) or os.environ.get("TELEGRAM_CHAT_ID"),
-        "whatsapp": getattr(contact, "whatsapp_chat_id", None) or os.environ.get("BEEPER_CHAT_ID"),
-        "email": getattr(contact, "email", None) or os.environ.get("PING_EMAIL_TO"),
+    """The one place that decides where a contact is asked.
+
+    A contact's own targets (own fields, usable account handles) are used alone. The global
+    fallbacks (TELEGRAM_CHAT_ID, BEEPER_CHAT_ID, PING_EMAIL_TO) apply only to a contact with
+    no own target at all, so a question about one person never reaches someone else's phone.
+    """
+    fallback = {
+        "telegram": os.environ.get("TELEGRAM_CHAT_ID"),
+        "whatsapp": os.environ.get("BEEPER_CHAT_ID"),
+        "email": os.environ.get("PING_EMAIL_TO"),
     }
     if contact is None:
-        return resolved
+        return fallback
+    own = {kind: v for kind, v in (
+        ("telegram", getattr(contact, "telegram_chat_id", None)),
+        ("whatsapp", getattr(contact, "whatsapp_chat_id", None)),
+        ("email", getattr(contact, "email", None))) if v}
+    disabled = set()
     try:
         data = json.loads(ACCOUNT_PATH.read_text())
         entries = data["contacts"][contact.id]["channels"]
-        if not isinstance(entries, list):
-            return resolved
-        disabled = set()
-        for entry in entries:
+        for entry in entries if isinstance(entries, list) else []:
             if not isinstance(entry, dict):
                 continue
             kind, handle = entry.get("kind"), entry.get("handle")
-            if not isinstance(kind, str) or kind not in resolved:
+            if not isinstance(kind, str) or kind not in fallback:
                 continue
             if entry.get("enabled") is False:
                 disabled.add(kind)
@@ -50,11 +58,12 @@ def targets(contact=None) -> dict[str, str | None]:
                 if ((kind == "whatsapp" and handle.startswith("!"))
                         or (kind == "telegram" and re.fullmatch(r"-?[0-9]+", handle))
                         or (kind == "email" and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", handle))):
-                    resolved[kind] = handle
-        for kind in disabled:
-            resolved.pop(kind, None)
+                    own[kind] = handle
     except (OSError, ValueError, TypeError, KeyError):
         pass
+    resolved = own or fallback
+    for kind in disabled:
+        resolved = {k: v for k, v in resolved.items() if k != kind}
     return resolved
 
 
