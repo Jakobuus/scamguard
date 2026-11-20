@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from guard import settings
 from guard.brain import classify, contacts
 
 router = APIRouter()
@@ -18,7 +19,8 @@ def analyze(body: AnalyzeIn):
     _sessions[body.session] = text
     f = classify.flags(text)
     if f.risk >= 0.5:
-        q = contacts.get("jakob").challenge_question
+        c = contacts.get(settings.DEMO_CONTACT_ID) or next(iter(contacts._all()), None)
+        q = c.challenge_question if c else "What is the family code word?"
         return {"reply": f"Before we go on, I need to check it's really you. {q}",
                 "flags": f.model_dump(), "action": "challenge"}
     return {"reply": "Okay, go on.", "flags": f.model_dump(), "action": "continue"}

@@ -662,19 +662,33 @@ resetButton.textContent = "Reset demo";
 resetButton.dataset.label = "reset-demo";
 resetButton.onclick = () => resetDemo().catch(console.error);
 $("scenes").appendChild(resetButton);
-fetch("/health").then(r => r.json()).then(h => {
-  OWNER = h.owner_name || OWNER;
-  TAG.owner = OWNER;
-  $("owner-heading").textContent = `What ${OWNER} was told`;
-  SCENES = buildScenes(OWNER, h.demo_contact || {name:"Jakob", relationship:"son"});
-  render();
-}).catch(console.error);
+const hint = document.createElement("span");
+hint.style.cssText = "align-self:center;font:600 15px var(--text);color:var(--muted)";
+const castButtons = [];
+function castReady(ok, text) { castButtons.forEach(b => { b.disabled = !ok; }); hint.textContent = text; }
+function loadHealth() {
+  fetch("/health").then(r => r.json()).then(h => {
+    OWNER = h.owner_name || OWNER;
+    TAG.owner = OWNER;
+    $("owner-heading").textContent = `What ${OWNER} was told`;
+    // A missing demo_contact is an older server (default cast); null means the contact is not configured.
+    const who = "demo_contact" in h ? h.demo_contact : {name:"Jakob", relationship:"son"};
+    if (who) SCENES = buildScenes(OWNER, who);
+    castReady(!!who, who ? "" : "demo contact not set");
+    render();
+    if (!who) setTimeout(loadHealth, 2000);
+  }).catch(() => setTimeout(loadHealth, 2000));
+}
 for (const [k, s] of Object.entries(SCENES)) {
   const b = document.createElement("button");
   b.textContent = s.label || cap(human(k));
   b.onclick = () => scene(k).catch(console.error);
+  if (s.claimed_name) castButtons.push(b);
   $("scenes").appendChild(b);
 }
+$("scenes").appendChild(hint);
+castReady(false, "waiting for the server");
+loadHealth();
 $("chips").innerHTML = Object.values(FLAGS).map(l => `<span class="chip"><i></i>${l}</span>`).join("");
 setInterval(poll, 500);
 setInterval(tick, 100);

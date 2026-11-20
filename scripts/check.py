@@ -1193,6 +1193,12 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             ping = next(e for e in evs if e["type"] == "ping.sent")["data"]["text"]
             assert ping == "Someone is calling Jakob as you, asking for $2,000 in gift cards. Is this you?", ping
             assert next(e for e in evs if e["type"] == "decision")["data"]["by"] == "tap"
+            risky = {"message": "It's me, I need $2000 in gift cards right now, don't tell anyone", "session": "stage-1"}
+            r = c.post("/analyze", json=risky)
+            assert r.status_code == 200 and r.json()["action"] == "challenge", r.text
+            with patch.object(settings, "DEMO_CONTACT_ID", "nobody"):
+                r = c.post("/analyze", json={**risky, "session": "stage-2"})
+                assert r.status_code == 200 and r.json()["action"] == "challenge", r.text
         assert c.get("/health").json()["demo_contact"]["name"] == "Jakob"  # patches undone
     ok("stage cast: default scenes unchanged; owner Jakob + Erick scam asks Erick, denied by tap, no Jakob contact")
 
