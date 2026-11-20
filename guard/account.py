@@ -225,6 +225,9 @@ def verify_start(request: Request):
     template = _persona_template()
     if not template:
         return {"mode": "demo", "url": None}
+    ready = os.environ.get("PERSONA_INQUIRY_URL", "").strip()
+    if ready:  # HACK: a link to an inquiry prepared in Persona's dashboard (reference id = this user's id)
+        return {"mode": "hosted", "url": ready}
     base = (os.environ.get("PUBLIC_BASE_URL") or str(request.base_url)).rstrip("/")
     params = {"inquiry-template-id": template, "reference-id": user["id"], "redirect-uri": base + "/app"}
     if os.environ.get("PERSONA_ENVIRONMENT_ID"):
