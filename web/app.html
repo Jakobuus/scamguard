@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>My Guard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<style>
+  :root{
+    /* Dark sibling of the audience screen: its ink becomes the ground, its state colours the accents. */
+    --bg:#0E1821; --ink:#14202B; --s1:#172533; --s2:#1E2F3F; --s3:#27394B; --rule:#2C3F52;
+    --text:#EEF2F5; --muted:#A9B5C0; --faint:#71808D;
+    /* Same meanings as the audience screen, lifted for contrast on dark. */
+    --c-denied:#FF4A62; --c-ok:#2FC27A; --c-check:#FFC425; --c-unver:#FF8A3D;
+    --c-expected:#5B9BEB; --c-known:#2DBFA0; --c-screen:#2B4A6E;
+    --display:"Avenir Next Condensed","Avenir Next","Helvetica Neue",system-ui,sans-serif;
+    --font:"Avenir Next","Helvetica Neue",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --r-xl:28px; --r-lg:22px; --r-md:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font:500 21px/1.4 var(--font);font-variant-numeric:tabular-nums;
+       -webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit}
+  a{color:var(--c-expected)}
+  :focus-visible{outline:3px solid var(--c-check);outline-offset:3px}
+  svg.i{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  [hidden]{display:none!important}
+
+  /* Nothing shows until we know whether someone is signed in: no flash of the wrong screen. */
+  body.booting #signin, body.booting #app{display:none}
+
+  .mark{display:flex;align-items:center;gap:14px;font:700 34px/1 var(--display);letter-spacing:-.01em}
+  .mark .shield{width:44px;height:48px;flex:none}
+
+  /* ---------- Sign-in ---------- */
+  #signin{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;
+          gap:0 80px;padding:56px 96px 48px;
+          background:radial-gradient(1200px 700px at 18% 60%,rgba(43,74,110,.55),transparent 70%),var(--bg)}
+  #signin .mark{grid-column:1/-1}
+  .si-left{align-self:center}
+  .si-q{font:800 156px/.92 var(--display);letter-spacing:-.025em;margin:0}
+  .si-q span{display:block;color:var(--c-check)}
+  .si-lede{font-size:28px;line-height:1.38;color:var(--muted);max-width:38ch;margin:34px 0 0}
+  .si-lede b{color:var(--text);font-weight:600}
+  .si-right{align-self:center}
+  .ping{background:var(--s1);border:1.5px solid var(--rule);border-radius:var(--r-xl);padding:40px 44px 44px;
+        box-shadow:0 40px 80px -40px rgba(0,0,0,.7)}
+  .ping h2{font:700 44px/1.05 var(--display);margin:0 0 10px}
+  .ping p{margin:0 0 30px;color:var(--muted)}
+  .auth{display:flex;flex-direction:column;gap:16px}
+  #g-btn{min-height:52px;display:flex;align-items:center}
+  .g-note{font-size:18px;color:var(--faint);margin:0}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;border:0;border-radius:999px;cursor:pointer;
+       font-weight:600;font-size:21px;padding:14px 28px;transition:background .15s,color .15s}
+  .btn-solid{background:var(--text);color:var(--ink)}
+  .btn-solid:hover{background:#fff}
+  .btn-ghost{background:transparent;color:var(--text);box-shadow:inset 0 0 0 2px var(--rule)}
+  .btn-ghost:hover{box-shadow:inset 0 0 0 2px var(--muted)}
+  .btn[disabled]{opacity:.5;cursor:default}
+  .or{display:flex;align-items:center;gap:14px;color:var(--faint);font-size:17px}
+  .or::before,.or::after{content:"";flex:1;height:1.5px;background:var(--rule)}
+  .after{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:40px;padding-top:28px;
+         border-top:1.5px solid var(--rule)}
+  .after div{display:flex;gap:16px;align-items:flex-start;color:var(--muted);font-size:20px;line-height:1.35}
+  .after b{display:block;color:var(--text);font-weight:600;font-size:22px}
+  .after svg.i{font-size:30px;color:var(--c-check);margin-top:2px}
+
+  /* ---------- Signed-in app ---------- */
+  #app{height:100vh;display:grid;grid-template-columns:316px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  #rail{grid-row:1/3;background:var(--ink);border-right:1.5px solid var(--rule);display:flex;flex-direction:column;padding:34px 22px 28px}
+  #rail .mark{padding:0 12px 40px}
+  #nav{display:flex;flex-direction:column;gap:6px}
+  #nav a{display:flex;align-items:center;gap:16px;padding:14px 18px;border-radius:var(--r-md);color:var(--muted);
+         text-decoration:none;font-weight:600;font-size:22px;position:relative;white-space:nowrap}
+  #nav a svg.i{font-size:26px}
+  #nav a:hover{background:var(--s1);color:var(--text)}
+  #nav a[aria-current="page"]{background:var(--s2);color:var(--text)}
+  #nav a[aria-current="page"]::before{content:"";position:absolute;left:-22px;top:12px;bottom:12px;width:5px;border-radius:0 4px 4px 0;background:var(--c-check)}
+  .rail-foot{margin-top:auto;padding:18px;border-radius:var(--r-lg);background:var(--s1);font-size:17px;color:var(--muted);line-height:1.35}
+  .rail-foot b{display:block;font:700 26px/1.15 var(--display);color:var(--text);margin-top:4px;letter-spacing:.01em}
+
+  #top{display:flex;align-items:center;gap:22px;padding:30px 48px 22px}
+  #title{font:700 52px/1 var(--display);letter-spacing:-.01em;margin:0;flex:1;min-width:0}
+  .badge{display:inline-flex;align-items:center;gap:10px;border-radius:999px;padding:9px 18px 9px 14px;font-size:19px;font-weight:600;border:0}
+  .badge svg.i{font-size:22px}
+  .badge.ok{background:rgba(47,194,122,.16);color:var(--c-ok)}
+  .badge.todo{background:rgba(255,196,37,.14);color:var(--c-check);cursor:pointer;box-shadow:inset 0 0 0 2px rgba(255,196,37,.45)}
+  .badge.todo:hover{background:rgba(255,196,37,.24)}
+  .who{display:flex;align-items:center;gap:14px;font-weight:600}
+  .avatar{width:52px;height:52px;border-radius:50%;flex:none;display:grid;place-items:center;overflow:hidden;
+          background:var(--c-screen);color:#fff;font:700 22px/1 var(--display);letter-spacing:.02em}
+  .avatar img{width:100%;height:100%;object-fit:cover}
+  .avatar.big{width:112px;height:112px;font-size:46px}
+  .iconbtn{border:0;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+           padding:10px 14px;border-radius:12px;font-size:18px;font-weight:600}
+  .iconbtn:hover{background:var(--s1);color:var(--text)}
+  .iconbtn svg.i{font-size:22px}
+
+  main{min-height:0;overflow:auto;padding:4px 48px 40px}
+  .view{height:100%;min-height:0}
+  .lede{color:var(--muted);margin:0 0 26px;max-width:70ch;font-size:22px}
+
+  .card{background:var(--s1);border-radius:var(--r-xl);padding:28px 32px;min-height:0;position:relative;overflow:hidden}
+  .card h3{font:700 30px/1.1 var(--display);margin:0 0 6px;letter-spacing:.005em}
+  .card .sub{color:var(--muted);font-size:18px;margin:0}
+  .empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:10px;color:var(--faint);
+         font-size:20px;line-height:1.4;flex:1;min-height:0}
+  .empty b{color:var(--muted);font-weight:600}
+  .chip{display:inline-flex;align-items:center;gap:8px;font-size:17px;font-weight:600;padding:4px 14px 4px 11px;border-radius:999px;
+        border:2px solid var(--rule);color:var(--muted)}
+  .chip i{width:10px;height:10px;border-radius:50%;background:var(--faint)}
+  .chip.on{border-color:transparent;background:var(--s3);color:var(--text)}
+  .chip.on i{background:var(--c-ok)}
+  .chip.off i{background:var(--faint)}
+
+  /* Overview */
+  #v-overview{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto minmax(0,1fr) minmax(0,1fr);gap:24px}
+  .heads{grid-column:1/-1;display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:24px}
+  .stat{background:var(--s1);border-radius:var(--r-xl);padding:24px 28px 26px;display:flex;flex-direction:column;justify-content:flex-end;min-height:178px}
+  .stat .n{font:700 76px/1 var(--display);letter-spacing:-.01em}
+  .stat .l{color:var(--muted);font-size:19px;font-weight:600;margin-top:8px}
+  .stat.hero{background:linear-gradient(135deg,rgba(196,18,47,.32),rgba(196,18,47,.08)) var(--s1);box-shadow:inset 0 0 0 2px rgba(255,74,98,.35)}
+  .stat.hero .n{font-size:104px;color:#fff}
+  .stat.hero .row{display:flex;align-items:baseline;gap:22px}
+  .stat.hero .money{font:700 40px/1 var(--display);color:var(--c-denied)}
+  .stat .n.dim{color:var(--faint)}
+  .ov-a{grid-column:1/5;display:flex;flex-direction:column}
+  .ov-b{grid-column:5/13;display:flex;flex-direction:column}
+  .ov-c{grid-column:1/8;display:flex;flex-direction:column}
+  .ov-d{grid-column:8/13;display:flex;flex-direction:column}
+
+  /* Contacts */
+  .grid-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+  .add-card{border:2.5px dashed var(--rule);background:transparent;border-radius:var(--r-xl);min-height:330px;display:flex;flex-direction:column;
+            align-items:flex-start;justify-content:flex-end;gap:10px;padding:32px;color:var(--muted);text-align:left;cursor:pointer}
+  .add-card:hover{border-color:var(--muted);color:var(--text)}
+  .add-card .plus{width:64px;height:64px;border-radius:50%;background:var(--s2);display:grid;place-items:center;margin-bottom:auto;font-size:32px;color:var(--c-check)}
+  .add-card b{font:700 32px/1.1 var(--display);color:var(--text)}
+  .ghost-card{border-radius:var(--r-xl);min-height:330px;background:linear-gradient(180deg,var(--s1),rgba(23,37,51,.25));padding:32px;opacity:.55}
+  .ghost-line{height:16px;border-radius:8px;background:var(--s2);margin-bottom:14px}
+
+  /* My numbers */
+  #v-numbers{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;align-content:start}
+  .num-list{list-style:none;margin:20px 0 0;padding:0;display:flex;flex-direction:column;gap:12px}
+  .num-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 18px;background:var(--s2);border-radius:var(--r-lg);padding:18px 24px}
+  .num-list .lbl{color:var(--muted);font-size:18px;font-weight:600}
+  .num-list .num{font:700 36px/1.1 var(--display);letter-spacing:.01em}
+  .guardnum{font:700 54px/1.05 var(--display);margin:22px 0 14px;letter-spacing:.01em}
+  .flow{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:18px;margin-top:18px}
+  .flow span{background:var(--s2);border-radius:999px;padding:6px 14px;color:var(--text);font-weight:600}
+
+  /* Knowledge graph */
+  #v-graph .card{height:100%;padding:0}
+  .graph-empty{position:absolute;inset:0;display:grid;place-items:center}
+  .graph-empty svg{width:100%;height:100%}
+  .graph-cap{position:absolute;left:40px;bottom:36px;max-width:62ch}
+  .graph-cap h3{font-size:34px}
+
+  /* Profile */
+  #v-profile{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:24px;align-content:start}
+  .me-card{display:flex;gap:28px;align-items:center}
+  .me-card .nm{font:700 46px/1.05 var(--display)}
+  .me-card .em{color:var(--muted);font-size:20px;margin-top:6px}
+  .facts{margin:28px 0 0;display:grid;grid-template-columns:auto 1fr;gap:12px 24px;font-size:20px}
+  .facts dt{color:var(--muted);font-weight:600}
+  .facts dd{margin:0}
+  #verify-card{box-shadow:inset 0 0 0 2px rgba(255,196,37,.4)}
+  #verify-card.done{box-shadow:inset 0 0 0 2px rgba(47,194,122,.4)}
+  #verify-card.flash{animation:flash 1.4s ease}
+  @keyframes flash{0%,40%{box-shadow:inset 0 0 0 4px var(--c-check)}}
+  .vsteps{list-style:none;padding:0;margin:24px 0 28px;display:flex;flex-direction:column;gap:14px;counter-reset:s}
+  .vsteps li{display:flex;gap:16px;align-items:baseline;color:var(--muted)}
+  .vsteps li::before{counter-increment:s;content:counter(s);flex:none;width:34px;height:34px;border-radius:50%;background:var(--s2);color:var(--text);
+                     display:grid;place-items:center;font:700 19px/1 var(--display);transform:translateY(6px)}
+
+  /* Status line for failed requests */
+  #status{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--s3);color:var(--text);border-radius:999px;
+          padding:12px 22px 12px 18px;font-size:18px;font-weight:600;display:flex;gap:12px;align-items:center;
+          box-shadow:0 20px 40px -20px rgba(0,0,0,.8);z-index:10}
+  #status i{width:10px;height:10px;border-radius:50%;background:var(--c-denied)}
+
+  @media (max-width:1100px){
+    #signin{grid-template-columns:1fr;padding:32px}
+    .si-q{font-size:96px}
+    .after{grid-template-columns:1fr}
+    #app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr;height:auto;min-height:100vh}
+    #rail{grid-row:auto;flex-direction:row;align-items:center;padding:14px;overflow-x:auto}
+    #rail .mark{padding:0 12px 0 0}#nav{flex-direction:row}.rail-foot{display:none}#nav a span{display:none}
+    #nav a[aria-current="page"]::before{display:none}
+    #top{flex-wrap:wrap;padding:20px}main{padding:4px 20px 30px}
+    #v-overview,.heads,.grid-cards,#v-numbers,#v-profile{grid-template-columns:1fr}
+    .ov-a,.ov-b,.ov-c,.ov-d{grid-column:1/-1}
+  }
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style></head>
+<body class="booting">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2.5 4.5 5.3v5.9c0 4.7 3.2 8.8 7.5 10.3 4.3-1.5 7.5-5.6 7.5-10.3V5.3L12 2.5Z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 2.5 4.5 5.3v5.9c0 4.7 3.2 8.8 7.5 10.3 4.3-1.5 7.5-5.6 7.5-10.3V5.3L12 2.5Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-overview" viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-6M22 20H2"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17.5" cy="9" r="2.6"/><path d="M17 14.6c2.4.2 4 1.8 4.5 4.4"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-graph" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.8"/><circle cx="4.5" cy="5.5" r="2"/><circle cx="19.5" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="18.5" r="2"/><path d="m6 7 4 3.2M18 6.4l-4 3.6M6.5 17.6l3.5-3.6M17.4 17.2l-3.4-3.4"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="8.5" cy="11" r="2.3"/><path d="M5 16c.6-1.6 2-2.4 3.5-2.4s2.9.8 3.5 2.4M14.5 10h4.5M14.5 13.5h3"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 16l-4-4 4-4M6 12h10"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15l1.5-2ZM10 21h4"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18M6 16l4-5 3.5 3L19 7"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<!-- ============ Sign-in ============ -->
+<section id="signin" aria-labelledby="si-title">
+  <div class="mark"><svg class="shield" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield" fill="var(--c-check)" stroke="none"/><path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="#14202B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>My Guard</div>
+  <div class="si-left">
+    <h1 class="si-q" id="si-title">Someone says it's you.<span>Is this you?</span></h1>
+    <p class="si-lede">When a caller claims to be someone <b>you trust</b>, the guard doesn't judge the voice. It asks the real person on their own phone, and only puts the call through when they say yes.</p>
+  </div>
+  <div class="si-right">
+    <div class="ping">
+      <h2>Sign in to My Guard</h2>
+      <p>Set up who you trust and see what the guard stopped.</p>
+      <div class="auth">
+        <div id="g-wrap" hidden>
+          <div id="g-btn"></div>
+          <p class="g-note" id="g-note" hidden></p>
+        </div>
+        <div class="or" id="or" hidden>or</div>
+        <button class="btn btn-ghost" id="demo-btn" type="button" hidden>Demo sign-in</button>
+        <p class="g-note" id="no-auth" hidden>Sign-in isn't set up on this server.</p>
+      </div>
+    </div>
+  </div>
+  <div class="after" aria-label="After you sign in">
+    <div><svg class="i" aria-hidden="true"><use href="#i-shield-check"/></svg><span><b>Verify it's you</b>A one-time identity check, so nobody else can run your guard.</span></div>
+    <div><svg class="i" aria-hidden="true"><use href="#i-people"/></svg><span><b>Name the people you trust</b>And the apps the guard should ask them on, in your order.</span></div>
+    <div><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg><span><b>See what the guard stopped</b>Every attempt, who they pretended to be, and what they wanted.</span></div>
+  </div>
+</section>
+
+<!-- ============ Signed-in app ============ -->
+<div id="app">
+  <aside id="rail">
+    <div class="mark"><svg class="shield" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield" fill="var(--c-check)" stroke="none"/><path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="#14202B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>My Guard</div>
+    <nav id="nav" aria-label="Sections">
+      <a href="#overview" data-view="overview"><svg class="i" aria-hidden="true"><use href="#i-overview"/></svg><span>Overview</span></a>
+      <a href="#contacts" data-view="contacts"><svg class="i" aria-hidden="true"><use href="#i-people"/></svg><span>Trusted contacts</span></a>
+      <a href="#numbers" data-view="numbers"><svg class="i" aria-hidden="true"><use href="#i-phone"/></svg><span>My numbers</span></a>
+      <a href="#graph" data-view="graph"><svg class="i" aria-hidden="true"><use href="#i-graph"/></svg><span>Knowledge graph</span></a>
+      <a href="#profile" data-view="profile"><svg class="i" aria-hidden="true"><use href="#i-id"/></svg><span>Profile</span></a>
+    </nav>
+    <div class="rail-foot">Calls are screened on<b id="rail-guard">the guard's line</b></div>
+  </aside>
+
+  <header id="top">
+    <h1 id="title">Overview</h1>
+    <span id="badge"></span>
+    <div class="who"><span class="avatar" id="avatar"></span><span id="me-name"></span></div>
+    <button class="iconbtn" id="logout" type="button"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg>Sign out</button>
+  </header>
+
+  <main>
+    <!-- Overview -->
+    <section class="view" id="v-overview" data-title="Overview">
+      <div class="heads">
+        <div class="stat hero"><div class="row"><span class="n" id="h-blocked">0</span><span class="money" id="h-money"></span></div><div class="l" id="h-blocked-l">calls blocked</div></div>
+        <div class="stat"><span class="n" id="h-calls">0</span><span class="l">calls screened</span></div>
+        <div class="stat"><span class="n" id="h-asked">0</span><span class="l">questions asked</span></div>
+        <div class="stat"><span class="n" id="h-money2">$0</span><span class="l">asked for, not sent</span></div>
+        <div class="stat"><span class="n" id="h-secs">–</span><span class="l">typical time to decide</span></div>
+      </div>
+      <div class="card ov-a"><h3>How calls ended</h3><p class="sub">Blocked, confirmed, unverified, expected.</p>
+        <div class="empty"><b>No calls yet.</b>Each screened call adds to this chart.</div></div>
+      <div class="card ov-b"><h3>Attempts over time</h3><p class="sub">Calls screened and blocked, oldest on the left.</p>
+        <div class="empty"><b>Nothing to plot yet.</b>The timeline fills in as calls come in.</div></div>
+      <div class="card ov-c"><h3>Recent attempts</h3><p class="sub">Who they claimed to be, what they wanted, what happened.</p>
+        <div class="empty"><b>No attempts so far.</b>When someone pretends to be one of your people, it shows up here.</div></div>
+      <div class="card ov-d"><h3>Pressure tactics</h3><p class="sub">Money, urgency, secrecy, a claimed relationship.</p>
+        <div class="empty"><b>None seen yet.</b>The guard notes every push it hears on a call.</div></div>
+    </section>
+
+    <!-- Trusted contacts -->
+    <section class="view" id="v-contacts" data-title="Trusted contacts" hidden>
+      <p class="lede">The people a caller might pretend to be. For each one, the guard knows their numbers and where to ask them "Is this you?", in your order.</p>
+      <div class="grid-cards">
+        <button class="add-card" type="button" id="add-contact"><span class="plus"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></span><b>Add someone you trust</b>Name, numbers, and how to reach them.</button>
+        <div class="ghost-card" aria-hidden="true"><div class="avatar" style="opacity:.5"></div><div style="height:22px"></div><div class="ghost-line" style="width:60%"></div><div class="ghost-line" style="width:40%"></div><div style="height:30px"></div><div class="ghost-line" style="width:80%"></div><div class="ghost-line" style="width:70%"></div><div class="ghost-line" style="width:75%"></div></div>
+        <div class="ghost-card" aria-hidden="true" style="opacity:.3"><div class="avatar" style="opacity:.5"></div><div style="height:22px"></div><div class="ghost-line" style="width:55%"></div><div class="ghost-line" style="width:35%"></div><div style="height:30px"></div><div class="ghost-line" style="width:80%"></div><div class="ghost-line" style="width:65%"></div></div>
+      </div>
+    </section>
+
+    <!-- My numbers -->
+    <section class="view" id="v-numbers" data-title="My numbers" hidden>
+      <div class="card">
+        <h3>Numbers the guard protects</h3>
+        <p class="sub">Calls from unknown numbers to these lines go to the guard first.</p>
+        <ul class="num-list" id="num-list"></ul>
+        <div class="empty" id="num-empty" style="margin-top:22px"><b>No numbers yet.</b>Add the phone lines you want screened.</div>
+      </div>
+      <div class="card">
+        <h3>The guard's line</h3>
+        <p class="sub">Forward unknown callers here. The guard answers for you.</p>
+        <div class="guardnum" id="guard-num">–</div>
+        <div class="flow"><span>Unknown caller</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span>Guard</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span id="flow-owner">You</span></div>
+      </div>
+    </section>
+
+    <!-- Knowledge graph -->
+    <section class="view" id="v-graph" data-title="Knowledge graph" hidden>
+      <div class="card">
+        <div class="graph-empty" aria-hidden="true">
+          <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
+            <g fill="none" stroke="#2C3F52" stroke-width="2">
+              <circle cx="800" cy="430" r="150" stroke-dasharray="4 10"/><circle cx="800" cy="430" r="290" stroke-dasharray="4 10"/><circle cx="800" cy="430" r="420" stroke-dasharray="4 10" opacity=".6"/>
+              <path d="M800 430 L560 270 M800 430 L1060 300 M800 430 L620 640 M800 430 L1010 610" stroke="#27394B" stroke-width="3"/>
+            </g>
+            <g fill="#1E2F3F"><circle cx="560" cy="270" r="30"/><circle cx="1060" cy="300" r="30"/><circle cx="620" cy="640" r="30"/><circle cx="1010" cy="610" r="30"/><circle cx="1200" cy="420" r="16"/><circle cx="420" cy="460" r="16"/><circle cx="800" cy="860" r="12"/></g>
+            <circle cx="800" cy="430" r="58" fill="#FFC425"/>
+          </svg>
+        </div>
+        <div class="graph-cap"><h3>Everything the guard knows, in one picture</h3><p class="sub">You in the middle, the people you trust around you, their numbers and apps, calls you expect, and every attempt pinned to the person it pretended to be.</p></div>
+      </div>
+    </section>
+
+    <!-- Profile -->
+    <section class="view" id="v-profile" data-title="Profile" hidden>
+      <div class="card">
+        <div class="me-card"><span class="avatar big" id="p-avatar"></span><div><div class="nm" id="p-name"></div><div class="em" id="p-email"></div></div></div>
+        <dl class="facts"><dt>Identity</dt><dd id="p-verified">Not verified yet</dd><dt>Protects</dt><dd id="p-owner">–</dd></dl>
+      </div>
+      <div class="card" id="verify-card" tabindex="-1">
+        <h3 id="v-head">Verify it's you</h3>
+        <p class="sub" id="v-sub">A one-time identity check, so nobody else can change who your guard trusts.</p>
+        <ol class="vsteps" id="v-steps">
+          <li>Open the identity check in a new tab.</li>
+          <li>Show a photo ID and take a quick selfie.</li>
+          <li>Come back here: your profile shows Verified.</li>
+        </ol>
+        <button class="btn btn-solid" id="verify-btn" type="button" disabled>The identity check opens here</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="status" role="status" hidden><i></i><span id="status-text"></span></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const VIEWS = ["overview", "contacts", "numbers", "graph", "profile"];
+let CONFIG = {}, ME = null;
+
+// ---------- requests ----------
+class HttpError extends Error { constructor(status, detail) { super(detail); this.status = status; } }
+async function api(path, opts = {}) {
+  const init = {credentials: "same-origin", method: opts.method || "GET", headers: {}};
+  if (opts.body !== undefined) { init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(opts.body); }
+  const r = await fetch(path, init);
+  let data = null;
+  try { data = await r.json(); } catch (_) {}
+  if (!r.ok) throw new HttpError(r.status, (data && data.detail) || `${r.status} ${r.statusText}`);
+  return data;
+}
+// For data that the server may not offer yet: 404/500 means "not there yet", stay quiet.
+async function maybe(path) {
+  try { return await api(path); }
+  catch (e) { if (e.status === 401) { showSignin(); return null; } if (!e.status) say(`Couldn't reach the server for ${path}.`); return null; }
+}
+let statusTimer = 0;
+function say(text) {
+  $("status-text").textContent = text; $("status").hidden = false;
+  clearTimeout(statusTimer); statusTimer = setTimeout(() => $("status").hidden = true, 6000);
+}
+
+// ---------- small render helpers ----------
+const initials = n => String(n || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+function avatar(el, me) {
+  el.textContent = initials(me.name);
+  if (me.picture) {
+    const img = new Image(); img.alt = ""; img.referrerPolicy = "no-referrer";
+    img.onload = () => { el.textContent = ""; el.appendChild(img); };
+    img.src = me.picture;
+  }
+}
+const money = v => "$" + Math.round(+v || 0).toLocaleString("en-US");
+const ICON = id => `<svg class="i" aria-hidden="true"><use href="#${id}"/></svg>`;
+
+// ---------- sign-in ----------
+function showSignin() {
+  ME = null;
+  document.body.classList.remove("booting");
+  $("app").hidden = true; $("signin").hidden = false;
+  document.title = "My Guard: sign in";
+}
+function setupSignin() {
+  const demo = !!CONFIG.demo_login, gid = CONFIG.google_client_id;
+  $("demo-btn").hidden = !demo;
+  $("g-wrap").hidden = !gid;
+  $("or").hidden = !(demo && gid);
+  $("no-auth").hidden = demo || !!gid;
+  if (gid) loadGoogle(gid);
+}
+function googleUnavailable() {
+  $("g-btn").innerHTML = "";
+  $("g-note").textContent = "Sign-in with Google is unavailable right now.";
+  $("g-note").hidden = false;
+}
+let gLoading = false;
+function loadGoogle(clientId) {
+  if (gLoading) return; gLoading = true;
+  const s = document.createElement("script");
+  s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+  const giveUp = setTimeout(() => { if (!window.google || !google.accounts) googleUnavailable(); }, 8000);
+  s.onerror = () => { clearTimeout(giveUp); googleUnavailable(); };
+  s.onload = () => {
+    clearTimeout(giveUp);
+    try {
+      google.accounts.id.initialize({client_id: clientId, callback: onGoogle});
+      google.accounts.id.renderButton($("g-btn"), {theme: "filled_black", size: "large", shape: "pill", text: "continue_with", width: 380});
+    } catch (_) { googleUnavailable(); }
+  };
+  document.head.appendChild(s);
+}
+async function onGoogle(resp) {
+  try { signedIn(await api("/api/auth/google", {method: "POST", body: {credential: resp.credential}})); }
+  catch (e) { say(e.status === 401 ? "Google sign-in didn't go through. Try again." : `Sign-in failed: ${e.message}`); }
+}
+$("demo-btn").onclick = async () => {
+  $("demo-btn").disabled = true;
+  try { signedIn(await api("/api/auth/demo", {method: "POST"})); }
+  catch (e) { say(`Demo sign-in failed: ${e.message}`); }
+  finally { $("demo-btn").disabled = false; }
+};
+$("logout").onclick = async () => {
+  try { await api("/api/auth/logout", {method: "POST"}); }
+  catch (e) { say(`Sign-out failed: ${e.message}`); return; }
+  showSignin();
+};
+
+// ---------- signed in ----------
+function signedIn(me) {
+  ME = me;
+  renderMe();
+  document.body.classList.remove("booting");
+  $("signin").hidden = true; $("app").hidden = false;
+  route();
+  loadData();
+}
+function renderMe() {
+  const me = ME;
+  $("me-name").textContent = me.name || me.email || "You";
+  avatar($("avatar"), me); avatar($("p-avatar"), me);
+  $("p-name").textContent = me.name || "";
+  $("p-email").textContent = me.email || "";
+  const b = $("badge");
+  if (me.verified) {
+    b.outerHTML = `<span class="badge ok" id="badge">${ICON("i-shield-check")}Verified</span>`;
+    $("p-verified").textContent = me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)";
+    $("verify-card").classList.add("done");
+    $("v-head").textContent = "You're verified";
+    $("v-sub").textContent = "Your identity was checked once. Nothing more to do here.";
+    $("v-steps").hidden = true; $("verify-btn").hidden = true;
+  } else {
+    b.outerHTML = `<button class="badge todo" id="badge" type="button">${ICON("i-alert")}Not verified yet</button>`;
+    $("badge").onclick = () => {
+      location.hash = "#profile";
+      const c = $("verify-card"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); c.focus({preventScroll: true});
+    };
+    $("p-verified").textContent = "Not verified yet";
+  }
+}
+function renderConfig() {
+  const gn = CONFIG.guard_number || "–";
+  $("rail-guard").textContent = gn; $("guard-num").textContent = gn;
+  if (CONFIG.owner_name) { $("p-owner").textContent = CONFIG.owner_name; $("flow-owner").textContent = CONFIG.owner_name; }
+}
+
+// ---------- views ----------
+function route() {
+  let v = location.hash.slice(1);
+  if (!VIEWS.includes(v)) v = "overview";
+  for (const k of VIEWS) $("v-" + k).hidden = k !== v;
+  for (const a of document.querySelectorAll("#nav a")) {
+    if (a.dataset.view === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  }
+  $("title").textContent = $("v-" + v).dataset.title;
+  document.title = `My Guard: ${$("v-" + v).dataset.title}`;
+}
+addEventListener("hashchange", () => { if (ME) route(); });
+
+async function loadData() {
+  const [stats, profile] = await Promise.all([maybe("/api/stats"), maybe("/api/profile")]);
+  if (stats && stats.headline) renderHeadline(stats.headline);
+  if (profile) renderProfile(profile);
+}
+function renderHeadline(h) {
+  const set = (id, v, dim) => { $(id).textContent = v; $(id).classList.toggle("dim", !!dim); };
+  set("h-blocked", h.blocked ?? 0);
+  $("h-blocked-l").textContent = h.blocked === 1 ? "call blocked" : "calls blocked";
+  $("h-money").textContent = h.money_not_sent ? `${money(h.money_not_sent)} kept` : "";
+  set("h-calls", h.calls_screened ?? 0);
+  set("h-asked", h.questions_asked ?? 0);
+  set("h-money2", money(h.money_not_sent));
+  const s = h.median_seconds_to_decide;
+  set("h-secs", s == null ? "–" : `${(+s).toFixed(1)} s`, s == null);
+}
+function renderProfile(p) {
+  if (p.guard_number) { $("guard-num").textContent = p.guard_number; $("rail-guard").textContent = p.guard_number; }
+  if (p.owner_name) { $("p-owner").textContent = p.owner_name; $("flow-owner").textContent = p.owner_name; }
+  const nums = p.numbers || [];
+  $("num-empty").hidden = nums.length > 0;
+  $("num-list").innerHTML = nums.map(n => `<li><span><span class="lbl">${esc(n.label || "Phone")}</span><br><span class="num">${esc(n.number)}</span></span>
+    <span class="chip ${n.protected ? "on" : "off"}"><i></i>${n.protected ? "Protected" : "Not protected"}</span></li>`).join("");
+}
+$("add-contact").onclick = () => say("Adding contacts opens here soon.");
+
+// ---------- start: decide signed-in or not before anything shows ----------
+(async function boot() {
+  try { CONFIG = await api("/api/config"); }
+  catch (e) { CONFIG = {}; say(e.status ? "Couldn't load the app settings." : "Couldn't reach the server."); }
+  renderConfig();
+  setupSignin();
+  try { signedIn(await api("/api/me")); }
+  catch (e) {
+    if (e.status && e.status !== 401) say(`Couldn't check your sign-in: ${e.message}`);
+    else if (!e.status) say("Couldn't reach the server.");
+    showSignin();
+  }
+})();
+</script>
+</body></html>

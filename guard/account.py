@@ -113,10 +113,22 @@ def _me_out(u: dict) -> dict:
 def _user(request: Request) -> dict:
     uid = _read_token(request.cookies.get(COOKIE))
     with _LOCK:
-        u = _load()["users"].get(uid) if uid else None
-    if not u:
+        data = _load()
+        u = data["users"].get(uid) if uid else None
+    if not u or data.get("owner_id") not in (None, uid):
         raise HTTPException(401, "sign in")
     return u
+
+
+def _claim(uid: str) -> None:
+    """One guard, one owner: the first Google account to sign in owns it; the demo user never locks it."""
+    with _LOCK:
+        data = _load()
+        owner = data.get("owner_id")
+        if owner not in (None, "demo", uid):
+            raise HTTPException(403, "This guard is already set up by another account.")
+        data["owner_id"] = uid
+        _save(data)
 
 
 def _demo_login() -> bool:
@@ -172,6 +184,7 @@ def auth_google(body: dict, request: Request, response: Response):
         info = {}
     if not info.get("sub") or info.get("aud") != client_id:
         raise HTTPException(401, "Google sign-in failed.")
+    _claim("g_" + info["sub"])
     u = _upsert_user("g_" + info["sub"], name=info.get("name") or info.get("email", ""),
                      email=info.get("email", ""), picture=info.get("picture"))
     _set_cookie(request, response, u["id"])
@@ -182,6 +195,7 @@ def auth_google(body: dict, request: Request, response: Response):
 def auth_demo(request: Request, response: Response):
     if not _demo_login():
         raise HTTPException(403, "Demo sign-in is switched off.")
+    _claim("demo")
     u = _upsert_user("demo", name="Margaret Example", email="margaret@example.com", picture=None)
     _set_cookie(request, response, "demo")
     return _me_out(u)
