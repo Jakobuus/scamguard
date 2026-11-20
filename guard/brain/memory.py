@@ -208,7 +208,8 @@ def resolve(text: str | None, relationship: str | None = None) -> dict | None:
 
 def _add(texts: list[str], cognify: bool = True, timeout: float = 10) -> None:
     with _client(timeout) as http:
-        files = [("data", (f"fact{i}.txt", t.encode(), "text/plain")) for i, t in enumerate(texts)]
+        stamp = int(time.time() * 1000)  # unique names: a repeated name with new text is a 409 from Cognee
+        files = [("data", (f"fact{stamp}_{i}.txt", t.encode(), "text/plain")) for i, t in enumerate(texts)]
         r = http.post("/api/v1/add", files=files, data={"datasetName": DATASET})
         r.raise_for_status()
         if cognify:
