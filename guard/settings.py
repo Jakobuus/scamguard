@@ -36,6 +36,7 @@ REAL_TELEGRAM = _real("REAL_TELEGRAM")
 REAL_DB = _real("REAL_DB")
 REAL_SIE = _real("REAL_SIE")
 REAL_COGNEE = _real("REAL_COGNEE")
+REAL_GMAIL = _real("REAL_GMAIL")  # scan the real inbox; needs GMAIL_ACCESS_TOKEN
 REAL_MATCH = _real("REAL_MATCH")  # scam-script match: needs REAL_DB and REAL_SIE too
 REAL_PERSONA = _real("REAL_PERSONA")
 REAL_BEEPER = _real("REAL_BEEPER") and bool(os.environ.get("BEEPER_ACCESS_TOKEN") and os.environ.get("BEEPER_CHAT_ID"))

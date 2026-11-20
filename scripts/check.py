@@ -1694,6 +1694,90 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
                 "unverified", ["claim"])
     assert not any(e["type"] == "contact.lookup" and e["data"].get("resolved_by") for e in ev)
     ok("memory through the simulator: teammate resolves to Erick and is asked, Yes is learned, a timeout is not, a friend is not guessed, /memory answers")
+# Gmail scan: sample mailbox -> expectations and facts, suspicious mail ignored, rescan stable, failures empty.
+from tempfile import TemporaryDirectory as _TD
+from guard import account as _account
+from guard.brain import context as _context, gmail_scan, memory as _memory
+with _TD() as _d, patch.object(_context, "_LOCAL_PATH", Path(_d) / "expected.local.json", create=True), \
+        patch.object(_account, "EXPECTED_PATH", Path(_d) / "expected.local.json"), \
+        patch.object(_account, "ACCOUNT_PATH", Path(_d) / "account.local.json"), TestClient(app) as gc:
+    _local = _account.EXPECTED_PATH
+    _mine = {"id": "mine-vase", "kind": "delivery", "who": "vase courier", "note": "Vase.",
+             "keywords": {"specific": ["blue vase"], "generic": ["parcel"]}}
+    _local.write_text(json.dumps([_mine]))
+    assert gc.post("/api/gmail/scan").status_code == 401 and gc.get("/api/gmail/status").status_code == 401
+    assert gc.post("/api/auth/demo").status_code == 200
+    _memory._learned.pop("erick", None)
+    res = gmail_scan.scan()
+    assert res["source"] == "sample" and res["scanned"] == 12, res["scanned"]
+    lamp = next(r for r in res["expected"] if r["kind"] == "delivery" and "desk lamp" in r["keywords"]["specific"])
+    phones = next(r for r in res["expected"] if r["kind"] == "delivery" and "headphones" in r["keywords"]["specific"])
+    assert any(r["kind"] == "callback" for r in res["expected"]) and any(r["kind"] == "appointment" for r in res["expected"])
+    assert "2 pm" in phones["who"] and "6 pm" in phones["who"]
+    for r in res["expected"]:
+        assert r["id"].startswith("gmail-") and r["source"] == "gmail" and r["keywords"]["specific"] and r["keywords"]["generic"]
+        assert _context._usable(r) and "@" not in json.dumps(r)
+    assert len(res["expected"]) == 4, [r["who"] for r in res["expected"]]
+    assert [s["subject"] for s in res["suspicious"]] == ["Your parcel is held: pay a fee"]
+    assert not any("fee" in json.dumps(r).lower() or "held" in json.dumps(r).lower() for r in res["expected"])
+    assert res["ignored"] == 4
+    erick = [f["text"] for f in res["facts"] if f["contact_id"] == "erick"]
+    assert 1 <= len(erick) <= 2 and all("@" not in t for t in erick)
+    out = gc.post("/api/gmail/scan").json()
+    assert out["expected"] and out["facts_new"] >= 2 and len(out["suspicious"]) == 1, out
+    ids = {r["id"] for r in out["expected"]}
+    rows = json.loads(_local.read_text())
+    assert any(r["id"] == "mine-vase" for r in rows) and {r["id"] for r in rows if r["id"].startswith("gmail-")} == ids
+    mem = _memory.snapshot()["contacts"]["erick"]
+    assert all(t in mem["facts"] for t in erick), mem
+    assert gmail_scan.fact_texts() >= set(erick)
+    # A caller is judged against the overlay the scan wrote.
+    assert _context.expected("Hi, I'm the courier with your headphones order").source_id == phones["id"]
+    assert _context.expected("blue vase parcel").source_id == "mine-vase"
+    for line, want in (("I am the courier with your headphones order", "expected"),
+                       ("Hi, I'm the courier with your headphones order, there is a fee, what is your card number",
+                        "expected_but_money")):
+        cid = flow.start_call(None)
+        gc.post("/vapi/tool/verify_caller", json={"message": {"call": {"id": cid}, "toolCalls": [
+            {"id": "g", "function": {"arguments": {"claimed_name": "", "reason": line}}}]}})
+        deadline = time.time() + 3
+        while state.get_call(cid).state == "screening" and time.time() < deadline:
+            time.sleep(0.02)
+        assert state.get_call(cid).decided_by == want, (line, state.get_call(cid))
+    # A second scan changes nothing.
+    again = gc.post("/api/gmail/scan").json()
+    assert again["facts_new"] == 0 and {r["id"] for r in again["expected"]} == ids
+    assert len([r for r in json.loads(_local.read_text()) if r["id"].startswith("gmail-")]) == 4
+    assert sum(i["text"] in erick for i in _memory.learned("erick")) == len(erick), "facts are not stored twice"
+    stat = gc.get("/api/gmail/status").json()
+    assert stat["source"] == "sample" and stat["expected_from_gmail"] == 4 and stat["facts_from_gmail"] >= 2 and stat["last_scan"]
+    assert {n["type"] for n in stat["nodes"]} == {"email", "expected", "fact"} and all(n["origin"] == "Gmail" for n in stat["nodes"])
+    node_ids = {n["id"] for n in stat["nodes"]} | {"owner", "contact:erick", "contact:lena"}
+    assert all(e["from"] in node_ids and e["to"] in node_ids for e in stat["edges"]), stat["edges"]
+    # The owner switching one off survives a rescan.
+    rows = json.loads(_local.read_text())
+    for r in rows:
+        if r["id"] == lamp["id"]:
+            r["expected"] = False
+    _local.write_text(json.dumps(rows))
+    gc.post("/api/gmail/scan")
+    assert next(r for r in json.loads(_local.read_text()) if r["id"] == lamp["id"])["expected"] is False
+    # Broken sample file, and a Gmail API error: empty result, no exception.
+    broken = Path(_d) / "broken.json"
+    broken.write_text("{not json")
+    with patch.object(gmail_scan, "_SAMPLE", broken):
+        empty = gmail_scan.scan()
+    assert empty["expected"] == [] and empty["facts"] == [] and empty["scanned"] == 0
+    import httpx as _httpx
+    with patch.object(gmail_scan, "real", return_value=True), patch.dict(os.environ, {"GMAIL_ACCESS_TOKEN": "x"}), \
+            patch.object(_httpx.Client, "get", side_effect=_httpx.ConnectError("down")):
+        assert gmail_scan.fetch() == []
+        assert gmail_scan.scan() == {"source": "gmail", "scanned": 0, "expected": [], "facts": [],
+                                     "suspicious": [], "ignored": 0}
+    _memory._learned.pop("erick", None)
+    _memory._learned.pop("lena", None)
+ok("gmail scan: lamp, headphones, doctor callback and appointment found; fee mail suspicious and not expected; "
+   "courier put through, fee/card request not; facts in memory; rescan stable; owner switch-off kept; broken source gives empty")
 # Vapi assistant payload: transcriber boosts names, never code words.
 import importlib.util as _iu
 _spec = _iu.spec_from_file_location("vapi_setup", Path(__file__).with_name("vapi_setup.py"))
