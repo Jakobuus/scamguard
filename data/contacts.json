@@ -2,12 +2,29 @@
   {
     "id": "jakob",
     "name": "Jakob",
-    "nicknames": ["Jake"],
+    "nicknames": [
+      "Jake"
+    ],
     "relationship": "son",
-    "known_numbers": ["+15550100001"],
+    "known_numbers": [
+      "+15550100001"
+    ],
     "telegram_chat_id": null,
     "email": null,
     "challenge_question": "What was the name of our first dog?",
     "challenge_answer": "Bruno"
+  },
+  {
+    "id": "lena",
+    "name": "Lena",
+    "nicknames": [],
+    "relationship": "daughter",
+    "known_numbers": [
+      "+15550100003"
+    ],
+    "telegram_chat_id": null,
+    "email": null,
+    "challenge_question": "What is our favorite cake?",
+    "challenge_answer": "Chocolate"
   }
 ]

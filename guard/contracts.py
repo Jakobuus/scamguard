@@ -21,9 +21,18 @@ class Lookup(BaseModel):
     note: str = ""
 
 
+class Claim(BaseModel):
+    claimed_name: str | None = None
+    relationship: str | None = None
+    amount: str | None = None
+    method: str | None = None
+    quote: str = ""
+
+
 class Flags(BaseModel):
     authority_or_kinship: bool = False
     money: bool = False
+    needs_verification: bool = False
     urgency: bool = False
     secrecy: bool = False
     risk: float = 0.0
@@ -40,7 +49,7 @@ class Call(BaseModel):
     flags: Flags | None = None
     started_at: datetime
     decided_at: datetime | None = None
-    decided_by: str | None = None  # "tap" | "timeout" | "credential" | "lookup"
+    decided_by: str | None = None  # "tap" | "timeout" | "credential" | "lookup" | "known_number" | "repeat_attempt" | "stepup"
 
 
 class Event(BaseModel):

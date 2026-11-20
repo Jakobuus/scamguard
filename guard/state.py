@@ -53,7 +53,8 @@ class MemoryBackend:
         with self.lock:
             c = self.calls.get(call_id)
             ok = c is not None and (
-                c.state == "pending" or (state == "agent_verified" and c.state == "screening"))
+                c.state == "pending" or (c.state == "screening" and (
+                    state == "agent_verified" or (state == "confirmed" and by == "known_number"))))
             if ok:
                 self.calls[call_id] = c.model_copy(
                     update={"state": state, "decided_at": _now(), "decided_by": by})
@@ -273,6 +274,34 @@ create_call = lambda *a, **k: backend.create_call(*a, **k)
 get_call = lambda *a, **k: backend.get_call(*a, **k)
 update_call = lambda *a, **k: backend.update_call(*a, **k)
 set_pending = lambda *a, **k: backend.set_pending(*a, **k)
-decide = lambda *a, **k: backend.decide(*a, **k)
-emit = lambda *a, **k: backend.emit(*a, **k)
+
+
+def decide(call_id, new_state, by) -> bool:
+    # Preserve the existing SQL: real known-number calls use its pending transition.
+    if isinstance(backend, SingleStoreBackend) and new_state == "confirmed" and by == "known_number":
+        call = get_call(call_id)
+        if call and call.state == "screening":
+            if not set_pending(call_id, call.contact_id):
+                return False
+    return backend.decide(call_id, new_state, by)
+
+
+_subscribers = []
+
+
+def subscribe(fn) -> None:
+    if fn not in _subscribers:
+        _subscribers.append(fn)
+
+
+def emit(call_id, type, data) -> Event:
+    event = backend.emit(call_id, type, data)
+    for fn in tuple(_subscribers):
+        try:
+            fn(event)
+        except Exception:
+            logging.getLogger(__name__).warning("Event subscriber failed")
+    return event
+
+
 events_since = lambda *a, **k: backend.events_since(*a, **k)

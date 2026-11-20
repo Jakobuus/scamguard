@@ -1,4 +1,4 @@
-# System contract: how three people build one call guard in parallel
+# System contract: how two people build one call guard in parallel
 
 One rule makes parallel work safe: **lanes only meet at the seams written here.** Inside your lane, do what
 you want. A seam changes only after you tell the team (one line in the group chat) and update this file.
@@ -9,66 +9,99 @@ The repo starts as a complete, running app where every outside service is a fake
 signature. `FAKE=1` (default) needs no keys, no phone, no network. Each task is then "replace one fake with the
 real thing, keep the signature". Main always runs; nobody waits for anybody.
 
-- Fake a whole call without a phone: `POST /sim/call` (see 5). Lanes 2 and 3 never need Vapi to test.
+- Fake a whole call without a phone: `POST /sim/call` (see 5). Neither lane needs Vapi to test.
 - Per-service switches in `.env`: `REAL_VAPI`, `REAL_TELEGRAM`, `REAL_DB`, `REAL_SIE`, `REAL_COGNEE`,
   `REAL_PERSONA` (each `0`/`1`). `FAKE=1` forces all to 0.
-- `make check` starts the app in fake mode and plays the three scenes (denied, confirmed, unverified).
+- `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed) and the contract checks.
   **Run it before every push.** If it fails, don't push.
 
 ## 2. Lanes and file ownership
 
-Stack: Python 3.12, FastAPI, `uv`, one static HTML page for the screen. No frontend framework.
+Stack: Python 3.12+, FastAPI, `uv`, one static HTML page. No frontend framework.
 
-| Lane | Owns (only this lane edits these) | Delivers |
+| Lane | Owns | Delivers |
 |---|---|---|
-| **1 Call path** | `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py` | A real call is answered, the real person is pinged, the call is hung up / forwarded / challenged |
-| **2 Brains** | `guard/brain/classify.py`, `guard/brain/contacts.py`, `guard/brain/drill.py`, `guard/persona.py`, `guard/credential.py`, `data/contacts.json`, `drill/` | Flags on the transcript, who-is-who lookup, Firedrill score, selfie re-check, verified lane for AI callers |
-| **3 Demo** | `web/` (screen + credential page look), `clips/`, `scripts/play_scene.py`, `README.md`, `DEMO.md` | Audience screen, voice clips, scene runner, Devpost, video, rehearsal |
+| **A Call path and demo** | `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`, `web/`, `scripts/`, `README.md` | Call handling, verification taps, the audience screen and the demo checks |
+| **B Brains** | `guard/brain/*`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/` | Flags, claim extraction, contact matching and learning, drill score, identity step-up, scoped credentials and telemetry |
 
-Shared, change only with a team message: `guard/contracts.py` (all shapes below), `.env.example`, this file.
+Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as `OWNER_NAME` live in
+`guard/settings.py`; its default is `Mum`.
 
-With two people: lanes 2 and 3 merge.
+### Rules the agent never breaks
 
-## 3. The call's life (one state machine, owned by lane 1)
+- It never offers a name. A question suggesting a person's name is forbidden; it asks who is calling.
+- It never agrees to pay or send money.
+- No model output hangs up or forwards a call: only the real person's tap, the timeout or a valid
+  credential decides. The flow also enforces the explicit known-number and repeat-attempt policies below.
+  Flags alone never decide a call.
+
+## 3. The call's life (one state machine, owned by lane A)
 
 ```
-started → screening → pending ─┬─ confirmed   (real person tapped Yes)  → forward call
-            │                  ├─ denied      (real person tapped No)   → hang up
-            │                  └─ unverified  (20 s, no tap)            → challenge question
-            └─ agent_verified  (caller showed a valid credential)       → forward call
+started → screening → pending ─┬─ confirmed   (Yes, optionally followed by step-up) → forward
+            │                  ├─ denied      (No, failed step-up, repeat attempt) → hang up
+            │                  └─ unverified  (timeout or failed lookup)           → challenge
+            ├─ confirmed      (known number, no sensitive identity claim)         → forward
+            └─ agent_verified (valid credential within scope)                     → forward
 any → ended
 ```
 
-`pending` is entered once, when the ping goes out. Exactly one of confirmed / denied / unverified wins
-(first writer wins, in the database). Nothing else may hang up or forward a call.
+`verify_caller` extracts a claim from the caller transcript so far, using its `claimed_name` argument
+only as a fallback. No match resolves unverified by `lookup`. Multiple candidates, or a relationship
+without a name even if only one contact matches, trigger `ask_name` without a ping and leave the call
+in `screening`. A later named attempt can proceed; a second ambiguous attempt resolves unverified.
+No candidate's name is suggested to the caller.
+
+One matching contact whose caller number is known is confirmed by `known_number` without a ping if the
+latest flags do not require verification. Otherwise two earlier denied or unverified attempts for that
+contact today block a third ping: deny by `repeat_attempt` and notify the owner,
+"Third attempt as <name> today. Don't send money." Known-number confirmation takes precedence.
+
+All other matched calls enter `pending` and receive one verification ping. Exactly one decision wins;
+late taps and timeouts do nothing. Only the winning flow acts on the call. The memory backend allows
+`known_number` and credential decisions directly from screening. The SingleStore SQL stays unchanged:
+the wrapper moves a known-number call through `pending` before deciding, without sending a ping.
+
+On Yes with `needs_verification`, call `persona.start(contact_id)`. A link emits `stepup` and leaves the
+call pending; `on_stepup(call_id, ok)` decides confirmed or denied by `stepup`. None (the fake) decides
+by `tap` immediately. Duplicate Yes taps cannot skip step-up; No and the existing timeout still work.
+Every winning decision calls `contacts.learn(call)`.
 
 ## 4. Shapes (`guard/contracts.py`, pydantic)
 
 ```python
-class Contact:            # lane 2 produces, lanes 1 and 3 read
-    id: str               # "jakob"
-    name: str             # "Jakob"
-    nicknames: list[str]  # ["Jake"]
-    relationship: str     # "son"
+class Contact:
+    id: str
+    name: str
+    nicknames: list[str]
+    relationship: str                 # e.g. "son", "daughter"
     known_numbers: list[str]          # E.164
     telegram_chat_id: str | None
     email: str | None
     challenge_question: str
-    challenge_answer: str             # never sent to the caller or the screen
+    challenge_answer: str             # never sent to caller or screen
 
 class Lookup:
-    contact: Contact | None           # None = nobody by that name in the circle
-    number_known: bool                # caller number is one of contact.known_numbers
-    note: str                         # one line for the screen: "Jakob (son). Calling from an unknown number."
+    contact: Contact | None
+    number_known: bool
+    note: str                         # contact and whether number is known
 
 class Flags:
     authority_or_kinship: bool
     money: bool
+    needs_verification: bool          # identity/authority claim AND sensitive request
     urgency: bool
     secrecy: bool
     risk: float                       # 0..1
     latency_ms: int
     source: str                       # "sie" | "fake"
+
+class Claim:
+    claimed_name: str | None
+    relationship: str | None          # e.g. "son"
+    amount: str | None                # e.g. "$2000"
+    method: str | None                # e.g. "gift cards", "wire"
+    quote: str                        # caller's source words
 
 class Call:
     call_id: str
@@ -79,9 +112,10 @@ class Call:
     flags: Flags | None
     started_at: datetime
     decided_at: datetime | None
-    decided_by: str | None            # "tap" | "timeout" | "credential" | "lookup" (nobody by that name)
+    decided_by: str | None            # tap | timeout | credential | lookup |
+                                      # known_number | repeat_attempt | stepup
 
-class Event:                          # everything the screen shows comes from these
+class Event:
     id: int                           # increasing
     call_id: str
     ts: datetime
@@ -89,53 +123,70 @@ class Event:                          # everything the screen shows comes from t
     data: dict
 ```
 
+Keep `Contact.relationship`; no `relationship_to_owner` field. The demo circle contains a son
+and a daughter. Real classification marks identity/authority claims paired with money, purchases
+or other sensitive actions; fake `needs_verification` is `authority_or_kinship and money`.
+
 ## 5. Seams between lanes
 
 Functions (Python, same process):
 
-| Function | Owner | Called by | Contract |
-|---|---|---|---|
-| `contacts.lookup(claimed_name, caller_number) -> Lookup` | 2 | 1 | Under 300 ms. Deterministic: reads `data/contacts.json`. Cognee enriches the note and is shown on screen, but never decides. |
-| `classify.flags(text) -> Flags` | 2 | 1 | Called on a rolling transcript window. Never raises: on error return the fake's result with `source="fake"`. |
-| `credential.check(token) -> dict \| None` | 2 | 1 | Valid token returns `{agent, principal}`; else None. |
-| `persona.start(contact_id) -> str \| None` | 2 | 1 | Returns a link to open after a tap, or None when Persona is off. |
-| `state.emit(call_id, type, data)` | 1 | all | The only way anything reaches the screen. |
-| `flow.on_transcript(call_id, role, text)` | 1 | 1, sim | Async. Runs classify, emits `transcript` and `flags`. `flow.verify_caller`, `on_tap`, `on_credential` are async too. |
+| Function | Owner | Contract |
+|---|---|---|
+| `classify.flags(text) -> Flags` | B | Rolling caller transcript. Never raises; errors fall back to fake flags. Fake keywords include money and purchase requests. |
+| `classify.claim(text) -> Claim` | B | Fake regex extracts a name after "it's"/"this is", relationship words, a dollar amount and payment method; quote preserves the source text. |
+| `contacts.candidates(claim: Claim, caller_number) -> list[Lookup]` | B | Match name or nickname when present, otherwise relationship. Return every matching contact; never infer a name from caller number. |
+| `contacts.lookup(claimed_name, caller_number) -> Lookup` | B | Compatible name lookup; missing match returns `contact=None`. Cognee may enrich notes but never decides. |
+| `contacts.attempts_today(contact_id) -> int` | B | Count today's denied and unverified attempts (UTC in the fake). |
+| `contacts.learn(call: Call) -> None` | B | Fake keeps an in-memory attempt list. Confirmed calls add new numbers to the matched contact in memory. Denied/unverified calls record attempts and never teach numbers or identities. No disk writes. |
+| `credential.check(token) -> dict \| None` | B | Valid token returns `{agent, principal, scope: list[str]}`. Demo scope is `["scheduling"]`; invalid returns None. |
+| `persona.start(contact_id) -> str \| None` | B | Link for step-up after Yes, or None (fake). |
+| `telemetry.on_event(event: Event) -> None` | B | Fake does nothing. Future sponsor telemetry consumes the same event seam. |
+| `state.subscribe(fn)` | A | Every `state.emit` passes the emitted Event to each subscriber; failure logs one line and other subscribers continue. App startup subscribes `telemetry.on_event`. |
+| `state.emit(call_id, type, data)` | A | The only way anything reaches the screen or telemetry. |
+| `telegram.send_ping(call, contact, claim=None)` | A | Text: "Someone is calling <OWNER_NAME> as you, asking for <amount> in <method>. Is this you?" Omit request details when absent; include available amount/method. Fake logs the same text. |
+| `flow.on_transcript(call_id, role, text)` | A | Async; emits transcript and latest flags from accumulated caller text. |
+| `flow.verify_caller(call_id, claimed_name)` | A | Async; claim → candidates → name question, known-number decision, repeat block or ping (see 3). |
+| `flow.on_tap(call_id, answer)` | A | Async; Yes/No, with optional step-up (see 3). |
+| `flow.on_stepup(call_id, ok: bool)` | A | Async; only a pending step-up may decide by `stepup`. |
+| `flow.on_credential(call_id, token)` | A | Async; money requests require `payment` in scope. Otherwise emit `out_of_scope`, return False, and continue normal verification. Accepted credentials decide `agent_verified`. |
 
 HTTP (all JSON):
 
-| Route | Owner | Used by | Body → result |
-|---|---|---|---|
-| `POST /vapi/webhook` | 1 | Vapi | Vapi events (status-update, transcript, end-of-call-report) |
-| `POST /vapi/tool/verify_caller` | 1 | Vapi | `{claimed_name}` → "ping sent, keep the caller holding" in under 1 s |
-| `POST /telegram/webhook` | 1 | Telegram | button taps |
-| `POST /sim/call` | 1 | 2, 3, tests | `{claimed_name, caller_number, lines: [str], tap: "yes"\|"no"\|null, tap_after_s: float, credential: str\|null}` → `{call_id}`. Plays a whole call through the same flow, no phone. |
-| `POST /sim/tap` | 1 | 3, tests | `{call_id, answer: "yes"\|"no"}` |
-| `GET /calls/{call_id}` | 1 | 3 | `Call` |
-| `GET /events?since=<id>` | 1 | 3 | `[Event]`, poll every 500 ms |
-| `POST /analyze` | 2 | Firedrill | `{message, session}` → `{reply, flags, action}`. The same guard logic as a text agent. |
-| `GET /c/{cred_id}` | 2 (logic), 3 (look) | browser | credential page for legit AI callers |
-| `GET /` | 3 | browser | the audience screen |
-| `GET /health` | 1 | all | which services are real or fake |
+| Route | Owner | Body → result |
+|---|---|---|
+| `POST /vapi/webhook` | A | Vapi status, transcript and end events |
+| `POST /vapi/tool/verify_caller` | A | `{claimed_name}` → holding response; may ask a name before pinging |
+| `POST /telegram/webhook` | A | Verification button taps |
+| `POST /sim/call` | A | `{claimed_name, caller_number, lines: [str], tap: "yes"\|"no"\|null, tap_after_s: float, credential: str\|null}` → `{call_id}`; same flow, no phone. Out-of-scope credentials continue verification. |
+| `POST /sim/tap` | A | `{call_id, answer: "yes"\|"no"}` |
+| `GET /calls/{call_id}` | A | `Call` |
+| `GET /events?since=<id>` | A | `[Event]`, poll every 500 ms |
+| `POST /analyze` | B | `{message, session}` → `{reply, flags, action}` for text drills |
+| `GET /c/{cred_id}` | B logic, A screen | Credential page |
+| `GET /` | A | Audience screen |
+| `GET /health` | A | Which services are real or fake |
+
+`on_stepup` is a function seam only; this skeleton adds no public callback endpoint.
 
 ## 6. Event types (the screen's whole vocabulary)
 
 | type | data |
 |---|---|
-| `call.started` | `{caller_number}` |
+| `call.started` | `{caller_number}` (masked on the screen) |
 | `transcript` | `{role: "caller"\|"agent", text}` |
-| `flags` | `Flags` |
-| `contact.lookup` | `{contact: {id, name, relationship} \| null, number_known, note}`. The screen is public: never numbers, emails or chat ids |
-| `ping.sent` | `{contact_id, channels: ["telegram"]}` |
-| `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide}` |
-| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say", text}` |
-| `owner.notified` | `{text}`, e.g. "That wasn't Jakob. Don't send money." |
-| `credential.verified` | `{agent, principal}` |
+| `flags` | `Flags`, including `needs_verification` |
+| `contact.lookup` | `{contact: {id, name, relationship} \| null, number_known, note}`; never numbers, emails or chat ids |
+| `ping.sent` | `{contact_id, channels: ["telegram"], text}`; text includes available claim amount/method and the configured owner label |
+| `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide}`; `by` is one of the documented `decided_by` values |
+| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope", text}` or `{kind: "stepup", link}` |
+| `owner.notified` | `{text}`; includes a warning not to send money and the third-attempt warning when blocked |
+| `credential.verified` | `{agent, principal, scope}`; only emitted after the scope check passes |
 | `call.ended` | `{}` |
 
 New event types are free to add; never rename or remove one.
 
-## 7. Database (SingleStore, lane 1)
+## 7. Database (SingleStore, lane A)
 
 ```sql
 calls(call_id VARCHAR(64), state VARCHAR(20), caller_number VARCHAR(20), claimed_name VARCHAR(80),

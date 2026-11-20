@@ -1,12 +1,19 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
-from guard import credential, settings, sim, state, telegram, vapi
+from guard import credential, settings, sim, state, telemetry, telegram, vapi
 from guard.brain import drill
 
-app = FastAPI(title="guard")
+@asynccontextmanager
+async def lifespan(app):
+    state.subscribe(telemetry.on_event)
+    yield
+
+
+app = FastAPI(title="guard", lifespan=lifespan)
 for r in (vapi.router, telegram.router, sim.router, drill.router):
     app.include_router(r)
 

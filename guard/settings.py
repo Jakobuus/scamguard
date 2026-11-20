@@ -21,6 +21,7 @@ def _flag(name: str, default: str = "0") -> bool:
 
 
 FAKE = _flag("FAKE", "1")
+OWNER_NAME = os.environ.get("OWNER_NAME") or "Mum"
 TIMEOUT_S = float(os.environ.get("TIMEOUT_S", "20"))
 
 

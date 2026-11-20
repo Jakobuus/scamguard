@@ -50,9 +50,15 @@ def _api(method: str, payload: dict):
     return body.get("result")
 
 
-def send_ping(call: Call, contact: Contact) -> None:
+def send_ping(call: Call, contact: Contact, claim=None) -> None:
+    text = f"Someone is calling {settings.OWNER_NAME} as you"
+    if claim and (claim.amount or claim.method):
+        text += ", asking for " + (claim.amount or "money")
+        if claim.method:
+            text += f" in {claim.method}"
+    text += ". Is this you?"
     if not settings.REAL_TELEGRAM:
-        log.info("ping %s: someone is calling as %s (call %s)", contact.id, contact.name, call.call_id)
+        log.info("ping %s: %s (call %s)", contact.id, text, call.call_id)
         return
     try:
         chat_id = contact.telegram_chat_id or os.environ.get("TELEGRAM_CHAT_ID")
@@ -61,7 +67,7 @@ def send_ping(call: Call, contact: Contact) -> None:
         # HACK: bounded synchronous request keeps the existing synchronous seam.
         _api("sendMessage", {
             "chat_id": chat_id,
-            "text": f"{contact.name}, someone is calling Mum as you. Is this you?",
+            "text": text,
             "reply_markup": {"inline_keyboard": [[
                 {"text": "Yes, it's me", "callback_data": callback_data("y", call.call_id)},
                 {"text": "No", "callback_data": callback_data("n", call.call_id)},

@@ -37,7 +37,7 @@ const FLAGS = {authority_or_kinship:"Kinship / authority", money:"Money", urgenc
 const SCAM = ["Mum, it's me, I'm in trouble.", "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
 const SCENES = {
   scam_no: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:"no", tap_after_s:4},
-  real_yes: {claimed_name:"Jakob", caller_number:"+15550100001", lines:["Hi mum, it's Jakob.", "Can you pick me up at five?"], tap:"yes", tap_after_s:4},
+  real_yes: {claimed_name:"Jakob", caller_number:"+15550100002", lines:["Hi Mum, it's Jakob.", "Can you pick me up at five?"], tap:"yes", tap_after_s:4},
   scam_none: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:null, tap_after_s:0},
 };
 let since = 0, cur = null, startMs = 0, secs = null;

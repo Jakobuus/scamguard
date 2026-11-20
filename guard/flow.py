@@ -5,6 +5,8 @@ from guard.brain import classify, contacts
 
 _tasks: set = set()
 _caller_text: dict[str, str] = {}
+_asked_name: set[str] = set()
+_stepups: set[str] = set()
 
 
 def spawn(coro) -> None:
@@ -31,18 +33,44 @@ async def on_transcript(call_id, role, text) -> None:
 
 async def verify_caller(call_id, claimed_name) -> None:
     call = state.get_call(call_id)
-    state.update_call(call_id, claimed_name=claimed_name)
-    lk = contacts.lookup(claimed_name, call.caller_number)
-    if not state.set_pending(call_id, lk.contact.id if lk.contact else None):
-        return  # already pending or decided: one ping per call
-    # the screen is public: only name and relationship leave the server, never numbers or chat ids
+    if call is None or call.state != "screening":
+        return
+    claim = classify.claim(_caller_text.get(call_id, ""))
+    claim.claimed_name = claim.claimed_name or claimed_name
+    state.update_call(call_id, claimed_name=claim.claimed_name)
+    found = contacts.candidates(claim, call.caller_number)
+    # A relationship alone never supplies a name to the caller, even with one match.
+    if found and (len(found) > 1 or not claim.claimed_name):
+        if call_id not in _asked_name:
+            _asked_name.add(call_id)
+            text = "Ask the caller for their first name. Do not offer any name."
+            vapi.add_message(call_id, text)
+            state.emit(call_id, "action", {"kind": "ask_name", "text": text})
+            return
+        found = []
+    lk = found[0] if found else contacts.lookup(None, call.caller_number)
     shown = {"id": lk.contact.id, "name": lk.contact.name, "relationship": lk.contact.relationship} if lk.contact else None
     state.emit(call_id, "contact.lookup", {"contact": shown, "number_known": lk.number_known, "note": lk.note})
+    if lk.contact and lk.number_known and not (call.flags and call.flags.needs_verification):
+        state.update_call(call_id, contact_id=lk.contact.id)
+        await _resolve(call_id, "confirmed", "known_number")
+        return
+    if not state.set_pending(call_id, lk.contact.id if lk.contact else None):
+        return
     if lk.contact is None:
         await _resolve(call_id, "unverified", "lookup")
         return
-    telegram.send_ping(state.get_call(call_id), lk.contact)
-    state.emit(call_id, "ping.sent", {"contact_id": lk.contact.id, "channels": ["telegram"]})
+    if contacts.attempts_today(lk.contact.id) >= 2:
+        await _resolve(call_id, "denied", "repeat_attempt")
+        return
+    telegram.send_ping(state.get_call(call_id), lk.contact, claim)
+    text = f"Someone is calling {settings.OWNER_NAME} as you"
+    if claim.amount or claim.method:
+        text += ", asking for " + (claim.amount or "money")
+        if claim.method:
+            text += f" in {claim.method}"
+    text += ". Is this you?"
+    state.emit(call_id, "ping.sent", {"contact_id": lk.contact.id, "channels": ["telegram"], "text": text})
     spawn(_timeout(call_id))
 
 
@@ -52,13 +80,37 @@ async def _timeout(call_id) -> None:
 
 
 async def on_tap(call_id, answer) -> bool:
-    state_ = {"yes": "confirmed", "no": "denied"}.get(answer)
-    return bool(state_) and await _resolve(call_id, state_, "tap")
+    call = state.get_call(call_id)
+    if call is None or call.state != "pending":
+        return False
+    if answer == "yes" and call_id in _stepups:
+        return False
+    if answer == "yes" and call.flags and call.flags.needs_verification:
+        link = persona.start(call.contact_id)
+        if link:
+            _stepups.add(call_id)
+            state.emit(call_id, "action", {"kind": "stepup", "link": link})
+            return True
+    new_state = {"yes": "confirmed", "no": "denied"}.get(answer)
+    return bool(new_state) and await _resolve(call_id, new_state, "tap")
+
+
+async def on_stepup(call_id, ok: bool) -> bool:
+    if call_id not in _stepups:
+        return False
+    _stepups.discard(call_id)
+    return await _resolve(call_id, "confirmed" if ok else "denied", "stepup")
 
 
 async def on_credential(call_id, token) -> bool:
     info = credential.check(token)
     if info is None:
+        return False
+    call = state.get_call(call_id)
+    if call is None or call.state not in ("screening", "pending"):
+        return False
+    if call.flags and call.flags.money and "payment" not in info.get("scope", []):
+        state.emit(call_id, "action", {"kind": "out_of_scope", "text": "Credential does not allow payment."})
         return False
     state.emit(call_id, "credential.verified", info)
     return await _resolve(call_id, "agent_verified", "credential")
@@ -68,6 +120,8 @@ async def _resolve(call_id, new_state, by) -> bool:
     if not state.decide(call_id, new_state, by):
         return False  # someone already decided: do nothing
     c = state.get_call(call_id)
+    _stepups.discard(call_id)
+    contacts.learn(c)
     secs = round((c.decided_at - c.started_at).total_seconds(), 1)
     state.emit(call_id, "decision", {"state": new_state, "by": by, "seconds_to_decide": secs})
     await _act(call_id, new_state)
@@ -82,7 +136,9 @@ async def _act(call_id, new_state) -> None:
     if new_state == "denied":
         vapi.say(call_id, "This call is not who it claims to be. Goodbye.")
         vapi.hangup(call_id)
-        await _notify(call_id, f"That wasn't {name}. Don't send money.")
+        text = (f"Third attempt as {name} today. Don't send money."
+                if c.decided_by == "repeat_attempt" else f"That wasn't {name}. Don't send money.")
+        await _notify(call_id, text)
         state.emit(call_id, "call.ended", {})
     elif new_state in ("confirmed", "agent_verified"):
         vapi.forward(call_id)

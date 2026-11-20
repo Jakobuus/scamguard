@@ -11,19 +11,28 @@ make dev       # starts the app in fake mode, no keys needed
 Then open http://localhost:8000.
 
 ```
-make check     # plays the three demo scenes and must pass before every push
+make check     # plays the four demo scenes and contract checks and must pass before every push
 ```
 
 ## How we work
 
-The repo is split into three lanes:
+The repo is split into two lanes:
 
-- **Call path**: `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`
-- **Brains**: classification, contact lookup, drill scoring, credential checks (`guard/brain/`, `guard/persona.py`, `guard/credential.py`)
-- **Demo**: the audience screen in `web/`, voice clips, the scene runner and the demo script
+- **Lane A — Call path and demo**: `guard/app.py`, `guard/vapi.py`, `guard/telegram.py`, `guard/state.py`, `guard/flow.py`, `guard/sim.py`, `web/`, `scripts/`, `README.md`.
+- **Lane B — Brains**: `guard/brain/*`, `guard/persona.py`, `guard/credential.py`, `guard/telemetry.py`, `data/`, `drill/`.
+
+Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`.
 
 `docs/SYSTEM.md` is the contract. Lanes only meet at the seams written there. Rule: `make check` green before every push.
+
+## Rules the agent never breaks
+
+- It asks who is calling and never offers a name.
+- It never agrees to pay or send money.
+- Model output never hangs up or forwards a call. Only the real person's tap, the timeout or a valid credential decides; the flow also enforces the known-number and repeat-attempt rules in the contract.
 
 ## Config
 
 Copy `env.example` to `.env` and fill in the keys you have. Fake mode needs no keys at all. Never commit `.env`.
+
+`OWNER_NAME` sets the owner label in verification pings; it defaults to `Mum`.

@@ -1,25 +1,54 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
-from guard.contracts import Contact, Lookup
+from guard.contracts import Call, Claim, Contact, Lookup
 
 _PATH = Path(__file__).resolve().parent.parent.parent / "data" / "contacts.json"
+_contacts: list[Contact] | None = None
+_attempts: list[tuple[datetime, Call]] = []
 
 
 def _all() -> list[Contact]:
-    return [Contact(**c) for c in json.loads(_PATH.read_text())]
+    global _contacts
+    if _contacts is None:
+        _contacts = [Contact(**c) for c in json.loads(_PATH.read_text())]
+    return _contacts
 
 
 def get(contact_id: str) -> Contact | None:
     return next((c for c in _all() if c.id == contact_id), None)
 
 
-def lookup(claimed_name: str | None, caller_number: str | None) -> Lookup:
-    name = (claimed_name or "").strip().lower()
-    for c in _all():
-        if name and name in [c.name.lower(), *[n.lower() for n in c.nicknames]]:
-            known = caller_number in c.known_numbers
+def candidates(claim: Claim, caller_number: str | None) -> list[Lookup]:
+    name = (claim.claimed_name or "").strip().casefold()
+    relationship = (claim.relationship or "").strip().casefold()
+    found = []
+    for contact in _all():
+        matches = (name in [contact.name.casefold(), *[n.casefold() for n in contact.nicknames]]
+                   if name else bool(relationship) and relationship == contact.relationship.casefold())
+        if matches:
+            known = caller_number in contact.known_numbers
             where = "Calling from a known number." if known else "Calling from an unknown number."
-            return Lookup(contact=c, number_known=known, note=f"{c.name} ({c.relationship}). {where}")
-    return Lookup(contact=None, number_known=False,
-                  note=f"Nobody called {claimed_name or 'that'} in the circle.")
+            found.append(Lookup(contact=contact, number_known=known,
+                                note=f"{contact.name} ({contact.relationship}). {where}"))
+    return found
+
+
+def lookup(claimed_name: str | None, caller_number: str | None) -> Lookup:
+    found = candidates(Claim(claimed_name=claimed_name), caller_number)
+    return found[0] if found else Lookup(note=f"Nobody called {claimed_name or 'that'} in the circle.")
+
+
+def attempts_today(contact_id: str) -> int:
+    today = datetime.now(timezone.utc).date()
+    return sum(when.date() == today and call.contact_id == contact_id for when, call in _attempts)
+
+
+def learn(call: Call) -> None:
+    contact = get(call.contact_id) if call.contact_id else None
+    if call.state == "confirmed" and contact and call.caller_number:
+        if call.caller_number not in contact.known_numbers:
+            contact.known_numbers.append(call.caller_number)
+    elif call.state in ("denied", "unverified"):
+        _attempts.append((datetime.now(timezone.utc), call.model_copy(deep=True)))

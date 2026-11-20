@@ -45,8 +45,8 @@ async def _play(call_id: str, b: SimCall) -> None:
         await flow.on_transcript(call_id, "caller", line)
         await asyncio.sleep(0.3)
     if b.credential:
-        await flow.on_credential(call_id, b.credential)
-        return
+        if await flow.on_credential(call_id, b.credential):
+            return
     await flow.verify_caller(call_id, b.claimed_name)
     if b.tap:
         await asyncio.sleep(b.tap_after_s)
