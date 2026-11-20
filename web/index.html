@@ -454,7 +454,7 @@ function renderClaim() {
   const src = {fake: "keyword rules", sie: "Superlinked SIE"}[f.source] || f.source;
   $("clsrc").textContent = S.flags ? `Classifier: ${src}${f.latency_ms ? `, ${f.latency_ms} ms` : ""}${f.risk != null ? `, risk ${Math.round(f.risk * 100)}%` : ""}` : "";
   const sm = S && S.scam, sc = $("scam");
-  if (!sm || !ssm.title) { sc.hidden = true; sc.textContent = ""; }
+  if (!sm || !sm.title) { sc.hidden = true; sc.textContent = ""; }
   else {
     const how = {vector: "Superlinked embeddings + SingleStore vector search", fulltext: "SingleStore full-text search"}[sm.method] || "keyword stand-in";
     const pct = Number.isFinite(+sm.score) ? ` · ${Math.round(sm.score * 100)}%` : "";
