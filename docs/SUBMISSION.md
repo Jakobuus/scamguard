@@ -1,6 +1,6 @@
 # Project name
 
-Is this you?
+KinCheck: is this you?
 
 ## One-line description
 
@@ -8,31 +8,35 @@ A call guard that asks the real person to verify a caller, instead of judging th
 
 ## Write-up
 
-A caller says, "Mum, it's me," and asks for gift cards. A familiar voice cannot prove who is calling. Our phone agent holds the caller and asks the person they name: "Is this you?"
+A caller claims to be Erick and asks Jakob for gift cards. KinCheck holds the call and asks Erick: "Is this you?" A familiar voice proves nothing.
 
-The question goes out on every enabled channel at once: WhatsApp through the Beeper Desktop API, Telegram and email through Resend. In the demo, Jakob types "No" in WhatsApp. One atomic update accepts the answer that arrives before the others. No ends the call and warns Mum on Telegram. Yes puts the call through. Later answers are told it is already decided. After a timeout, the caller can give the family code word; a late No still ends the call.
+The question goes to each trusted contact's own enabled channels: WhatsApp through Beeper, Telegram and email through Resend. First answer wins through an atomic SingleStore update. No ends the call and warns Jakob. Yes puts it through. After timeout, a code word can recover the call; a late No still ends it.
 
-Superlinked embeds the caller's words; SingleStore vector search matches known scam scripts. With a money request also detected, a strong match names the scam type on screen and in subsequent warnings. The match cannot decide the call.
+Cognee holds circle facts, resolves "your teammate from the hackathon" without offering a name, and stores verified outcomes. The dashboard shows remembered facts. Superlinked embeddings and SingleStore vector search label known scam scripts beside the call. Detected personal data is masked in events and live text.
 
-Personal data in events and live words is masked before storage or display. Names and amounts stay readable. An expected delivery can pass; a delivery asking for a card number cannot use that shortcut. The screen shows the conversation, channels, decision and audit trail.
+Expected couriers and callbacks pass after the caller stops talking. Money blocks that shortcut; a later money request triggers a warning. The account app manages contacts, channels, own numbers and expected calls, with scam-attempt statistics, a knowledge graph and live view.
+
+Amplitude records one Agent Analytics session per call, a tool-call trace and four rule scores. Keyword fixes improved our local drill from 16 of 18 scams caught and 1 of 12 genuine calls falsely flagged to 18 of 18 and 0 of 12 on our drill set.
 
 ## Sponsor technology
 
-- **Vapi:** answers calls, sends transcripts and receives call-control actions (switchable).
-- **SingleStore:** searches known scam scripts by vector similarity; stores call state and audit events; one conditional update chooses the winning answer (switchable).
-- **Superlinked inference engine:** flags risk and extracts the claim; embeds words for scam-script search; detects personal data in final transcripts when enabled (switchable).
-- **Beeper / WhatsApp:** sends the verification question through the Desktop API and reads typed Yes/No replies (switchable).
-- **Resend:** emails the question with signed answer links and a confirmation page (switchable).
-- **Telegram:** asks with Yes/No buttons, handles signed replies and sends Mum's warnings and the real person's heads-up notices (switchable).
-- **ElevenLabs:** generates cloned-voice scam clips and stock-voice delivery clips for playback (switchable).
-- **Cognee:** supplies family notes and stores facts from verified outcomes (switchable).
-- **Amplitude:** sends call events as one session per call, replacing transcript text with character counts (switchable).
-- **Senso:** retrieves stored expected-call records; matching rules check the record and block money requests (switchable).
-- **OpenAI:** GPT-4.1 handles the Vapi assistant's conversation and verification tool calls.
+- **SingleStore:** scam-script vector search, atomic answer updates, call state and audit events.
+- **Superlinked inference engine:** scam-script embeddings, risk flags, claim extraction and optional personal-data detection.
+- **Cognee:** circle facts, relationship resolution and storage of verified outcomes.
+- **Amplitude:** Agent Analytics sessions, tool-call traces and four rule scores per session.
+- **Beeper / WhatsApp:** questions on contacts' own chats and typed Yes/No replies through the Desktop API.
+- **Telegram:** questions on contacts' own chats, signed answer buttons, warnings and "Not me" notices.
+- **Resend:** email questions to contacts with signed links and a confirmation form.
+- **Senso:** retrieval of stored expected-call records, checked against local matching rules.
+- **Vapi:** phone conversation, transcripts and call-control actions.
+- **ElevenLabs:** cloned-voice scam clips prepared for playback.
+- **Persona:** identity check when an account is set up; hosted and demo paths exist, with no claim of a live check.
+- **Firedrill:** local text scenarios prepared as caller personas; the repository has no Firedrill API integration or Firedrill results.
+- **OpenAI:** the Vapi assistant's conversation model and verification tool calls.
 
 ## Team and links
 
-Jakob Volbracht and Erick [SURNAME]
+Jakob and Erick [SURNAME]
 
 Repository: [REPO LINK]
 

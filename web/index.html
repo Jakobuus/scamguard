@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Call guard</title>
+<html lang="en"><head><meta charset="utf-8"><title>KinCheck: is this you?</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root{
@@ -491,7 +491,7 @@ function renderClaim() {
 
 // ---------- 3. the real person's phone ----------
 function msgHTML(body, buttons, btnState, status, waiting) {
-  return `<div class="from">${SHIELD}Call guard</div><div class="body">${esc(body)}</div>` +
+  return `<div class="from">${SHIELD}KinCheck</div><div class="body">${esc(body)}</div>` +
     `<div class="btns ${btnState}">${buttons.map(([c, l, on]) => `<span class="btn ${c}${on ? " tap" : ""}">${esc(l)}</span>`).join("")}</div>` +
     `<div class="status">${waiting ? '<span class="pulse"></span><span class="waiting"></span>' : esc(status)}</div>`;
 }
