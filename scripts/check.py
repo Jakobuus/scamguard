@@ -1,8 +1,10 @@
 """Plays the scenes through /sim/call in-process. Exit non-zero on any failure."""
+import faulthandler
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +18,28 @@ from fastapi.testclient import TestClient  # noqa: E402
 from guard.app import app  # noqa: E402
 from guard import settings, flow, persona, state, telegram
 from guard.brain import classify, contacts  # noqa: E402
+
+_last = ["start (nothing finished yet)"]
+
+
+def _watchdog():
+    # Fail fast: a hung check must say where it was and exit non-zero, never sit forever.
+    sys.stderr.write(f"\nWATCHDOG: check exceeded 90 s; last finished scene: {_last[0]}\n")
+    faulthandler.dump_traceback(all_threads=True)
+    sys.stderr.flush()
+    os._exit(1)
+
+
+_timer = threading.Timer(90, _watchdog)
+_timer.daemon = True
+_timer.start()
+faulthandler.enable()
+
+
+def ok(msg):
+    _last[0] = msg
+    print("OK " + msg, flush=True)
+
 
 SCAM = ["Mum, it's me, I'm in trouble.", "Wire $2000 right now, don't tell dad."]
 BASE = ["call.started", "transcript", "flags", "contact.lookup", "ping.sent", "decision", "action"]
@@ -34,7 +58,7 @@ def run(c, name, body, final, types):
     assert not missing, f"{name}: missing events {missing}"
     state = c.get(f"/calls/{call_id}").json()["state"]
     assert state == final, f"{name}: state {state}, want {final}"
-    print(f"OK {name}: {final} ({time.time() - t0:.1f}s)")
+    ok(f"{name}: {final} ({time.time() - t0:.1f}s)")
     return call_id, [e for e in c.get("/events").json() if e["call_id"] == call_id]
 
 
@@ -58,10 +82,10 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
                                 ("", "http://localhost:8000")):
         output = subprocess.check_output(
             [sys.executable, "-m", "guard.sim"], text=True,
-            env={**os.environ, "APP_SECRET": "test-app-secret", "PUBLIC_BASE_URL": base},
+            env={**os.environ, "APP_SECRET": "test-app-secret", "PUBLIC_BASE_URL": base}, timeout=30,
         )
         assert output == f"{expected_base}/#k={sim_key}\n"
-    print("OK sim auth: derived header only; local page link")
+    ok("sim auth: derived header only; local page link")
     scam = {"claimed_name": "Jakob", "caller_number": "+15550999999", "lines": SCAM}
     scam_id, scam_events = run(c, "scam, tap no", {**scam, "tap": "no", "tap_after_s": 0.5}, "denied",
         BASE + ["owner.notified", "call.ended"])
@@ -160,7 +184,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
 
     with patch.object(flow, "_pings", {}), patch.object(contacts, "_attempts", []):
         c.portal.call(exercise_code_words)
-    print("OK code words: timeout recovery, redaction, two tries, denial, pending winner")
+    ok("code words: timeout recovery, redaction, two tries, denial, pending winner")
 
     async def exercise_ping_cap():
         ids = []
@@ -190,7 +214,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
 
     with patch.object(flow, "_pings", {}), patch.object(flow, "_cap_notified", set()):
         c.portal.call(exercise_ping_cap)
-    print("OK ping cap: five per contact per UTC day, one warning, code word still works")
+    ok("ping cap: five per contact per UTC day, one warning, code word still works")
 
     # Real tool payload shapes and auth, with no expected answer in a response.
     async def pending_tool_call():
@@ -218,7 +242,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         bad = {"call": {"id": cid}, "toolCalls": [{"arguments": "invalid json"}]}
         assert c.post("/vapi/tool/check_code_word", json=bad,
                       headers={"X-Vapi-Secret": "tool-test-secret"}).status_code == 200
-    print("OK code word tool: auth, JSON and object arguments, safe results")
+    ok("code word tool: auth, JSON and object arguments, safe results")
 
     # Exercise allowed transitions in both backends; SQL checks its atomic predicate.
     from guard.contracts import Call
@@ -237,7 +261,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
                     assert backend.decide("transition", "confirmed", "code_word") == want
             else:
                 assert backend.decide("transition", "confirmed", "code_word") == want
-    print("OK code word states: memory and atomic SQL permit pending/unverified only")
+    ok("code word states: memory and atomic SQL permit pending/unverified only")
 
     # Local entries can override just private fields and extend the demo circle.
     import tempfile
@@ -253,7 +277,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             assert contacts.get("jakob").challenge_answer == "private-test"
             assert contacts.get("jakob").telegram_chat_id == "test-chat"
             assert contacts.get("new").relationship == "friend"
-    print("OK local contacts: partial override and extension by id")
+    ok("local contacts: partial override and extension by id")
 
     async def exercise_trust_gaps():
         from guard.contracts import Call
@@ -360,7 +384,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     c.portal.call(exercise_trust_gaps)
     preview = json.loads(subprocess.check_output(
         [sys.executable, "scripts/vapi_setup.py", "--dry-run"], text=True,
-        env={**os.environ, "OWNER_NAME": "Alex"},
+        env={**os.environ, "OWNER_NAME": "Alex"}, timeout=30,
     ))
     assert "Alex's assistant" in preview["firstMessage"]
     assert "Alex" in preview["model"]["messages"][0]["content"]
@@ -368,7 +392,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert set(tools) == {"verify_caller", "check_code_word"}
     assert tools["check_code_word"]["function"]["parameters"]["required"] == ["spoken"]
     assert tools["check_code_word"]["server"]["url"].endswith("/vapi/tool/check_code_word")
-    print("OK trust gaps: notice, late denial, repeat numbers, Persona failure, safe learning, setup preview")
+    ok("trust gaps: notice, late denial, repeat numbers, Persona failure, safe learning, setup preview")
 
     async def exercise_seams():
         from guard.contracts import Claim
@@ -427,5 +451,6 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         state._subscribers.remove(seen.append)
     with patch.object(flow, "_pings", {}):
         c.portal.call(exercise_seams)
-    print("OK seams: claim extraction, learning, repeat limit, name retry, step-up, subscribers")
+    ok("seams: claim extraction, learning, repeat limit, name retry, step-up, subscribers")
+_timer.cancel()
 print("ALL OK")
