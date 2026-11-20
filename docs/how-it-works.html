@@ -161,7 +161,7 @@ tr.hlrow td{background:color-mix(in srgb,var(--hl) 12%,transparent)}
    All content lives in DATA. Update it when the code changes.
    ====================================================================== */
 const DATA = {
-  commit: "f106896",
+  commit: "9b423bd",
   lanes: [
     ["caller","Caller"],["agent","Phone agent (Vapi)"],["server","Guard server"],["classifier","Classifier"],
     ["lookup","Lookup"],["phone","Phones"],["db","Database"],["screen","Audience screen"]
@@ -213,7 +213,7 @@ const DATA = {
              what:"All caller words so far are checked again. “Needs verification” means: claims to be family or an authority AND asks for money. With the switch on, Superlinked's decision model answers four yes/no questions; otherwise, or on any error, keyword rules answer.",
              code:"guard/brain/classify.py", fn:"classify.flags()", ev:["flags"], sp:["superlinked"], time:"model budget 1.2 s"},
     match:  {f:"server",t:"classifier", say:"In the background: does this sound like a known scam script?",
-             what:"Runs beside the call and never changes a decision. With the switch on, Superlinked embeds the caller's words (BAAI/bge-m3) and SingleStore's vector search finds the closest script in the scam_scripts table; otherwise word overlap with data/scam_scripts.json. A scam match is added to every warning Mum gets afterwards: “This matches a known scam: …”.",
+             what:"Runs beside the call and never changes a decision. With the switch on, Superlinked embeds the caller's words (BAAI/bge-m3) and SingleStore's vector search finds the closest script in the scam_scripts table; in fake mode, word overlap with data/scam_scripts.json (real mode without the switch: no match). A scam match counts only when the classifier also sees money or an identity risk; it is then added to every warning Mum gets afterwards: “This matches a known scam: …”.",
              code:"guard/flow.py → guard/brain/scripts.py", fn:"flow.spawn(scripts.on_text) → scripts.match", ev:["script.match"], sp:["superlinked","singlestore"], time:"bounded to 2.5 s"},
     emit:   {f:"server",t:"db", say:"Every event is masked, saved, then passed on",
              what:"state.emit first runs redact_event: card, phone and account numbers, codes, addresses and emails become placeholders such as [card number]; names and amounts stay. Then the event is stored and handed to the subscribers: Amplitude telemetry and the live-words tracker. The engine pass in masking is opt-in and only for finished lines.",
