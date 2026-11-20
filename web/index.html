@@ -1,95 +1,502 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Call guard</title>
+<html lang="en"><head><meta charset="utf-8"><title>Call guard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  body{margin:0;background:#0b0f14;color:#e8edf2;font:28px/1.35 system-ui,sans-serif;padding:32px 48px}
-  #top{display:flex;align-items:center;gap:32px}
-  #badge{font-size:64px;font-weight:800;padding:12px 40px;border-radius:20px;text-transform:uppercase;background:#333}
-  .idle{background:#333}.screening{background:#2f5d8a}.pending{background:#d9a400;color:#111}
-  .denied{background:#d62f3f}.confirmed{background:#1fa85a}.unverified{background:#e07a1f;color:#111}
-  .agent_verified{background:#2a8fd6}
-  #timer{font-size:64px;font-variant-numeric:tabular-nums;color:#9fb0c0}
-  #flags{display:flex;gap:16px;margin:28px 0}
-  .chip{padding:10px 26px;border-radius:40px;background:#1a222b;color:#5b6b7a;border:2px solid #25303b}
-  .chip.on{background:#d62f3f;color:#fff;border-color:#ff6b78}
-  #note,#owner{font-size:32px;margin:12px 0}#owner{color:#ffd166;font-weight:700}
-  #lines{border-left:4px solid #25303b;padding-left:24px;min-height:140px}
-  .agent{color:#7fd1ff}
-  #btns{position:fixed;bottom:24px;left:48px;display:flex;gap:16px}
-  button{font:inherit;font-size:22px;padding:14px 26px;border-radius:12px;border:0;background:#25303b;color:#fff;cursor:pointer}
+  :root{
+    --bg:#E6EAEE; --ink:#14202B; --muted:#5B6874; --faint:#9AA6B1; --rule:#C9D1D9;
+    --c-idle:#D2D9E0; --c-screen:#2B4A6E; --c-check:#F2B705; --c-denied:#C4122F; --c-ok:#0B7A43;
+    --c-known:#12705F; --c-expected:#2560A6; --c-unver:#E5701C; --c-agent:#3A53B0;
+    --display:"Avenir Next Condensed","Avenir Next","Helvetica Neue",system-ui,sans-serif;
+    --text:"Avenir Next","Helvetica Neue",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:500 24px/1.3 var(--text);overflow:hidden;
+       font-variant-numeric:tabular-nums}
+  #stage{height:100vh;display:grid;grid-template-columns:minmax(0,1fr) 600px;
+         grid-template-rows:auto auto minmax(0,1fr);gap:26px 40px;padding:34px 44px 30px}
+  h2{font:600 22px/1 var(--text);color:var(--muted);margin:0 0 14px}
+
+  /* 1. Outcome: the one loud thing on the screen */
+  #outcome{position:relative;border-radius:28px;padding:30px 44px 34px;height:400px;display:flex;flex-direction:column;
+           background:var(--c-idle);color:var(--ink);transition:background-color .5s ease,color .5s ease}
+  .o-top{display:flex;justify-content:space-between;align-items:flex-start;font-size:28px;font-weight:600;opacity:.85}
+  #timer{position:absolute;top:28px;right:44px;text-align:right;line-height:1}
+  #secs{font:700 76px/1 var(--display);letter-spacing:-.01em}
+  #secs-cap{display:block;font-size:22px;font-weight:600;margin-top:6px;opacity:.8}
+  #word{font:800 170px/1 var(--display);letter-spacing:-.02em;margin:auto 0 0;white-space:nowrap}
+  #why{font-size:34px;font-weight:600;margin:10px 0 0;max-width:34ch;line-height:1.2;min-height:2.4em}
+  .st-screen{background:var(--c-screen)!important;color:#fff!important}
+  .st-check{background:var(--c-check)!important;color:var(--ink)!important}
+  .st-denied{background:var(--c-denied)!important;color:#fff!important}
+  .st-ok{background:var(--c-ok)!important;color:#fff!important}
+  .st-known{background:var(--c-known)!important;color:#fff!important}
+  .st-expected{background:var(--c-expected)!important;color:#fff!important}
+  .st-unver{background:var(--c-unver)!important;color:var(--ink)!important}
+  .st-agent{background:var(--c-agent)!important;color:#fff!important}
+  .rise{animation:rise .42s cubic-bezier(.2,.7,.2,1)}
+  .stamp{animation:stamp .5s cubic-bezier(.2,.8,.2,1)}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes stamp{0%{opacity:0;transform:scale(1.08)}60%{opacity:1}100%{transform:scale(1)}}
+
+  /* 2. The claim */
+  #claim{display:grid;grid-template-columns:200px 1fr;gap:10px 24px;align-items:baseline;padding:0 6px}
+  .lab{font-size:26px;font-weight:600;color:var(--muted)}
+  .val{font:700 50px/1.05 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .val small{font:600 26px var(--text);color:var(--muted);margin-left:14px}
+  .val.dim{color:var(--faint);font-weight:600}
+  #chiprow{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap}
+  .chip{font-size:26px;font-weight:600;padding:8px 20px 8px 18px;border-radius:999px;color:var(--faint);
+        border:2px solid var(--rule);display:flex;align-items:center;gap:10px;transition:all .3s ease}
+  .chip i{width:13px;height:13px;border-radius:50%;background:var(--rule);transition:background .3s}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:#fff;animation:pop .45s ease}
+  .chip.on i{background:#FF5468}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+  #clsrc{font-size:19px;color:var(--muted);margin-left:6px}
+
+  /* 4. Audit trail */
+  #trail{min-height:0;display:flex;flex-direction:column}
+  #steps{list-style:none;margin:0;padding:0;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;
+         justify-content:flex-end;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 70px);
+         mask-image:linear-gradient(to bottom,transparent 0,#000 70px)}
+  #steps li{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:18px;align-items:baseline;
+            padding:4px 12px;border-radius:10px;flex:none}
+  #steps li.new{animation:enter .3s ease,flash 2.2s ease}
+  @keyframes enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes flash{from{background:#fff}to{background:transparent}}
+  .off{color:var(--muted);text-align:right;font-weight:600}
+  .say{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tag{font-size:17px;font-weight:600;padding:3px 12px;border-radius:999px;background:#D7DDE3;color:#3D4A56}
+  .tag.call{background:#D9E1EA}.tag.classifier{background:#EADCF5;color:#5A2F80}
+  .tag.contact{background:#D6ECE6;color:#18594B}.tag.database{background:#DEE2E6;color:#2E3A45}
+  .tag.person{background:#FBE8B4;color:#6B4C00}.tag.agent{background:#D9E5F7;color:#21467A}
+  .tag.owner{background:#F6D9DE;color:#8A1D30}.tag.context{background:#D8EEF4;color:#175868}
+  .tag.credential{background:#E0E0F6;color:#33388A}
+
+  /* Right column */
+  #side{grid-column:2;grid-row:1/4;display:flex;flex-direction:column;gap:24px;min-height:0}
+
+  /* 3. The real person's phone */
+  #phone{flex:none;align-self:center;width:440px;height:560px;border-radius:58px;background:var(--ink);padding:14px;
+         box-shadow:0 30px 60px -30px rgba(20,32,43,.55)}
+  #screen{height:100%;border-radius:45px;background:#F3F5F7;display:flex;flex-direction:column;padding:18px 22px 22px;overflow:hidden}
+  .notch{width:120px;height:30px;border-radius:20px;background:var(--ink);margin:0 auto 14px;flex:none}
+  #owner-of{font-size:21px;font-weight:600;color:var(--muted);text-align:center;flex:none}
+  #msgs{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:14px;min-height:0;overflow:hidden}
+  .msg{background:#fff;border-radius:22px;padding:16px 18px 18px;box-shadow:0 1px 2px rgba(20,32,43,.12);animation:enter .35s ease;flex:none}
+  .from{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:var(--muted);margin-bottom:6px}
+  .from svg{width:20px;height:20px}
+  .body{font-size:26px;font-weight:600;line-height:1.22}
+  .btns{display:flex;gap:10px;margin-top:14px}
+  .btn{flex:1;text-align:center;font-size:25px;font-weight:700;padding:12px 6px;border-radius:14px;background:#E7EEF6;
+       color:#1F5A96;transition:all .3s ease}
+  .btn.yes.tap{background:var(--c-ok);color:#fff;animation:press .55s ease}
+  .btn.no.tap{background:var(--c-denied);color:#fff;animation:press .55s ease}
+  .btns.done .btn:not(.tap){opacity:.35}
+  .btns.none .btn{opacity:.35}
+  @keyframes press{0%{transform:scale(1)}30%{transform:scale(.9)}65%{transform:scale(1.04)}100%{transform:scale(1)}}
+  .status{font-size:20px;font-weight:600;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:10px}
+  .pulse{width:12px;height:12px;border-radius:50%;background:var(--c-check);animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{transform:scale(.55);opacity:.5}}
+  .msg.old{padding:12px 16px}.msg.old .body{font-size:19px;color:var(--muted)}.msg.old .btns,.msg.old .from{display:none}.msg.old .status{font-size:17px;margin-top:6px}
+  .quiet{color:var(--faint);font-size:24px;font-weight:600;text-align:center;margin:auto 10px;line-height:1.3}
+
+  /* 6. What the owner was told */
+  #owner{flex:none;background:#fff;border-radius:22px;padding:16px 22px 18px;box-shadow:0 1px 2px rgba(20,32,43,.1)}
+  #owner .from{margin-bottom:4px}
+  #owner-text{font-size:28px;font-weight:700;line-height:1.2}
+  #owner.empty #owner-text{color:var(--faint);font-weight:600;font-size:24px}
+  #owner.drop{animation:drop .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes drop{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+
+  /* 5. Transcript */
+  #words{flex:1;min-height:0;display:flex;flex-direction:column}
+  #lines{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;
+         -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 50px);mask-image:linear-gradient(to bottom,transparent 0,#000 50px)}
+  .line{font-size:23px;line-height:1.28;flex:none;animation:enter .3s ease}
+  .line b{font-weight:700;color:var(--muted);font-size:18px;margin-right:8px}
+  .line.agent{color:var(--muted)}
+
+  /* 7. Scene buttons */
+  #scenes{flex:none;display:flex;flex-wrap:wrap;gap:8px;opacity:.55;transition:opacity .2s}
+  #scenes:hover,#scenes:focus-within{opacity:1}
+  #scenes button{font:600 15px var(--text);padding:7px 12px;border-radius:9px;border:1.5px solid var(--rule);
+                 background:transparent;color:var(--muted);cursor:pointer}
+  #scenes button:hover{background:#fff;color:var(--ink)}
+  #scenes button:focus-visible{outline:3px solid var(--c-expected);outline-offset:2px}
+
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
-<div id="top"><div id="badge" class="idle">idle</div><div id="timer">0.0 s</div></div>
-<div id="flags"></div>
-<div id="note"></div>
-<div id="lines"></div>
-<div id="owner"></div>
-<div id="btns">
-  <button onclick="scene('scam_no')">Scam, tap No</button>
-  <button onclick="scene('real_yes')">Real, tap Yes</button>
-  <button onclick="scene('scam_none')">Scam, no answer</button>
-  <button onclick="scene('delivery')">Delivery driver, expected</button>
-  <button onclick="scene('delivery_fee')">Fake delivery fee</button>
-</div>
+<main id="stage">
+  <section id="outcome" aria-live="polite">
+    <div class="o-top">
+      <span id="caller">Mum's phone line</span>
+      <span id="timer"><span id="secs">0.0 s</span><span id="secs-cap">&nbsp;</span></span>
+    </div>
+    <div id="word">Ready</div>
+    <p id="why">The assistant answers Mum's phone and screens every caller.</p>
+  </section>
+
+  <section id="claim">
+    <span class="lab">Claims to be</span><span id="who" class="val dim">No call yet</span>
+    <span class="lab">Asks for</span><span id="ask" class="val dim">No call yet</span>
+    <div id="chiprow"><span id="chips" style="display:contents"></span><span id="clsrc"></span></div>
+  </section>
+
+  <section id="trail">
+    <h2>Every step the guard took</h2>
+    <ol id="steps"></ol>
+  </section>
+
+  <aside id="side">
+    <div id="phone"><div id="screen">
+      <div class="notch"></div>
+      <div id="owner-of">The real person's phone</div>
+      <div id="msgs"><div class="quiet" id="m-quiet">No message yet</div></div>
+    </div></div>
+    <div id="owner" class="empty">
+      <div class="from"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" fill="currentColor"/></svg><span>What Mum was told</span></div>
+      <div id="owner-text">Nothing yet</div>
+    </div>
+    <div id="words">
+      <h2>What the caller says</h2>
+      <div id="lines"></div>
+    </div>
+    <nav id="scenes" aria-label="Demo scenes"></nav>
+  </aside>
+</main>
 <script>
 const fragment = new URLSearchParams(window.location.hash.slice(1));
 if (fragment.has("k")) {
   sessionStorage.setItem("sim-key", fragment.get("k"));
   history.replaceState(null, "", window.location.pathname + window.location.search);
 }
-const FLAGS = {authority_or_kinship:"Kinship / authority", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
+const OWNER = "Mum"; // HACK: the owner label is not in the event data; matches the OWNER_NAME default
+const FLAGS = {authority_or_kinship:"Identity claim", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
 const SCAM = ["Mum, it's me, I'm in trouble.", "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
+// One line per scene. `label` is the button text and is not sent to the server.
 const SCENES = {
-  delivery: {caller_number:"+15550440001", lines:["Hi, I'm the driver with your desk lamp, are you home?"]},
-  delivery_fee: {caller_number:"+15550440002", lines:["Your parcel is held, pay a 40 dollar customs fee with a gift card"]},
-  scam_no: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:"no", tap_after_s:4},
-  real_yes: {claimed_name:"Jakob", caller_number:"+15550100002", lines:["Hi Mum, it's Jakob.", "Can you pick me up at five?"], tap:"yes", tap_after_s:4},
-  scam_none: {claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:null, tap_after_s:0},
+  scam_no: {label:"Scam, tap No", claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:"no", tap_after_s:4},
+  real_yes: {label:"Real, tap Yes", claimed_name:"Jakob", caller_number:"+15550100002", lines:["Hi Mum, it's Jakob.", "Can you pick me up at five?"], tap:"yes", tap_after_s:4},
+  scam_none: {label:"Scam, no answer", claimed_name:"Jakob", caller_number:"+15550999999", lines:SCAM, tap:null, tap_after_s:0},
+  delivery: {label:"Delivery driver, expected", caller_number:"+15550440001", lines:["Hi, I'm the driver with your desk lamp, are you home?"]},
+  delivery_fee: {label:"Fake delivery fee", caller_number:"+15550440002", lines:["Your parcel is held, pay a 40 dollar customs fee with a gift card"]},
 };
-let since = 0, cur = null, startMs = 0, secs = null;
+const SHIELD = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" fill="currentColor"/></svg>';
 const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const ms = ts => Date.parse(String(ts).replace(/(\.\d{3})\d+/, "$1"));
+const human = s => String(s ?? "").replace(/[._]/g, " ");
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-function reset(id) {
-  cur = id; startMs = Date.now(); secs = null;
-  $("note").textContent = ""; $("lines").innerHTML = ""; $("owner").textContent = "";
-  setBadge("screening"); setFlags({});
+let since = 0, S = null, skew = Infinity;
+
+function reset(e) {
+  S = {id: e.call_id, t0: ms(e.ts), number: e.data.caller_number, lookup: null, flags: null,
+       ping: null, notice: null, decision: null, late: 0, stepup: false, codeFailed: false,
+       askedName: false, expected: null, cred: null, ended: false};
+  $("steps").innerHTML = ""; $("lines").innerHTML = "";
+  $("msgs").innerHTML = '<div class="quiet" id="m-quiet">No message yet</div>';
+  $("owner").className = "empty"; $("owner-text").textContent = "Nothing yet";
+  $("chips").dataset.sig = "";
 }
-function setBadge(s) { $("badge").className = s; $("badge").textContent = s.replace("_", " "); }
-function setFlags(f) {
-  $("flags").innerHTML = Object.entries(FLAGS)
-    .map(([k, label]) => `<div class="chip ${f[k] ? "on" : ""}">${label}</div>`).join("");
+const name = () => S && S.lookup && S.lookup.contact ? S.lookup.contact.name : "the real person";
+const secsBetween = (a, b) => ((b - a) / 1000).toFixed(1);
+
+// ---------- each event as one plain sentence, tagged with the part that produced it ----------
+const TAG = {call:"call", classifier:"classifier", contact:"contact graph", database:"database", person:"real person",
+             agent:"phone agent", owner:OWNER, context:"context", credential:"credential"};
+function summary(d) {
+  if (!d || typeof d !== "object") return "";
+  if (d.text) return d.text;
+  if (d.note) return d.note;
+  return Object.entries(d).filter(([, v]) => v !== null && v !== "" && typeof v !== "object")
+    .map(([k, v]) => `${human(k)}: ${v}`).join(", ");
 }
-function handle(e) {
-  if (e.type === "call.started") reset(e.call_id);
-  if (e.call_id !== cur) return;
-  const d = e.data;
-  if (e.type === "transcript") {
-    const p = document.createElement("div");
-    p.className = d.role; p.textContent = (d.role === "caller" ? "Caller: " : "Agent: ") + d.text;
-    $("lines").appendChild(p);
-  } else if (e.type === "flags") setFlags(d);
-  else if (e.type === "contact.lookup") $("note").textContent = d.note;
-  else if (e.type === "credential.verified") $("note").textContent = `${d.agent} for ${d.principal}`;
-  else if (e.type === "ping.sent") setBadge("pending");
-  else if (e.type === "decision") {
-    setBadge(d.state); secs = d.seconds_to_decide;
-    if (d.state === "confirmed" && d.by === "code_word") $("badge").textContent = "confirmed by code word";
+function describe(e) {
+  const d = e.data || {}, n = name();
+  switch (e.type) {
+    case "call.started": return ["call", `Call came in${d.caller_number ? " from " + d.caller_number : ""}`];
+    case "transcript": return d.role === "caller" ? ["call", `Caller: “${d.text}”`] : ["agent", `Assistant: “${d.text}”`];
+    case "flags": {
+      const on = Object.keys(FLAGS).filter(k => d[k]).map(k => FLAGS[k].toLowerCase());
+      const r = d.risk != null ? ` (risk ${Math.round(d.risk * 100)}%)` : "";
+      return ["classifier", on.length ? `Flagged ${on.join(", ")}${r}${d.needs_verification ? ": needs verification" : ""}` : "No warning signs"];
+    }
+    case "contact.lookup":
+      return ["contact", d.contact ? `Matched ${d.contact.name} (${d.contact.relationship}), ${d.number_known ? "known number" : "unknown number"}`
+                                   : `No match in ${OWNER}'s circle${d.note ? ": " + d.note : ""}`];
+    case "ping.sent": return ["person", `Asked ${n} on Telegram: “Is this you?”`];
+    case "notice.sent": return ["person", `Sent ${n} a heads-up: “${d.text}”`];
+    case "decision": {
+      const by = {tap: `${n} tapped ${d.state === "confirmed" ? "Yes" : "No"}`, timeout: `no answer from ${n}`,
+                  known_number: "known number, harmless request", lookup: "caller not in the circle",
+                  repeat_attempt: "number already denied today", stepup: "identity check", code_word: "family code word",
+                  ping_cap: "too many attempts today", credential: "verified agent credential",
+                  stepup_unavailable: "identity check unavailable", expected: "an expected call",
+                  expected_but_money: "expected caller asked for money"}[d.by] || human(d.by);
+      return ["database", `Recorded ${human(d.state)}: ${by}, ${d.seconds_to_decide} s after the call began`];
+    }
+    case "action": {
+      const k = d.kind;
+      const t = {hangup: "Hung up on the caller", forward: `Put the call through to ${OWNER}`,
+                 say: `Told the caller: “${d.text}”`, challenge: `Instructed the assistant: “${d.text}”`,
+                 ask_name: "Asked the caller for their first name", out_of_scope: d.text || "Credential out of scope",
+                 late_denial: `${n} tapped Not me: hung up`, code_word_failed: "Wrong code word twice: hung up",
+                 stepup: `Sent ${n} an identity check`, take_message: "Took a message instead of putting the call through",
+                 expected_but_money: "Matches an expected call but asks for money: no shortcut"}[k];
+      const who = (k === "late_denial" || k === "stepup") ? "person" : "agent";
+      return [who, t || cap(human(k || "action")) + (d.text ? ": " + d.text : "")];
+    }
+    case "owner.notified": return ["owner", `Told ${OWNER}: “${d.text}”`];
+    case "credential.verified": return ["credential", `Verified agent ${d.agent} acting for ${d.principal}`];
+    case "call.ended": return ["call", "Call ended"];
+    case "context.expected":
+      if (d.why) return ["context", `Expected ${d.kind || "call"}: ${d.why}${d.source ? ` (from ${d.source})` : ""}`];
   }
-  else if (e.type === "action" && d.kind === "challenge") {
-    const p = document.createElement("div"); p.className = "agent"; p.textContent = "Agent: " + d.text; $("lines").appendChild(p);
-  } else if (e.type === "owner.notified") $("owner").textContent = d.text;
+  const head = e.type.split(".")[0];
+  const tag = head === "notice" ? "person" : head;
+  const s = summary(e.data);
+  return [tag, cap(human(e.type)) + (s ? ": " + s : "")];
 }
+function addStep(e) {
+  const [tag, text] = describe(e);
+  const li = document.createElement("li");
+  li.className = "new";
+  const off = Math.max(0, (ms(e.ts) - S.t0) / 1000);
+  li.innerHTML = `<span class="off">+${off.toFixed(1)} s</span><span class="say"></span><span class="tag ${esc(tag)}">${esc(TAG[tag] || tag)}</span>`;
+  li.querySelector(".say").textContent = text;
+  li.querySelector(".say").title = text;
+  const steps = $("steps");
+  steps.appendChild(li);
+  while (steps.children.length > 40) steps.firstChild.remove();
+}
+
+// ---------- the call's state, from events ----------
+function apply(e) {
+  const d = e.data || {};
+  switch (e.type) {
+    case "transcript": {
+      const p = document.createElement("div");
+      p.className = "line " + (d.role === "caller" ? "caller" : "agent");
+      p.innerHTML = `<b>${d.role === "caller" ? "Caller" : "Assistant"}</b>`;
+      p.appendChild(document.createTextNode(d.text));
+      $("lines").appendChild(p);
+      break;
+    }
+    case "flags": S.flags = d; break;
+    case "contact.lookup": S.lookup = d; break;
+    case "ping.sent": S.ping = {...d, at: ms(e.ts)}; break;
+    case "notice.sent": S.notice = {...d, at: ms(e.ts)}; break;
+    case "decision": S.decision = {...d, at: ms(e.ts)}; S.first = S.first || S.decision; break;
+    case "credential.verified": S.cred = d; break;
+    case "owner.notified": showOwner(d.text); break;
+    case "call.ended": S.ended = true; break;
+    case "action":
+      if (d.kind === "late_denial") S.late = ms(e.ts);
+      if (d.kind === "stepup") S.stepup = true;
+      if (d.kind === "code_word_failed") S.codeFailed = true;
+      if (d.kind === "ask_name") S.askedName = true;
+      if (d.kind === "take_message") S.tookMessage = true;
+      if (d.kind === "expected_but_money") S.expectedMoney = true;
+      break;
+    default:
+      if (e.type.startsWith("context.")) { S.expected = d.why || summary(d) || "The owner was expecting this call."; S.expectedWho = d.who; S.expectedKind = d.kind; }
+  }
+}
+function showOwner(text) {
+  const o = $("owner");
+  o.className = ""; void o.offsetWidth; o.className = "drop";
+  $("owner-text").textContent = text;
+}
+
+// ---------- 1. the outcome ----------
+function outcome() {
+  if (!S) return ["", "Ready", `The assistant answers ${OWNER}'s phone and screens every caller.`];
+  const n = name(), d = S.decision;
+  if (S.late) return ["st-denied", "DENIED", `${n} tapped Not me. The guard hung up.`];
+  if (S.codeFailed) return ["st-unver", "UNVERIFIED", "Wrong code word twice. The guard hung up."];
+  if (d) {
+    const by = d.by;
+    if (d.state === "denied") return ["st-denied", "DENIED", {
+      tap: `${n} tapped No. The guard hung up.`,
+      repeat_attempt: `This number was already denied as ${n} today. Hung up without asking again.`,
+      stepup: `Failed ${n}'s identity check. The guard hung up.`}[by] || `Denied by ${human(by)}. The guard hung up.`];
+    if (d.state === "confirmed") {
+      if (by === "code_word") return ["st-ok", "Verified by code word", `${n} didn't answer, but the caller knew the family code word.`];
+      if (S.expected || by === "context" || by === "expected") return ["st-expected", "Expected call", S.expected || "The owner was expecting this call."];
+      if (by === "known_number") return ["st-known", "Known caller", `${n}'s own number, harmless request. Put through; ${n} got a heads-up.`];
+      return ["st-ok", "VERIFIED", {tap: `${n} tapped Yes. Put through to ${OWNER}.`,
+        stepup: `${n} passed the identity check. Put through to ${OWNER}.`}[by] || `Confirmed by ${human(by)}. Put through.`];
+    }
+    if (d.state === "unverified") return ["st-unver", "UNVERIFIED", {
+      timeout: `No answer from ${n} in ${S.ping ? secsBetween(S.ping.at, d.at) : d.seconds_to_decide} s. The caller can still give the family code word.`,
+      lookup: S.tookMessage ? `Not in ${OWNER}'s circle and not expected. Taking a message.` : `Not someone in ${OWNER}'s circle. Asking who they are.`,
+      expected_but_money: "Says it's an expected delivery, but asks for money. No shortcut; don't pay.",
+      ping_cap: `Too many attempts as ${n} today. The caller can still give the family code word.`,
+      stepup_unavailable: "The identity check is unavailable. Don't send money.",
+      code_word: "Wrong code word twice. The guard hung up."}[by] || `Unverified (${human(by)}). Don't send money.`];
+    if (d.state === "agent_verified") return ["st-agent", "VERIFIED AGENT",
+      S.cred ? `${S.cred.agent}, acting for ${S.cred.principal}. Scope: ${(S.cred.scope || []).join(", ")}.` : "A verified agent credential."];
+    if (/expect/.test(d.state)) return ["st-expected", "Expected call", S.expected || "The owner was expecting this call."];
+    return ["st-screen", human(d.state).toUpperCase(), `Decided by ${human(by)}.`];
+  }
+  if (S.stepup) return ["st-check", "Checking", `With the real person: ${n} tapped Yes. Now confirming it is really ${n}.`];
+  if (S.ping) return ["st-check", "Checking", `With the real person: asked ${n} on Telegram. The caller is on hold.`];
+  if (S.expected) return ["st-screen", "Screening", S.expected];
+  if (S.askedName) return ["st-screen", "Screening", "The assistant asked the caller for their first name."];
+  return ["st-screen", "Screening", "The assistant is answering and listening."];
+}
+let lastWord = "Ready";
+function fit(w) { // shrink the state word until it fits on one line
+  let size = 170; w.style.fontSize = size + "px";
+  while (w.scrollWidth > w.clientWidth && size > 72) w.style.fontSize = (size -= 6) + "px";
+}
+function renderOutcome() {
+  const [cls, word, why] = outcome();
+  $("outcome").className = cls;
+  if (word !== lastWord) {
+    const w = $("word");
+    w.textContent = word;
+    fit(w);
+    w.classList.remove("rise", "stamp"); void w.offsetWidth;
+    w.classList.add(S && S.decision ? "stamp" : "rise");
+    lastWord = word;
+  }
+  $("why").textContent = why;
+  $("caller").textContent = S ? `Call to ${OWNER}${S.number ? " from " + S.number : ""}` : `${OWNER}'s phone line`;
+}
+function tick() {
+  let t = 0, label = " ";
+  const now = Date.now() - (isFinite(skew) ? skew : 0);
+  if (S && S.late) { t = (S.late - S.t0) / 1000; label = "to catch it"; }
+  else if (S && S.decision) { t = S.decision.seconds_to_decide; label = "to decide"; }
+  else if (S && !S.ended && !S.codeFailed) { t = (now - S.t0) / 1000; label = "on the line"; }
+  $("secs").textContent = Math.max(0, t).toFixed(1) + " s";
+  $("secs-cap").textContent = label;
+  const w = document.querySelector("#msgs .waiting");
+  if (w && S && S.ping) w.textContent = `Waiting for a tap, ${Math.max(0, (now - S.ping.at) / 1000).toFixed(0)} s`;
+}
+
+// ---------- 2. the claim ----------
+function renderClaim() {
+  if (!S) return;
+  let w = null, wsub = "", a = null;
+  if (S.cred) { w = S.cred.agent; wsub = `agent for ${S.cred.principal}`; }
+  else if (S.lookup && S.lookup.contact) {
+    w = `${S.lookup.contact.name} (${S.lookup.contact.relationship})`;
+    wsub = S.lookup.number_known ? "from a known number" : "from an unknown number";
+    const att = S.ping && S.ping.text.match(/\(attempt (\d+) today\)/);
+    if (att) wsub += `, attempt ${att[1]} today`;
+  } else if (S.expectedWho) { w = {delivery: "A delivery", callback: "A callback", appointment: "An appointment"}[S.expectedKind] || "An expected caller"; wsub = S.expectedWho; }
+  else if (S.expected) w = "An expected caller";
+  else if (S.expectedMoney) { w = "An expected delivery"; wsub = "by its own account"; }
+  else if (S.lookup || S.decision) w = `Nobody in ${OWNER}'s circle`;
+  else if (S.askedName) wsub = "asked for a name";
+  $("who").className = "val" + (w ? "" : " dim");
+  $("who").innerHTML = esc(w || "Listening") + (wsub ? `<small>${esc(wsub)}</small>` : "");
+
+  const m = S.ping && S.ping.text.match(/asking for (.+?)(?: \(attempt \d+ today\))?\. Is this you\?/);
+  if (m) a = m[1];
+  else if (S.flags && S.flags.money) { // HACK: no claim event yet; read the amount from the caller's words
+    const said = [...$("lines").querySelectorAll(".caller")].map(l => l.textContent).join(" ");
+    const amt = said.match(/\$\s?\d[\d,]*(?:\.\d{2})?|\b\d[\d,]*\s*dollars?\b/i), how = said.match(/\b(gift cards?|wire|bank transfer|crypto|cash)\b/i);
+    a = (amt ? amt[0].replace(/^(\d[\d,]*)\s*dollars?$/i, "$$$1") : "Money") + (how ? " by " + how[0].toLowerCase() : "");
+  }
+  else if (S.lookup || S.decision) a = "Nothing sensitive";
+  $("ask").className = "val" + (a ? "" : " dim");
+  $("ask").textContent = a || "Listening";
+  if ($("owner").classList.contains("empty") && S.decision && /confirmed|verified/.test(S.decision.state))
+    $("owner-text").textContent = "No warning needed: the call went through.";
+
+  const f = S.flags || {};
+  const sig = Object.keys(FLAGS).map(k => +!!f[k]).join("");
+  const chips = $("chips");
+  if (chips.dataset.sig !== sig) {
+    chips.innerHTML = Object.entries(FLAGS).map(([k, l]) => `<span class="chip ${f[k] ? "on" : ""}"><i></i>${l}</span>`).join("");
+    chips.dataset.sig = sig;
+  }
+  const src = {fake: "keyword rules", sie: "Superlinked SIE"}[f.source] || f.source;
+  $("clsrc").textContent = S.flags ? `Classifier: ${src}${f.latency_ms ? `, ${f.latency_ms} ms` : ""}${f.risk != null ? `, risk ${Math.round(f.risk * 100)}%` : ""}` : "";
+}
+
+// ---------- 3. the real person's phone ----------
+function msgHTML(body, buttons, btnState, status, waiting) {
+  return `<div class="from">${SHIELD}Call guard</div><div class="body">${esc(body)}</div>` +
+    `<div class="btns ${btnState}">${buttons.map(([c, l, on]) => `<span class="btn ${c}${on ? " tap" : ""}">${esc(l)}</span>`).join("")}</div>` +
+    `<div class="status">${waiting ? '<span class="pulse"></span><span class="waiting"></span>' : esc(status)}</div>`;
+}
+function setMsg(key, html) {
+  let m = document.getElementById("m-" + key);
+  if (!m) { m = document.createElement("div"); m.className = "msg"; m.id = "m-" + key; $("msgs").appendChild(m); }
+  if (m.dataset.sig !== html) { m.innerHTML = html; m.dataset.sig = html; }
+}
+function renderPhone() {
+  if (!S) return;
+  const n = name(), d = S.decision;
+  $("owner-of").textContent = S.lookup && S.lookup.contact ? `${n}'s phone` : "The real person's phone";
+  const quiet = S.ping || S.notice ? null : !d ? "No message yet" : S.expected ? "Not needed: this call was expected." : {
+    lookup: `Nobody to ask: the caller isn't in ${OWNER}'s circle.`,
+    expected_but_money: `Nobody to ask: the caller isn't in ${OWNER}'s circle.`,
+    repeat_attempt: "Not asked again: this number was already denied today.",
+    ping_cap: "Not asked: too many attempts today.",
+    credential: "Not needed: a verified agent is calling."}[d.by] || "No message sent.";
+  const q = $("m-quiet");
+  if (quiet) { if (q) q.textContent = quiet; return; }
+  if (q) q.remove();
+  if (S.ping) {
+    const d = S.first; // the decision that closed the question, not a later code-word upgrade
+    let st = "", yes = false, no = false, status = "", waiting = false;
+    if (d && d.by === "tap") { yes = d.state === "confirmed"; no = d.state === "denied"; st = "done"; status = `Tapped ${yes ? "Yes" : "No"} after ${secsBetween(S.ping.at, d.at)} s`; }
+    else if (d && d.by === "stepup") { yes = true; st = "done"; status = `Tapped Yes; identity check ${d.state === "confirmed" ? "passed" : "failed"}`; }
+    else if (S.stepup) { yes = true; st = "done"; status = "Tapped Yes. Identity check sent."; }
+    else if (d && d.by === "timeout") { st = "none"; status = `No answer in ${secsBetween(S.ping.at, d.at)} s`; }
+    else if (d) { st = "none"; status = `Not answered: decided by ${human(d.by)}`; }
+    else waiting = true;
+    setMsg("ping", msgHTML(S.ping.text, [["yes", "Yes, it's me", yes], ["no", "No", no]], st, status, waiting));
+  }
+  if (S.notice) {
+    const status = S.late ? `Tapped Not me after ${secsBetween(S.notice.at, S.late)} s` : "Heads-up only. The call already went through.";
+    setMsg("notice", msgHTML(S.notice.text, [["no", "Not me", !!S.late]], S.late ? "done" : "", status, false));
+    const p = $("m-ping"); if (p) p.classList.add("old"); // newest message gets the room
+  }
+}
+
+function render() { renderOutcome(); renderClaim(); renderPhone(); tick(); }
+
+function handle(e) {
+  skew = Math.min(skew, Date.now() - ms(e.ts));
+  if (e.type === "call.started") reset(e);
+  if (!S || e.call_id !== S.id) return;
+  apply(e);
+  addStep(e);
+}
+let quietPolls = 0;
 async function poll() {
   try {
     const evs = await (await fetch("/events?since=" + since)).json();
     for (const e of evs) { handle(e); since = e.id; }
+    if (evs.length) { render(); quietPolls = 0; }
+    else if (since > 0 && ++quietPolls % 10 === 0) {
+      // The server was restarted if even our last event is gone: start over from the beginning.
+      const last = await (await fetch("/events?since=" + (since - 1))).json();
+      if (!last.length) since = 0;
+    }
   } catch (_) {}
-  const s = secs !== null ? secs : cur ? (Date.now() - startMs) / 1000 : 0;
-  $("timer").textContent = s.toFixed(1) + " s";
 }
 function scene(k) {
   const key = sessionStorage.getItem("sim-key");
-  fetch("/sim/call", {method:"POST", headers:{"Content-Type":"application/json", ...(key ? {"X-Sim-Key":key} : {})}, body:JSON.stringify(SCENES[k])});
+  const {label, ...body} = SCENES[k];
+  fetch("/sim/call", {method:"POST", headers:{"Content-Type":"application/json", ...(key ? {"X-Sim-Key":key} : {})}, body:JSON.stringify(body)});
 }
-setFlags({});
+for (const [k, s] of Object.entries(SCENES)) {
+  const b = document.createElement("button");
+  b.textContent = s.label || cap(human(k));
+  b.onclick = () => scene(k);
+  $("scenes").appendChild(b);
+}
+$("chips").innerHTML = Object.values(FLAGS).map(l => `<span class="chip"><i></i>${l}</span>`).join("");
 setInterval(poll, 500);
-setInterval(() => { if (cur && secs === null) $("timer").textContent = ((Date.now() - startMs) / 1000).toFixed(1) + " s"; }, 100);
+setInterval(tick, 100);
+poll();
 </script></body></html>
