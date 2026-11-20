@@ -1,4 +1,7 @@
 import asyncio
+import hmac
+import re
+from datetime import datetime, timezone
 
 from guard import credential, persona, settings, state, telegram, vapi
 from guard.brain import classify, contacts
@@ -8,6 +11,22 @@ _caller_text: dict[str, str] = {}
 _asked_name: set[str] = set()
 _stepups: set[str] = set()
 _late_denials: set[str] = set()
+_code_tries: dict[str, int] = {}
+_pings: dict[tuple, int] = {}
+_cap_notified: set[tuple] = set()
+
+
+def _normalize(text):
+    return " ".join(re.findall(r"\w+", text.casefold()))
+
+
+def _redact(text):
+    for contact in contacts._all():
+        words = re.findall(r"\w+", contact.challenge_answer)
+        if words:
+            text = re.sub(r"(?<!\w)" + r"[\W_]+".join(map(re.escape, words)) + r"(?!\w)",
+                          "••••", text, flags=re.IGNORECASE)
+    return text
 
 
 def spawn(coro) -> None:
@@ -24,6 +43,7 @@ def start_call(caller_number, call_id=None) -> str:
 
 
 async def on_transcript(call_id, role, text) -> None:
+    text = _redact(text)
     state.emit(call_id, "transcript", {"role": role, "text": text})
     if role == "caller":
         _caller_text[call_id] = (_caller_text.get(call_id, "") + " " + text).strip()
@@ -72,6 +92,14 @@ async def verify_caller(call_id, claimed_name) -> None:
     if contacts.denied_today(lk.contact.id, call.caller_number):
         await _resolve(call_id, "denied", "repeat_attempt")
         return
+    key = (datetime.now(timezone.utc).date(), lk.contact.id)
+    if _pings.get(key, 0) >= 5:
+        await _resolve(call_id, "unverified", "ping_cap")
+        if key not in _cap_notified:
+            _cap_notified.add(key)
+            await _notify(call_id, f"Many attempts as {lk.contact.name} today. Don't send money.")
+        return
+    _pings[key] = _pings.get(key, 0) + 1
     telegram.send_ping(state.get_call(call_id), lk.contact, claim)
     text = telegram.ping_text(lk.contact, claim)
     state.emit(call_id, "ping.sent", {"contact_id": lk.contact.id, "channels": ["telegram"], "text": text})
@@ -87,7 +115,7 @@ async def on_tap(call_id, answer) -> bool:
     call = state.get_call(call_id)
     if call is None:
         return False
-    if (answer == "no" and call.state == "confirmed" and call.decided_by == "known_number"
+    if (answer == "no" and call.state == "confirmed" and call.decided_by in ("known_number", "code_word")
             and call_id not in _late_denials):
         _late_denials.add(call_id)
         contact = contacts.get(call.contact_id)
@@ -114,6 +142,39 @@ async def on_tap(call_id, answer) -> bool:
             return True
     new_state = {"yes": "confirmed", "no": "denied"}.get(answer)
     return bool(new_state) and await _resolve(call_id, new_state, "tap")
+
+
+async def on_code_word(call_id, spoken: str) -> str:
+    call = state.get_call(call_id)
+    contact = contacts.get(call.contact_id) if call and call.contact_id else None
+    if (not contact or call.state not in ("pending", "unverified")
+            or _code_tries.get(call_id, 0) >= 2):
+        return "failed"
+    _code_tries[call_id] = _code_tries.get(call_id, 0) + 1
+    expected, supplied = _normalize(contact.challenge_answer), _normalize(spoken)
+    if expected and (hmac.compare_digest(supplied.encode(), expected.encode())
+                     or re.search(r"(?<!\w)" + re.escape(expected) + r"(?!\w)", supplied)):
+        if not await _resolve(call_id, "confirmed", "code_word"):
+            return "failed"
+        c = state.get_call(call_id)
+        if settings.REAL_TELEGRAM:
+            spawn(asyncio.to_thread(telegram.send_notice, c, contact))
+        else:
+            telegram.send_notice(c, contact)
+        state.emit(call_id, "notice.sent", {
+            "contact_id": contact.id, "channels": ["telegram"],
+            "text": f"Someone reached {settings.OWNER_NAME} with your code word. Not you? Tap below.",
+        })
+        return "ok"
+    if _code_tries[call_id] < 2:
+        return "retry"
+    # No await between eligibility and the decision; a winning tap cannot be overridden.
+    if call.state == "pending" and not await _resolve(call_id, "unverified", "code_word"):
+        return "failed"
+    state.emit(call_id, "action", {"kind": "code_word_failed"})
+    vapi.hangup(call_id)
+    await _notify(call_id, "Unverified caller failed the code word. Don't send money.")
+    return "failed"
 
 
 async def on_stepup(call_id, ok: bool) -> bool:
@@ -164,9 +225,14 @@ async def _act(call_id, new_state) -> None:
     elif new_state in ("confirmed", "agent_verified"):
         vapi.forward(call_id)
     elif new_state == "unverified":
-        q = contact.challenge_question if contact else "Who are you and why are you calling?"
+        if c.decided_by == "code_word":
+            return  # on_code_word handles the final failure.
+        q = ("No answer from the real person. Ask the caller for the family code word and pass exactly "
+             "what they say to check_code_word. Do not hint at the word."
+             if contact else "Who are you and why are you calling?")
         vapi.add_message(call_id, q)
-        await _notify(call_id, "Unverified. Don't send money.")
+        if c.decided_by != "ping_cap":
+            await _notify(call_id, "Unverified. Don't send money.")
 
 
 async def _notify(call_id, text) -> None:

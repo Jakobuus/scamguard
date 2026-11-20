@@ -12,7 +12,7 @@ class Contact(BaseModel):
     telegram_chat_id: str | None = None
     email: str | None = None
     challenge_question: str
-    challenge_answer: str  # never sent to the caller or the screen
+    challenge_answer: str  # code word; compared only in code, never sent to the caller or screen
 
 
 class Lookup(BaseModel):
@@ -49,7 +49,7 @@ class Call(BaseModel):
     flags: Flags | None = None
     started_at: datetime
     decided_at: datetime | None = None
-    decided_by: str | None = None  # "tap" | "timeout" | "credential" | "lookup" | "known_number" | "repeat_attempt" | "stepup"
+    decided_by: str | None = None  # "tap" | "timeout" | "credential" | "lookup" | "known_number" | "repeat_attempt" | "stepup" | "stepup_unavailable" | "code_word" | "ping_cap"
 
 
 class Event(BaseModel):

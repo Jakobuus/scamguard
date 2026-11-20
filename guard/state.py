@@ -53,7 +53,8 @@ class MemoryBackend:
         with self.lock:
             c = self.calls.get(call_id)
             ok = c is not None and (
-                c.state == "pending" or (c.state == "screening" and (
+                c.state == "pending" or (c.state == "unverified" and state == "confirmed" and by == "code_word")
+                or (c.state == "screening" and (
                     state == "agent_verified" or (state == "confirmed" and by == "known_number"))))
             if ok:
                 self.calls[call_id] = c.model_copy(
@@ -232,6 +233,8 @@ class SingleStoreBackend(MemoryBackend):
         call_id = self._bounded("call_id", call_id)
         by = self._bounded("decided_by", by)
         condition = "state='pending'"
+        if state == "confirmed" and by == "code_word":
+            condition = "state IN ('pending','unverified')"
         if state == "agent_verified":
             condition = "(state='pending' OR state='screening')"
         won = self._exec("UPDATE calls SET state=?, decided_at=NOW(6), decided_by=? "

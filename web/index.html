@@ -65,7 +65,10 @@ function handle(e) {
   else if (e.type === "contact.lookup") $("note").textContent = d.note;
   else if (e.type === "credential.verified") $("note").textContent = `${d.agent} for ${d.principal}`;
   else if (e.type === "ping.sent") setBadge("pending");
-  else if (e.type === "decision") { setBadge(d.state); secs = d.seconds_to_decide; }
+  else if (e.type === "decision") {
+    setBadge(d.state); secs = d.seconds_to_decide;
+    if (d.state === "confirmed" && d.by === "code_word") $("badge").textContent = "confirmed by code word";
+  }
   else if (e.type === "action" && d.kind === "challenge") {
     const p = document.createElement("div"); p.className = "agent"; p.textContent = "Agent: " + d.text; $("lines").appendChild(p);
   } else if (e.type === "owner.notified") $("owner").textContent = d.text;

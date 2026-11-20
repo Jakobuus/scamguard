@@ -12,7 +12,12 @@ _attempts: list[tuple[datetime, Call]] = []
 def _all() -> list[Contact]:
     global _contacts
     if _contacts is None:
-        _contacts = [Contact(**c) for c in json.loads(_PATH.read_text())]
+        entries = {c["id"]: c for c in json.loads(_PATH.read_text())}
+        local = _PATH.with_name("contacts.local.json")
+        if local.exists():
+            for entry in json.loads(local.read_text()):
+                entries[entry["id"]] = {**entries.get(entry["id"], {}), **entry}
+        _contacts = [Contact(**c) for c in entries.values()]
     return _contacts
 
 

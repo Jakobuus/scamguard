@@ -11,7 +11,7 @@
     ],
     "telegram_chat_id": null,
     "email": null,
-    "challenge_question": "What was the name of our first dog?",
+    "challenge_question": "What is the family code word?",
     "challenge_answer": "Bruno"
   },
   {
@@ -24,7 +24,7 @@
     ],
     "telegram_chat_id": null,
     "email": null,
-    "challenge_question": "What is our favorite cake?",
+    "challenge_question": "What is the family code word?",
     "challenge_answer": "Chocolate"
   }
 ]

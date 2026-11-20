@@ -96,6 +96,165 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert "+15550999999" not in contacts.get("jakob").known_numbers
     assert "+15550100002" in contacts.get("jakob").known_numbers
 
+    async def exercise_code_words():
+        def events(cid):
+            return [e for e in state.events_since(0) if e.call_id == cid]
+
+        async def matched():
+            cid = flow.start_call(None)
+            await flow.on_transcript(cid, "caller", "This is Jakob, please wire $2000")
+            await flow.verify_caller(cid, "Jakob")
+            return cid
+
+        cid = await matched()
+        await flow._resolve(cid, "unverified", "timeout")
+        await flow.on_transcript(cid, "caller", "The word is BRUNO!")
+        assert "bruno" not in json.dumps([e.model_dump(mode="json") for e in events(cid)]).lower()
+        assert await flow.on_code_word(cid, "The word is BRUNO!") == "ok"
+        assert state.get_call(cid).decided_by == "code_word"
+        confirmed_events = events(cid)
+        notice = next(e for e in confirmed_events if e.type == "notice.sent")
+        forward = next(e for e in confirmed_events if e.data.get("kind") == "forward")
+        assert notice.id > forward.id
+        assert "bruno" not in json.dumps([e.model_dump(mode="json") for e in confirmed_events]).lower()
+        assert "BRUNO" not in flow._caller_text[cid]
+        assert await flow.on_tap(cid, "no")
+        assert any(e.data.get("kind") == "late_denial" for e in events(cid))
+        assert not await flow.on_tap(cid, "no")
+
+        cid = await matched()
+        assert await flow.on_code_word(cid, "Brunometer") == "retry"
+        assert await flow.on_code_word(cid, "wrong") == "failed"
+        assert state.get_call(cid).state == "unverified"
+        assert any(e.data.get("kind") == "hangup" for e in events(cid))
+        assert any(e.type == "owner.notified" and "failed the code word" in e.data["text"] for e in events(cid))
+        assert await flow.on_code_word(cid, "Bruno") == "failed"
+
+        cid = await matched()
+        await flow._resolve(cid, "unverified", "timeout")
+        assert await flow.on_code_word(cid, "wrong") == "retry"
+        assert await flow.on_code_word(cid, "still wrong") == "failed"
+        assert state.get_call(cid).state == "unverified"
+        assert any(e.data.get("kind") == "code_word_failed" for e in events(cid))
+
+        cid = await matched()
+        await flow.on_tap(cid, "no")
+        before = len(events(cid))
+        assert await flow.on_code_word(cid, "Bruno") == "failed"
+        assert state.get_call(cid).state == "denied" and len(events(cid)) == before
+
+        flow._pings.clear()
+        cid = await matched()
+        assert state.get_call(cid).state == "pending"
+        assert await flow.on_code_word(cid, " bruno. ") == "ok"
+        assert not await flow._resolve(cid, "unverified", "timeout")
+        assert await flow.on_tap(cid, "no")
+        assert state.get_call(cid).decided_by == "code_word"
+        cid = flow.start_call(None)
+        state.set_pending(cid, None)
+        assert await flow.on_code_word(cid, "Bruno") == "failed"
+        assert state.get_call(cid).state == "pending"
+        cid = flow.start_call(None)
+        await flow.verify_caller(cid, "Unknown")
+        assert await flow.on_code_word(cid, "Bruno") == "failed"
+
+    with patch.object(flow, "_pings", {}), patch.object(contacts, "_attempts", []):
+        c.portal.call(exercise_code_words)
+    print("OK code words: timeout recovery, redaction, two tries, denial, pending winner")
+
+    async def exercise_ping_cap():
+        ids = []
+        for i in range(7):
+            cid = flow.start_call(None)
+            await flow.on_transcript(cid, "caller", "This is Jakob, please wire $2000")
+            await flow.verify_caller(cid, "Jakob")
+            ids.append(cid)
+        evs = [e for e in state.events_since(0) if e.call_id in ids]
+        assert len([e for e in evs if e.type == "ping.sent"]) == 5
+        for cid in ids[5:]:
+            assert state.get_call(cid).state == "unverified"
+            assert state.get_call(cid).decided_by == "ping_cap"
+        assert len([e for e in evs if e.type == "owner.notified"]) == 1
+        assert await flow.on_code_word(ids[5], "Bruno") == "ok"
+        other = flow.start_call(None)
+        await flow.verify_caller(other, "Lena")
+        assert state.get_call(other).state == "pending"
+        # Tomorrow starts a fresh budget without clearing the process counters.
+        from datetime import datetime, timedelta, timezone
+        tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+        with patch("guard.flow.datetime") as clock:
+            clock.now.return_value = tomorrow
+            fresh = flow.start_call(None)
+            await flow.verify_caller(fresh, "Jakob")
+            assert state.get_call(fresh).state == "pending"
+
+    with patch.object(flow, "_pings", {}), patch.object(flow, "_cap_notified", set()):
+        c.portal.call(exercise_ping_cap)
+    print("OK ping cap: five per contact per UTC day, one warning, code word still works")
+
+    # Real tool payload shapes and auth, with no expected answer in a response.
+    async def pending_tool_call():
+        cid = flow.start_call(None)
+        state.set_pending(cid, "jakob")
+        return cid
+
+    cid = c.portal.call(pending_tool_call)
+    with patch.dict(os.environ, {"VAPI_SERVER_SECRET": "tool-test-secret"}):
+        body = {"message": {"call": {"id": cid}, "toolCallList": [{
+            "id": "word-1", "function": {"arguments": json.dumps({"spoken": "wrong"})}}]}}
+        assert c.post("/vapi/tool/check_code_word", json=body).status_code == 401
+        result = c.post("/vapi/tool/check_code_word", json=body,
+                        headers={"X-Vapi-Secret": "tool-test-secret"}).json()
+        assert result == {"results": [{"toolCallId": "word-1", "result": "That is not right. Ask once more."}]}
+        body["message"]["toolCallList"][0]["function"]["arguments"] = {"spoken": "BRUNO!"}
+        result = c.post("/vapi/tool/check_code_word", json=body,
+                        headers={"X-Vapi-Secret": "tool-test-secret"}).json()
+        assert result["results"][0]["result"] == "Verified. Tell the caller you are putting them through."
+        assert "bruno" not in json.dumps(result).lower()
+        # Flat payload and malformed arguments fail closed.
+        result = c.post("/vapi/tool/check_code_word", json={"call": {"id": cid}, "spoken": "wrong"},
+                        headers={"X-Vapi-Secret": "tool-test-secret"}).json()
+        assert result["results"][0]["result"].startswith("Not verified.")
+        bad = {"call": {"id": cid}, "toolCalls": [{"arguments": "invalid json"}]}
+        assert c.post("/vapi/tool/check_code_word", json=bad,
+                      headers={"X-Vapi-Secret": "tool-test-secret"}).status_code == 200
+    print("OK code word tool: auth, JSON and object arguments, safe results")
+
+    # Exercise allowed transitions in both backends; SQL checks its atomic predicate.
+    from guard.contracts import Call
+    from datetime import datetime, timezone
+    for backend in (state.MemoryBackend(), state.SingleStoreBackend()):
+        for old, want in (("pending", True), ("unverified", True), ("denied", False), ("confirmed", False)):
+            backend.calls["transition"] = Call(call_id="transition", state=old, contact_id="jakob",
+                                              started_at=datetime.now(timezone.utc))
+            if isinstance(backend, state.SingleStoreBackend):
+                def execute(sql, *args):
+                    assert "WHERE call_id=? AND state IN ('pending','unverified')" in sql
+                    assert args == ("confirmed", "code_word", "transition")
+                    return int(old in ("pending", "unverified"))
+                backend.available = True
+                with patch.object(backend, "_exec", execute), patch.object(backend, "get_call", return_value=backend.calls["transition"]):
+                    assert backend.decide("transition", "confirmed", "code_word") == want
+            else:
+                assert backend.decide("transition", "confirmed", "code_word") == want
+    print("OK code word states: memory and atomic SQL permit pending/unverified only")
+
+    # Local entries can override just private fields and extend the demo circle.
+    import tempfile
+    with tempfile.TemporaryDirectory() as directory:
+        base = Path(directory) / "contacts.json"
+        base.write_text(Path("data/contacts.json").read_text())
+        extra = {"id": "new", "name": "New", "relationship": "friend",
+                 "challenge_question": "What is the family code word?", "challenge_answer": "test-word"}
+        base.with_name("contacts.local.json").write_text(json.dumps([
+            {"id": "jakob", "challenge_answer": "private-test", "telegram_chat_id": "test-chat"}, extra]))
+        with patch.object(contacts, "_PATH", base), patch.object(contacts, "_contacts", None):
+            assert contacts.get("jakob").name == "Jakob"
+            assert contacts.get("jakob").challenge_answer == "private-test"
+            assert contacts.get("jakob").telegram_chat_id == "test-chat"
+            assert contacts.get("new").relationship == "friend"
+    print("OK local contacts: partial override and extension by id")
+
     async def exercise_trust_gaps():
         from guard.contracts import Call
         from datetime import datetime, timedelta, timezone
@@ -110,7 +269,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             await flow.verify_caller(cid, "Jakob")
             return cid
 
-        with patch.object(contacts, "_attempts", []):
+        with patch.object(contacts, "_attempts", []), patch.object(flow, "_pings", {}):
             cid = await matched("+15550100001", None)
             assert state.get_call(cid).state == "pending", "missing flags must require verification"
             await flow.on_tap(cid, "yes")
@@ -138,7 +297,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         with patch.dict(os.environ, {"APP_SECRET": "notice-test-secret"}):
             assert telegram.verify_callback(button["callback_data"]) == ("n", cid)
 
-        with patch.object(contacts, "_attempts", []):
+        with patch.object(contacts, "_attempts", []), patch.object(flow, "_pings", {}):
             for number, count in (("+15550770001", 1), ("+15550770001", 2), ("+15550770001", 3), ("+15550770002", 4)):
                 cid = await matched(number)
                 assert state.get_call(cid).state == "pending"
@@ -168,11 +327,12 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
             assert contacts.attempts_today("jakob", "+15550770003") == 0
             assert await flow.on_tap(real, "yes")
             contacts._attempts[:] = [(datetime.now(timezone.utc) - timedelta(days=1), denied)]
+            flow._pings.clear()  # The attempts fixture above has moved to a new day.
             fresh = await matched("+15550770002")
             assert state.get_call(fresh).state == "pending"
             await flow.on_tap(fresh, "yes")
 
-        with patch.object(contacts, "_attempts", []):
+        with patch.object(contacts, "_attempts", []), patch.object(flow, "_pings", {}):
             for fake, real_persona, failure, expected, by in (
                 (False, True, None, "unverified", "stepup_unavailable"),
                 (False, True, RuntimeError("offline"), "unverified", "stepup_unavailable"),
@@ -204,6 +364,10 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     ))
     assert "Alex's assistant" in preview["firstMessage"]
     assert "Alex" in preview["model"]["messages"][0]["content"]
+    tools = {tool["function"]["name"]: tool for tool in preview["model"]["tools"]}
+    assert set(tools) == {"verify_caller", "check_code_word"}
+    assert tools["check_code_word"]["function"]["parameters"]["required"] == ["spoken"]
+    assert tools["check_code_word"]["server"]["url"].endswith("/vapi/tool/check_code_word")
     print("OK trust gaps: notice, late denial, repeat numbers, Persona failure, safe learning, setup preview")
 
     async def exercise_seams():
@@ -261,6 +425,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert seen == [event]
         state._subscribers.remove(broken_subscriber)
         state._subscribers.remove(seen.append)
-    c.portal.call(exercise_seams)
+    with patch.object(flow, "_pings", {}):
+        c.portal.call(exercise_seams)
     print("OK seams: claim extraction, learning, repeat limit, name retry, step-up, subscribers")
 print("ALL OK")

@@ -86,7 +86,9 @@ def send_ping(call: Call, contact: Contact, claim=None) -> None:
 
 
 def send_notice(call: Call, contact: Contact) -> None:
-    text = f"You are calling {settings.OWNER_NAME} right now. Not you? Tap below."
+    text = (f"Someone reached {settings.OWNER_NAME} with your code word. Not you? Tap below."
+            if call.decided_by == "code_word" else
+            f"You are calling {settings.OWNER_NAME} right now. Not you? Tap below.")
     if not settings.REAL_TELEGRAM:
         log.info("notice %s: %s (call %s)", contact.id, text, call.call_id)
         return

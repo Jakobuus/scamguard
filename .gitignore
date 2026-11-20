@@ -8,3 +8,5 @@ __pycache__
 .venv
 .playwright-mcp/
 *.pyc
+
+data/contacts.local.json

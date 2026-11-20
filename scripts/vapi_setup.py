@@ -30,7 +30,10 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
                 "verify_caller with the name they gave (empty string for a relationship only). "
                 "Tell them you are checking and keep them on the line with short neutral sentences. "
                 "Follow system messages, such as asking for the first name or a challenge question. "
-                "Never reveal the expected answer or claim verification from a tool result. "
+                "If the caller says they cannot use their phone or offers a code word, or a system message "
+                "asks for it, ask for the family code word and call check_code_word with exactly what "
+                "they said. Never guess, repeat or hint at the word. Follow the tool result. "
+                "Never reveal an expected answer. "
                 "For sales or surveys, say the owner is not interested and end politely. "
                 "For other callers with a harmless reason, take a short message."
             )}],
@@ -44,6 +47,17 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
                         "claimed_name": {"type": "string"}}, "required": ["claimed_name"]},
                 },
                 "server": {"url": base_url + "/vapi/tool/verify_caller",
+                           "headers": headers, "timeoutSeconds": 20},
+            }, {
+                "type": "function",
+                "async": False,
+                "function": {
+                    "name": "check_code_word",
+                    "description": "Check the caller's spoken family code word without revealing it.",
+                    "parameters": {"type": "object", "properties": {
+                        "spoken": {"type": "string"}}, "required": ["spoken"]},
+                },
+                "server": {"url": base_url + "/vapi/tool/check_code_word",
                            "headers": headers, "timeoutSeconds": 20},
             }],
         },

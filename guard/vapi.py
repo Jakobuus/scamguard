@@ -64,7 +64,7 @@ def forward(call_id: str) -> None:
 def add_message(call_id: str, text: str) -> None:
     state.emit(call_id, "action", {"kind": "challenge", "text": text})
     _control(call_id, {"type": "add-message", "message": {"role": "system", "content":
-        f"Ask the caller this challenge question now: {text}"}, "triggerResponseEnabled": True})
+        text}, "triggerResponseEnabled": True})
 
 
 def _authorize(req: Request) -> None:
@@ -178,4 +178,45 @@ async def verify_caller(req: Request):
         # Return before verification can touch Telegram or any other network service.
         flow.spawn(_verify(call_id, _dict(args).get("claimed_name")))
         results.append({"toolCallId": tc.get("id"), "result": _TOOL_RESULT})
+    return {"results": results}
+
+
+@router.post("/vapi/tool/check_code_word")
+async def check_code_word(req: Request):
+    from guard import flow
+
+    _authorize(req)
+    msg = await _message(req)
+    calls = msg.get("toolCallList") or msg.get("toolCalls") or [{}]
+    if not isinstance(calls, list):
+        calls = [{}]
+    call = _dict(msg.get("call"))
+    call_id = call.get("id") or "vapi-unknown"
+    if not isinstance(call_id, str):
+        call_id = "vapi-unknown"
+    if state.get_call(call_id) is None:
+        flow.start_call(_dict(call.get("customer")).get("number"), call_id=call_id)
+    _remember_control(call_id, call)
+    instructions = {
+        "ok": "Verified. Tell the caller you are putting them through.",
+        "retry": "That is not right. Ask once more.",
+        "failed": "Not verified. Say you cannot put the call through and end the call politely.",
+    }
+    results = []
+    for item in calls:
+        tc = _dict(item)
+        args = _dict(tc.get("function")).get("arguments") or tc.get("arguments") or msg
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+        spoken = _dict(args).get("spoken")
+        outcome = "failed"
+        if isinstance(spoken, str):
+            try:
+                outcome = await flow.on_code_word(call_id, spoken)
+            except Exception:
+                log.warning("Vapi code word verification failed")
+        results.append({"toolCallId": tc.get("id"), "result": instructions[outcome]})
     return {"results": results}

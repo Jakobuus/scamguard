@@ -12,7 +12,7 @@ real thing, keep the signature". Main always runs; nobody waits for anybody.
 - Fake a whole call without a phone: `POST /sim/call` (see 5). Neither lane needs Vapi to test.
 - Per-service switches in `.env`: `REAL_VAPI`, `REAL_TELEGRAM`, `REAL_DB`, `REAL_SIE`, `REAL_COGNEE`,
   `REAL_PERSONA` (each `0`/`1`). `FAKE=1` forces all to 0.
-- `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed), trust-gap scenes and contract checks.
+- `make check` starts the app in fake mode and plays the four scenes (denied, confirmed, unverified, credentialed), trust-gap scenes, code-word recovery and daily ping-cap scenes, and contract checks.
   **Run it before every push.** If it fails, don't push.
 
 ## 2. Lanes and file ownership
@@ -36,7 +36,7 @@ Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`. Settings such as 
   supplied name (empty string for a relationship only), says it is checking and holds with short neutral
   sentences. It follows system instructions for name/challenge questions without revealing expected answers.
 - It politely ends sales/survey calls and takes a short message for other harmless callers.
-- No model output hangs up or forwards a call: only the real person's tap, the timeout or a valid
+- No model output hangs up or forwards a call: only the real person's tap, the timeout, a valid code word or a valid
   credential decides. The flow also enforces the explicit known-number and repeat-attempt policies below.
   Flags alone never decide a call.
 
@@ -70,10 +70,11 @@ Otherwise, only a caller number already denied **by tap** for the same contact t
 Missing caller numbers never auto-deny. Earlier denied or unverified attempts as the contact add
 " (attempt <n> today)" to the next ping; timeouts count toward this warning but never auto-deny.
 
-All other matched calls enter `pending` and receive one verification ping. Exactly one decision wins;
-late taps and timeouts do nothing except the known-number late denial above. Only the winning flow
+All other matched calls enter `pending` and receive one verification ping, subject to the daily cap below.
+Exactly one decision wins; late taps and timeouts do nothing except the late denial above (also
+available after code-word confirmation). Only the winning flow
 acts on a pending call. The memory backend allows `known_number` and credential decisions directly
-from screening. The SingleStore SQL stays unchanged: the wrapper moves a known-number call through
+from screening. For known-number decisions, the wrapper moves a call through
 `pending` before deciding, without sending a ping.
 
 On Yes with latest flags `needs_verification`, call `persona.start(contact_id)`. A link emits `stepup`
@@ -82,6 +83,47 @@ If Persona is really enabled (`REAL_PERSONA=1`, `FAKE=0`), no link or an excepti
 by `stepup_unavailable`. With Persona off, no link confirms by `tap`. Duplicate Yes taps cannot skip
 step-up; No and the existing timeout still work. Every winning decision calls `contacts.learn(call)`;
 only confirmation by `tap` or `stepup` teaches a new number, never `known_number`.
+
+### Code word and daily ping cap
+
+`challenge_question` is the code-word prompt (demo: "What is the family code word?");
+`challenge_answer` is the expected code word. `data/contacts.local.json`, when present, merges entries
+by `id` over `data/contacts.json`: partial entries override supplied fields; new ids extend the circle.
+Keep real code words and chat ids only in this ignored local file. Neither models nor events receive
+expected words. Before emitting or accumulating any transcript line, replace any contact's code word
+(case-insensitive, whole word) with `••••`. The model passes the caller's exact spoken answer to code;
+only code compares it and returns an outcome.
+
+`flow.on_code_word(call_id, spoken) -> "ok" | "retry" | "failed"` accepts only a matched contact in
+`pending` or `unverified`, and allows two attempts per call. Case and punctuation are normalized;
+an answer may equal the word or contain it with whole-word boundaries. Exact equality uses
+`hmac.compare_digest`. Empty configured words never verify. A denied call cannot be reopened.
+An exhausted call cannot try again. Success atomically decides `confirmed` by `code_word`, forwards,
+and sends `telegram.send_notice` / `notice.sent` with:
+"Someone reached <OWNER_NAME> with your code word. Not you? Tap below."
+Its signed Not me button uses the same one-time late-denial path as known-number calls. This
+confirmation never teaches a new number. A word supplied while pending may win before a tap or timeout;
+a timeout's `unverified` state may later be upgraded by the code word. Other decisions stay final.
+
+A wrong first answer returns `retry`. A second wrong answer leaves or resolves the call `unverified`,
+emits `action` kind `code_word_failed`, hangs up, and notifies the owner:
+"Unverified caller failed the code word. Don't send money." No event stores the spoken answer.
+Timeout adds this assistant instruction:
+"No answer from the real person. Ask the caller for the family code word and pass exactly what they
+say to check_code_word. Do not hint at the word." The same recovery instruction applies to a matched
+call that cannot be pinged.
+
+At most five verification pings per contact per UTC day are reserved by the flow. Further matched
+calls resolve `unverified` by `ping_cap`, without a ping, and retain code-word recovery. Only the first
+capped call that day notifies the owner:
+"Many attempts as <name> today. Don't send money."
+The cap and its once-per-day warning are process-local, like attempt history; restarting the process
+resets them. Known-number pass-through and repeat-denied-number blocking keep their existing priority.
+
+Build scope note: the audience screen labels a code-word confirmation "confirmed by code word".
+The requested fourth simulation scene and optional `/sim/call` `code_word` field still require editing
+`guard/sim.py`, which the build brief excludes from its allowed file list. They are not implemented;
+the recovery scenes in `scripts/check.py` drive `flow.on_code_word` and the Vapi tool directly.
 
 ## 4. Shapes (`guard/contracts.py`, pydantic)
 
@@ -129,7 +171,7 @@ class Call:
     started_at: datetime
     decided_at: datetime | None
     decided_by: str | None            # tap | timeout | credential | lookup |
-                                      # known_number | repeat_attempt | stepup | stepup_unavailable
+                                      # known_number | repeat_attempt | stepup | stepup_unavailable | code_word | ping_cap
 
 class Event:
     id: int                           # increasing
@@ -162,9 +204,10 @@ Functions (Python, same process):
 | `state.subscribe(fn)` | A | Every `state.emit` passes the emitted Event to each subscriber; failure logs one line and other subscribers continue. App startup subscribes `telemetry.on_event`. |
 | `state.emit(call_id, type, data)` | A | The only way anything reaches the screen or telemetry. |
 | `telegram.send_ping(call, contact, claim=None)` | A | Text: "Someone is calling <OWNER_NAME> as you, asking for <amount> in <method>. Is this you?" Omit request details when absent; include available amount/method. Append " (attempt <n> today)" for earlier denied/unverified attempts. Fake logs the same text. |
-| `telegram.send_notice(call, contact)` | A | Known-number heads-up with one signed `n` / "Not me" button; real delivery runs in the background. |
+| `telegram.send_notice(call, contact)` | A | Known-number or code-word heads-up with one signed `n` / "Not me" button; real delivery runs in the background. |
 | `flow.on_transcript(call_id, role, text)` | A | Async; emits transcript and latest flags from accumulated caller text. |
 | `flow.verify_caller(call_id, claimed_name)` | A | Async; claim → candidates → name question, known-number decision, repeat block or ping (see 3). |
+| `flow.on_code_word(call_id, spoken)` | A | Async; compare in code only; two tries, pending/unverified matched callers only; returns `ok`, `retry` or `failed`. |
 | `flow.on_tap(call_id, answer)` | A | Async; Yes/No, with optional step-up (see 3). |
 | `flow.on_stepup(call_id, ok: bool)` | A | Async; only a pending step-up may decide by `stepup`. |
 | `flow.on_credential(call_id, token)` | A | Async; money requests require `payment` in scope. Otherwise emit `out_of_scope`, return False, and continue normal verification. Accepted credentials decide `agent_verified`. |
@@ -175,6 +218,7 @@ HTTP (all JSON):
 |---|---|---|
 | `POST /vapi/webhook` | A | Vapi status, transcript and end events |
 | `POST /vapi/tool/verify_caller` | A | `{claimed_name}` → holding response; may ask a name before pinging |
+| `POST /vapi/tool/check_code_word` | A | `{spoken: str}` in the same authenticated Vapi tool envelope as `verify_caller`; returns only next-speech instructions, never the expected word. |
 | `POST /telegram/webhook` | A | Verification button taps |
 | `POST /sim/call` | A | `{claimed_name, caller_number, lines: [str], tap: "yes"\|"no"\|null, tap_after_s: float, credential: str\|null}` → `{call_id}`; same flow, no phone. Out-of-scope credentials continue verification. |
 | `POST /sim/tap` | A | `{call_id, answer: "yes"\|"no"}` |
@@ -196,9 +240,9 @@ HTTP (all JSON):
 | `flags` | `Flags`, including `needs_verification` |
 | `contact.lookup` | `{contact: {id, name, relationship} \| null, number_known, note}`; never numbers, emails or chat ids |
 | `ping.sent` | `{contact_id, channels: ["telegram"], text}`; text includes available claim amount/method and the configured owner label |
-| `notice.sent` | `{contact_id, channels: ["telegram"], text}`; non-blocking known-number heads-up |
+| `notice.sent` | `{contact_id, channels: ["telegram"], text}`; non-blocking known-number or code-word heads-up |
 | `decision` | `{state: "confirmed"\|"denied"\|"unverified"\|"agent_verified", by, seconds_to_decide}`; `by` is one of the documented `decided_by` values |
-| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial", text}` or `{kind: "stepup", link}` |
+| `action` | `{kind: "hangup"\|"forward"\|"challenge"\|"say"\|"ask_name"\|"out_of_scope"\|"late_denial"\|"code_word_failed", text}` or `{kind: "stepup", link}` or `{kind: "code_word_failed"}` |
 | `owner.notified` | `{text}`; includes a warning not to send money and the third-attempt warning when blocked |
 | `credential.verified` | `{agent, principal, scope}`; only emitted after the scope check passes |
 | `call.ended` | `{}` |
@@ -216,7 +260,9 @@ events(id BIGINT AUTO_INCREMENT, call_id VARCHAR(64), ts DATETIME(6), type VARCH
 ```
 
 Decide: `UPDATE calls SET state=?, decided_at=NOW(6), decided_by=? WHERE call_id=? AND state='pending' RETURNING state`.
-One row back = you won, act on the call. Zero rows = someone already decided, do nothing.
+For `confirmed` by `code_word` only, the atomic update instead uses
+`WHERE call_id=? AND state IN ('pending','unverified')`.
+One affected row = you won, act on the call. Zero rows = someone already decided, do nothing.
 Fake mode keeps both tables in memory with the same functions.
 
 ## 8. Working rules
