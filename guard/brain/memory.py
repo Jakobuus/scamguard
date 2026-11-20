@@ -6,7 +6,7 @@
 - `python -m guard.brain.memory ask "who is Jakob?"` runs one search, for checking the setup.
 
 Real only with REAL_COGNEE=1 and FAKE=0. COGNEE_URL is the API base (cloud or self-hosted),
-COGNEE_API_KEY goes in the X-Api-Key header. Endpoints follow Cognee's REST API
+COGNEE_API_KEY goes in the X-Api-Key header and COGNEE_TENANT_ID (Cognee Cloud) in X-Tenant-Id. Endpoints follow Cognee's REST API
 (/api/v1/add, /api/v1/cognify, /api/v1/search); check them against the docs if a call 404s.
 Numbers, code words and chat ids are never sent to Cognee and never shown from it.
 """
@@ -35,8 +35,10 @@ def real() -> bool:
 def _client(timeout: float = 2.5):
     import httpx
 
-    return httpx.Client(base_url=os.environ["COGNEE_URL"].rstrip("/"), timeout=timeout,
-                        headers={"X-Api-Key": os.environ.get("COGNEE_API_KEY", "")})
+    headers = {"X-Api-Key": os.environ.get("COGNEE_API_KEY", "")}
+    if os.environ.get("COGNEE_TENANT_ID"):  # Cognee Cloud wants the tenant id beside the key
+        headers["X-Tenant-Id"] = os.environ["COGNEE_TENANT_ID"]
+    return httpx.Client(base_url=os.environ["COGNEE_URL"].rstrip("/"), timeout=timeout, headers=headers)
 
 
 def scrub(text: str, secrets: list[str] = (), limit: int = 180) -> str:
