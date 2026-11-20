@@ -33,7 +33,10 @@ def memory_view():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "fake": settings.FAKE, "owner_name": settings.OWNER_NAME, "services": settings.services()}
+    c = contacts.get(settings.DEMO_CONTACT_ID)
+    demo = {"id": c.id, "name": c.name, "relationship": c.relationship} if c else None
+    return {"ok": True, "fake": settings.FAKE, "owner_name": settings.OWNER_NAME, "demo_contact": demo,
+            "services": settings.services()}
 
 
 @app.get("/live")
