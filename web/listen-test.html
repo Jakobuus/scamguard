@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Listen test</title>
+<style>body{background:#0b0f14;color:#fff;font-family:sans-serif;display:grid;place-items:center;height:100vh;margin:0}
+button{font-size:24px;padding:16px 40px;border-radius:12px;border:0;cursor:pointer}#s{margin-top:16px;color:#9aa}</style>
+</head><body><div style="text-align:center">
+<button id="b">Listen</button><div id="s">waiting for a live call</div></div>
+<script src="/listen.js"></script>
+<script>
+var want = false, b = document.getElementById("b"), s = document.getElementById("s");
+b.onclick = function () { want = !want; if (!want) KinCheckListen.stop(); tick(); };
+function tick() {
+  fetch("/live").then(function (r) { return r.json(); }).then(function (live) {
+    var url = live && live.listen_url;
+    if (want && url) KinCheckListen.start(url);
+    if (!url && KinCheckListen.isOn()) KinCheckListen.stop();
+    b.textContent = KinCheckListen.isOn() ? "Stop" : "Listen";
+    s.textContent = !url ? "waiting for a live call" : KinCheckListen.isOn() ? "playing the live call" : "live call: press Listen";
+  }).catch(function () {});
+}
+setInterval(tick, 1000); tick();
+</script></body></html>

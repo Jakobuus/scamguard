@@ -14,6 +14,7 @@ router = APIRouter()
 log = logging.getLogger(__name__)
 # HACK: live control URLs and webhook deduplication last only for this process.
 _control_urls: dict[str, str] = {}
+_listen_urls: dict[str, str] = {}  # call_id -> monitor.listenUrl (raw audio WebSocket) while the call runs
 _ended: set[str] = set()
 _partial_seen: set[str] = set()  # calls whose partials were logged once or looked up after a restart
 def _tool_result() -> str:
@@ -94,7 +95,28 @@ async def _message(req: Request) -> dict:
         return {}
 
 
+def _vapi_url(url, scheme: str) -> bool:
+    try:
+        parsed = urlsplit(url) if isinstance(url, str) else None
+        return (parsed is not None and parsed.scheme == scheme
+                and parsed.hostname is not None and parsed.hostname.endswith(".vapi.ai")
+                and not parsed.username and not parsed.password)
+    except ValueError:
+        return False
+
+
+def listen_url(call_id) -> str | None:
+    return _listen_urls.get(call_id) if call_id else None
+
+
+def forget_listen(call_id) -> None:
+    _listen_urls.pop(call_id, None)
+
+
 def _remember_control(call_id: str, call: dict) -> None:
+    listen = _dict(call.get("monitor")).get("listenUrl")
+    if call_id not in _ended and call_id not in _listen_urls and _vapi_url(listen, "wss"):
+        _listen_urls[call_id] = listen
     url = _dict(call.get("monitor")).get("controlUrl")
     if url is None:
         return
@@ -156,6 +178,7 @@ async def webhook(req: Request):
                     state.emit(call_id, "call.ended", {})
                 _ended.add(call_id)
                 _control_urls.pop(call_id, None)
+                _listen_urls.pop(call_id, None)
     except Exception:
         log.warning("Vapi webhook failed; acknowledging event")
     return {}

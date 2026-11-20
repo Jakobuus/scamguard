@@ -95,7 +95,7 @@ def assistant_payload(base_url: str, secret: str = "") -> dict:
         },
         "server": {"url": base_url + "/vapi/webhook", "headers": headers},
         "serverMessages": ["status-update", "transcript", "end-of-call-report", "tool-calls"],
-        "monitorPlan": {"controlEnabled": True, "controlAuthenticationEnabled": False},
+        "monitorPlan": {"controlEnabled": True, "controlAuthenticationEnabled": False, "listenEnabled": True},
         "maxDurationSeconds": 120,
     }
 
