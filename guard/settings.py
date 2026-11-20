@@ -44,12 +44,20 @@ REAL_EMAIL = _real("REAL_EMAIL") and all(os.environ.get(k) for k in ("RESEND_API
 REDACT_SIE = _flag("REDACT_SIE")  # off: redaction is rules-only
 
 
+def persona_template() -> str:
+    """Non-empty when the hosted Persona check is configured (a ready link, a template version, or a template)."""
+    return (os.environ.get("PERSONA_INQUIRY_URL", "").strip() or os.environ.get("PERSONA_TEMPLATE_VERSION_ID", "").strip()
+            or os.environ.get("PERSONA_TEMPLATE_ID", "").strip())
+
+
 def services() -> dict:
     return {
         n: ("real" if v else "fake")
         for n, v in [
             ("vapi", REAL_VAPI), ("telegram", REAL_TELEGRAM), ("db", REAL_DB),
             ("beeper", REAL_BEEPER), ("email", REAL_EMAIL),
-            ("sie", REAL_SIE), ("match", REAL_MATCH), ("cognee", REAL_COGNEE), ("persona", REAL_PERSONA),
+            ("sie", REAL_SIE), ("match", REAL_MATCH), ("cognee", REAL_COGNEE), ("persona", bool(persona_template())),
+            # same condition telemetry uses to send (read now, so the map follows the environment)
+            ("amplitude", _real("REAL_AMPLITUDE") and bool(os.environ.get("AMPLITUDE_API_KEY"))),
         ]
     }

@@ -71,6 +71,17 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert c.get("/health").json()["fake"] is True
     assert c.get("/health").json()["services"]["beeper"] == "fake"
     assert c.get("/health").json()["services"]["email"] == "fake"
+    assert c.get("/health").json()["services"]["amplitude"] == "fake"
+    assert c.get("/health").json()["services"]["persona"] == "fake"
+    with patch.dict(os.environ, {"PERSONA_TEMPLATE_ID": "itmpl_x", "REAL_AMPLITUDE": "1", "AMPLITUDE_API_KEY": "k"}):
+        assert settings.services()["persona"] == "real", "hosted Persona is real without the old API flag"
+        assert settings.services()["amplitude"] == "fake", "fake mode never sends telemetry"
+        with patch.object(settings, "FAKE", False):
+            assert settings.services()["amplitude"] == "real"
+            with patch.dict(os.environ, {"AMPLITUDE_API_KEY": ""}):
+                assert settings.services()["amplitude"] == "fake"
+        with patch.dict(os.environ, {"PERSONA_TEMPLATE_ID": ""}):
+            assert settings.services()["persona"] == "fake"
     assert c.get("/health").json()["owner_name"] == settings.OWNER_NAME
     # Missing fan-out or a channel bypassing the atomic decision must fail these checks.
     async def channel_question():
