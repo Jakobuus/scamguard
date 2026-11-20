@@ -986,6 +986,47 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         await flow.verify_caller(cid, "Erick")
         assert state.get_call(cid).state == "pending" and state.get_call(cid).contact_id == "erick"
         assert any(e.type == "ping.sent" for e in events(cid))
+        # strict matching for an unidentified caller
+        for phrase in ("pineapple", "it's pineapple", "the code word is pineapple"):
+            cid = await garbled()
+            assert await flow.on_code_word(cid, phrase) == "ok", phrase
+            assert state.get_call(cid).contact_id == "erick"
+        for phrase in ("apple banana pineapple kiwi", "pineapplf", "one two three four five six pineapple"):
+            cid = await garbled()
+            assert await flow.on_code_word(cid, phrase) == "retry", phrase
+            assert state.get_call(cid).state == "unverified" and state.get_call(cid).contact_id is None
+        # an identified contact keeps the tolerant matching
+        flow._pings.clear()
+        cid = flow.start_call(None)
+        await flow.on_transcript(cid, "caller", "This is Jakob, please wire $2000")
+        await flow.verify_caller(cid, "Jakob")
+        assert await flow.on_code_word(cid, "Brunp") == "ok"
+        # exhaustion is final
+        cid = await garbled()
+        assert await flow.on_code_word(cid, "banana") == "retry"
+        assert await flow.on_code_word(cid, "kiwi") == "failed"
+        await flow.on_transcript(cid, "caller", "It's Erick, your teammate from the hackathon")
+        await flow.verify_caller(cid, "Erick")
+        await asyncio.sleep(0.4)
+        assert state.get_call(cid).state == "unverified" and not any(e.type == "ping.sent" for e in events(cid))
+        assert await flow.on_code_word(cid, "pineapple") == "failed"
+        # the attempt budget holds under concurrency
+        cid = await garbled()
+        lookups = []
+        real_find = flow._reident_find
+        def counting(call, name):
+            lookups.append(name)
+            return real_find(call, name)
+        with patch.object(flow, "_reident_find", side_effect=counting):
+            await asyncio.gather(*(flow.verify_caller(cid, "Nobody") for _ in range(5)))
+        assert len(lookups) <= 2, lookups
+        # the tool's reason counts on a second identification
+        flow._pings.clear()
+        cid = await garbled()
+        await flow.verify_caller(cid, "Erick", reason="needs two thousand dollars in gift cards")
+        assert state.get_call(cid).state == "pending" and state.get_call(cid).flags.money
+        ping = next(e for e in events(cid) if e.type == "ping.sent")
+        assert "gift card" in ping.data["text"].lower() or "money" in ping.data["text"].lower(), ping.data["text"]
         # unknown name stays as it was, at most two attempts
         cid = await garbled()
         for _ in range(3):
