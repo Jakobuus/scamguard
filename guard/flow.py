@@ -392,12 +392,9 @@ async def _ask_contact(call_id, call, claim, found, reident=False) -> None:
             and not call.flags.needs_verification):
         state.update_call(call_id, contact_id=lk.contact.id)
         if await _resolve(call_id, "confirmed", "known_number"):
-            if settings.REAL_TELEGRAM:
-                spawn(asyncio.to_thread(telegram.send_notice, state.get_call(call_id), lk.contact))
-            else:
-                telegram.send_notice(state.get_call(call_id), lk.contact)
+            notified = channels.send_notice(state.get_call(call_id), lk.contact)
             state.emit(call_id, "notice.sent", {
-                "contact_id": lk.contact.id, "channels": ["telegram"], "timeout_s": None,
+                "contact_id": lk.contact.id, "channels": notified, "timeout_s": None,
                 "text": f"You are calling {settings.OWNER_NAME} right now. Not you? Tap below.",
             })
         return
@@ -487,12 +484,9 @@ async def on_code_word(call_id, spoken: str) -> str:
         if not await _resolve(call_id, "confirmed", "code_word"):
             return "failed"
         c = state.get_call(call_id)
-        if settings.REAL_TELEGRAM:
-            spawn(asyncio.to_thread(telegram.send_notice, c, contact))
-        else:
-            telegram.send_notice(c, contact)
+        notified = channels.send_notice(c, contact)
         state.emit(call_id, "notice.sent", {
-            "contact_id": contact.id, "channels": ["telegram"], "timeout_s": None,
+            "contact_id": contact.id, "channels": notified, "timeout_s": None,
             "text": f"Someone reached {settings.OWNER_NAME} with your code word. Not you? Tap below.",
         })
         return "ok"

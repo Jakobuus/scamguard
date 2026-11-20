@@ -116,7 +116,7 @@ def result_text(answer, won):
     return "Thanks. Putting the call through." if answer == "yes" else "Thanks. Call ended."
 
 
-OWN_PREFIXES = ("someone is calling", "thanks.", "too late", "call guard test", "test,")
+OWN_PREFIXES = ("someone is calling", "thanks.", "too late", "call guard test", "test,", "someone reached", "you are calling")
 
 
 def _norm(text):
@@ -132,7 +132,7 @@ def _why(e):
     return type(e).__name__
 
 
-async def _whatsapp(call, text, chat_id=None):
+async def _whatsapp(call, text, chat_id=None, notice=False):
     if not settings.REAL_BEEPER:
         log.info("fake whatsapp ping (call %s): %s", call.call_id, text)
         return
@@ -140,7 +140,7 @@ async def _whatsapp(call, text, chat_id=None):
         chat_id = chat_id or os.environ["BEEPER_CHAT_ID"]
         path = message_path(chat_id)
         # One line: the listed text of a multi-line message comes back with <br>.
-        question = text + " Reply NO or YES."
+        question = text if notice else text + " Reply NO or YES."
         _latest[chat_id] = call.call_id
         before = await asyncio.to_thread(beeper_request, "GET", path)
         seen = {m.get("id") for m in before.get("items", [])}
@@ -156,7 +156,7 @@ async def _whatsapp(call, text, chat_id=None):
             if _latest.get(chat_id) != call.call_id:
                 return
             current = state.get_call(call.call_id)
-            if not current or current.state not in ("pending", "unverified"):
+            if not current or current.state not in (("confirmed",) if notice else ("pending", "unverified")):
                 return
             await asyncio.sleep(1)
             if _latest.get(chat_id) != call.call_id:
@@ -182,6 +182,8 @@ async def _whatsapp(call, text, chat_id=None):
                             or message.get("type", "TEXT") != "TEXT"):
                         continue
                     answer = reply_answer(body)
+                    if notice and answer != "no":
+                        continue  # a notice only listens for a late denial
                     if answer:
                         if _latest.get(chat_id) != call.call_id:
                             return
@@ -228,6 +230,26 @@ async def _deliver(name, call, contact, claim, target=None):
             await asyncio.to_thread(_email, call, telegram.ping_text(contact, claim), target)
     except Exception as e:
         log.warning("Question delivery failed on %s: %s", name, _why(e))
+
+
+def send_notice(call, contact):
+    """The "Not me" notice, on the contact's own Telegram and WhatsApp targets. Returns the channels used."""
+    from guard import flow
+    resolved = targets(contact)
+    names = [n for n in enabled(contact, resolved=resolved) if n in ("telegram", "whatsapp")]
+    if not names:
+        log.info("no channel for notice")
+    for name in names:
+        if name == "telegram":
+            notified = contact.model_copy(update={"telegram_chat_id": resolved["telegram"]})
+            if settings.REAL_TELEGRAM:
+                flow.spawn(asyncio.to_thread(telegram.send_notice, call, notified))
+            else:
+                telegram.send_notice(call, notified)
+        else:
+            text = telegram.notice_text(call).replace("Tap below.", "Reply NO.")
+            flow.spawn(_whatsapp(call, text, resolved["whatsapp"], notice=True))
+    return names
 
 
 def send_ping(call, contact, claim=None):

@@ -238,6 +238,48 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
                 await asyncio.to_thread(telegram.send_notice, call, none)
                 assert [x[1] for x in seen] == ["999"]
     c.portal.call(contact_only_own_targets)
+    async def notice_channels():
+        import asyncio
+        import httpx
+        import tempfile
+        from guard.contracts import Contact
+        base = dict(name="Notice", relationship="friend", challenge_question="Code?", challenge_answer="demo")
+        wa = Contact(id="wa-notice", whatsapp_chat_id="!notice", **base)
+        tg = Contact(id="tg-notice", telegram_chat_id="303", **base)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(channels, "ACCOUNT_PATH", Path(tmp) / "none.json"), patch.dict(
+            os.environ, {"REAL_BEEPER": "1", "BEEPER_ACCESS_TOKEN": "test", "BEEPER_CHAT_ID": "!global",
+                         "TELEGRAM_CHAT_ID": "999", "TELEGRAM_BOT_TOKEN": "test"}):
+            for answer, denied in (("YES", False), ("NO", True)):
+                flow.reset_demo()
+                cid = flow.start_call(None)
+                state.update_call(cid, state="confirmed", contact_id=wa.id, decided_by="code_word")
+                sent, calls_to = [], []
+                def beeper_http(request):
+                    chat = request.url.path.split("/")[3]
+                    if request.method == "POST":
+                        sent.append((chat, json.loads(request.content)["text"]))
+                        return httpx.Response(200, json={"chatID": chat, "pendingMessageID": "~p"})
+                    items = [{"id": "1", "text": "old", "type": "TEXT"}]
+                    if sent:
+                        items = [{"id": "3", "text": answer, "type": "TEXT", "isSender": True},
+                                 {"id": "2", "text": sent[0][1], "type": "TEXT", "isSender": True}] + items
+                    return httpx.Response(200, json={"items": items, "hasMore": False})
+                with httpx.Client(transport=httpx.MockTransport(beeper_http)) as client, patch.object(
+                    settings, "REAL_BEEPER", True), patch.object(channels.httpx, "request", client.request):
+                    assert channels.send_notice(state.get_call(cid), wa) == ["whatsapp"]
+                    await asyncio.sleep(2.5)
+                    channels._latest["!notice"] = "other"  # stop the poller
+                    await asyncio.sleep(1.2)
+                assert sent[0][0] == "!notice" and sent[0][1].endswith("Not you? Reply NO."), sent
+                late = [e for e in state.events_since(0) if e.call_id == cid and e.type == "action"
+                        and e.data.get("kind") == "late_denial"]
+                assert bool(late) == denied, answer
+            assert channels.send_notice(state.get_call(cid), tg) == ["telegram"]
+            none = Contact(id="none-notice", **base)
+            assert channels.send_notice(state.get_call(cid), none) == ["telegram", "whatsapp"]  # global fallbacks only
+        flow.reset_demo()
+    c.portal.call(notice_channels)
+    ok("channels: Not me notice on the contact's own channels, WhatsApp NO is a late denial")
     ok("channels: global fallbacks only for contacts with no own target")
     ok("channels: contact targets, account preferences, separate chats and other-person replies")
     async def channel_transports():

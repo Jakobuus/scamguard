@@ -103,10 +103,14 @@ def send_ping(call: Call, contact: Contact, claim=None) -> None:
         log.warning("Telegram ping failed; using fake behaviour")
 
 
-def send_notice(call: Call, contact: Contact) -> None:
-    text = (f"Someone reached {settings.OWNER_NAME} with your code word. Not you? Tap below."
+def notice_text(call: Call) -> str:
+    return (f"Someone reached {settings.OWNER_NAME} with your code word. Not you? Tap below."
             if call.decided_by == "code_word" else
             f"You are calling {settings.OWNER_NAME} right now. Not you? Tap below.")
+
+
+def send_notice(call: Call, contact: Contact) -> None:
+    text = notice_text(call)
     if not settings.REAL_TELEGRAM:
         log.info("notice %s: %s (call %s)", contact.id, text, call.call_id)
         return
