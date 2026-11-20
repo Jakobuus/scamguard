@@ -154,6 +154,114 @@
   .graph-cap{position:absolute;left:40px;bottom:36px;max-width:62ch}
   .graph-cap h3{font-size:34px}
 
+  /* === overview and graph === */
+  :root{--c-bar:#3F6B98;--c-tactic:#B794FF;--c-other:#8796A3}
+  #v-overview{grid-template-rows:auto minmax(0,.9fr) minmax(0,1.1fr)}
+  #v-overview .card{padding:24px 30px}
+  #v-overview .stat .l,#v-overview .stat.hero .money{white-space:nowrap}
+  #v-overview{grid-template-rows:auto minmax(0,.82fr) minmax(0,1.18fr)}
+  .donut{width:160px!important;height:160px!important}
+  .legend{gap:2px!important;line-height:1.2}
+  .legend li b{line-height:1.05!important}
+  .rlist{margin-top:0!important}
+  .rr{padding:4px 10px!important}
+  .rr .ro{gap:2px!important}
+  /* The live-call banner sits above the views; keep both views inside one screen while it shows. */
+  main:has(> #lc-banner:not([hidden])) :is(#v-overview,#v-graph){height:calc(100% - var(--lc-h,66px))}
+  .ovb{flex:1;min-height:0;display:flex;margin-top:14px}
+  .sub .key{display:inline-block;width:14px;height:14px;border-radius:4px;margin:0 8px 0 2px;vertical-align:-1px}
+  .sub .key+.key,.sub i.key:nth-of-type(2){margin-left:14px}
+  /* donut */
+  .dn-wrap{display:flex;align-items:center;gap:26px;width:100%;min-width:0}
+  .donut{width:176px;height:176px;flex:none;overflow:visible}
+  .donut .seg{fill:none;stroke-width:24;transition:stroke-dasharray .7s ease,stroke-dashoffset .7s ease}
+  .donut .track{fill:none;stroke:var(--s2);stroke-width:24}
+  .donut .tot{font:700 56px/1 var(--display);fill:var(--text)}
+  .donut .tl{font:600 16px var(--font);fill:var(--muted)}
+  .legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:18px;min-width:0;flex:1}
+  .legend li{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:12px;align-items:center;color:var(--muted);white-space:nowrap}
+  .legend li span{overflow:hidden;text-overflow:ellipsis}
+  .legend li i{width:14px;height:14px;border-radius:4px}
+  .legend li b{color:var(--text);font:700 24px/1.15 var(--display);text-align:right}
+  .legend li.zero{opacity:.4}
+  /* bars over time */
+  .bars{flex:1;display:flex;flex-direction:column;min-width:0}
+  .bars .plot{flex:1;min-height:0;display:flex;align-items:stretch;gap:12px;border-bottom:2px solid var(--rule)}
+  .bars .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-width:0}
+  .bars .val{text-align:center;font:700 24px/1 var(--display);margin-bottom:6px;color:var(--text)}
+  .bars .val.z{visibility:hidden}
+  .bars .bar{background:var(--c-bar);border-radius:8px 8px 2px 2px;height:0;transition:height .7s ease;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+  .bars .blk{background:var(--c-denied);height:0;transition:height .7s ease}
+  .bars .labels{display:flex;gap:12px;margin-top:8px}
+  .bars .labels span{flex:1;text-align:center;color:var(--faint);font-size:16px;white-space:nowrap;min-width:0}
+  /* tactics */
+  .tac{display:flex;flex-direction:column;gap:12px;width:100%}
+  .tac-row{display:grid;grid-template-columns:200px minmax(0,1fr) 44px;gap:14px;align-items:center;font-size:19px;color:var(--muted)}
+  .tac-row .trk{height:16px;border-radius:8px;background:var(--s2);overflow:hidden}
+  .tac-row .fil{height:100%;width:0;border-radius:8px;background:var(--c-tactic);transition:width .7s ease}
+  .tac-row b{font:700 26px/1 var(--display);color:var(--text);text-align:right}
+  .tac-row.zero b{color:var(--faint)}
+  .answered{margin-top:auto;padding-top:14px;border-top:1.5px solid var(--rule);display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  .answered .al{color:var(--muted);font-size:18px;font-weight:600;margin-right:4px}
+  .answered .ac{background:var(--s2);border-radius:999px;padding:4px 14px;font-size:18px;font-weight:600}
+  .answered .ac b{font:700 21px/1 var(--display);margin-left:6px}
+  .answered .none{color:var(--faint);font-size:18px}
+  /* recent attempts */
+  .rlist{list-style:none;margin:10px 0 0;padding:0;flex-direction:column;overflow:hidden}
+  .rr{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:18px;align-items:center;padding:7px 10px;border-top:1.5px solid var(--rule);border-radius:10px}
+  .rr:first-child{border-top-color:transparent}
+  .rr.new{animation:rrnew 2.4s ease}
+  @keyframes rrnew{0%,35%{background:rgba(255,196,37,.16)}100%{background:transparent}}
+  .rr time{font:700 22px/1 var(--display);color:var(--muted)}
+  .rr .l1{display:flex;align-items:baseline;gap:10px;font-size:21px;line-height:1.25;white-space:nowrap;overflow:hidden}
+  .rr .l1 b{font-weight:700}
+  .rr .l1 .rel,.rr .l1 .num{color:var(--muted);font-size:17px}
+  .rr .l2{display:flex;align-items:center;gap:10px;font-size:18px;line-height:1.3;color:var(--muted);white-space:nowrap;overflow:hidden;margin-top:2px}
+  .rr .want{color:var(--text);font-weight:600}
+  .rr .want.no{color:var(--faint);font-weight:500}
+  .rr .scam{border:1.5px solid var(--rule);border-radius:999px;padding:0 10px;font-size:15px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+  .tdots{display:inline-flex;gap:5px;flex:none}
+  .tdots i{width:11px;height:11px;border-radius:50%;background:var(--s3)}
+  .tdots i.on{background:var(--c-tactic)}
+  .rr .ro{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
+  .oc{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:3px 13px 3px 10px;font-size:17px;font-weight:700;
+      color:var(--oc);background:color-mix(in srgb,var(--oc) 17%,transparent)}
+  .oc::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--oc)}
+  .rr .how{color:var(--muted);font-size:15px;white-space:nowrap}
+
+  /* knowledge graph canvas */
+  #g-box{position:absolute;inset:0}
+  #g-svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .g-top{position:absolute;left:36px;right:36px;top:26px;display:flex;justify-content:space-between;align-items:baseline;gap:20px;pointer-events:none}
+  .g-sum{font:700 30px/1.1 var(--display)}
+  .g-sum span{color:var(--muted);font:500 20px var(--font);margin-left:12px}
+  .g-src{color:var(--faint);font-size:17px;font-weight:600}
+  .g-legend{position:absolute;left:36px;right:36px;bottom:22px;display:flex;flex-wrap:wrap;gap:8px 26px;color:var(--muted);font-size:17px;pointer-events:none}
+  .g-legend span{display:inline-flex;align-items:center;gap:9px}
+  .g-legend svg{width:20px;height:20px;overflow:visible}
+  .gn{cursor:pointer;transition:opacity .2s}
+  .gn text{paint-order:stroke;stroke:var(--s1);stroke-width:7px;stroke-linejoin:round;fill:var(--text);font-family:var(--font);font-weight:600;font-size:19px}
+  .gn.t-contact text{font:700 26px var(--display)}
+  .gn.t-owner text{font:800 34px var(--display)}
+  .gn.t-contact text.in{stroke:none;fill:var(--ink);font:800 24px var(--display)}
+  .gn.t-fact text{fill:var(--muted);font-weight:500}
+  .gn.t-attempt.blk text{fill:#FF9AA8}
+  .ge{fill:none;stroke:#34495E;stroke-width:2;transition:opacity .2s}
+  .ge.e-contact{stroke:#4A6178;stroke-width:3.5}
+  .ge.e-blk{stroke:var(--c-denied);stroke-dasharray:9 8;stroke-width:2.5}
+  .ge.e-ok{stroke:var(--c-ok);stroke-width:2.5}
+  .gel{font:600 16px var(--font);fill:var(--muted);paint-order:stroke;stroke:var(--s1);stroke-width:6px;stroke-linejoin:round;transition:opacity .2s}
+  #g-svg.focus .gn:not(.hl){opacity:.16}
+  #g-svg.focus .ge:not(.hl),#g-svg.focus .gel:not(.hl){opacity:.07}
+  .gn.sel circle.halo{stroke:var(--text);stroke-width:3}
+  #g-card{position:absolute;width:400px;background:var(--s2);border-radius:20px;padding:18px 22px 20px;pointer-events:none;
+          box-shadow:0 24px 48px -16px rgba(0,0,0,.75),inset 0 0 0 1.5px var(--rule)}
+  #g-card .gk{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:16px;font-weight:600}
+  #g-card .gk i{width:11px;height:11px;border-radius:50%}
+  #g-card .gt{font:700 28px/1.15 var(--display);margin:6px 0 6px}
+  #g-card .gd{color:var(--muted);font-size:18px;line-height:1.4;margin:0}
+  #g-card .gp{color:var(--faint);font-size:15px;margin-top:10px}
+
   /* Profile */
   #v-profile{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:24px;align-content:start}
   .me-card{display:flex;gap:28px;align-items:center}
@@ -170,6 +278,271 @@
   .vsteps li{display:flex;gap:16px;align-items:baseline;color:var(--muted)}
   .vsteps li::before{counter-increment:s;content:counter(s);flex:none;width:34px;height:34px;border-radius:50%;background:var(--s2);color:var(--text);
                      display:grid;place-items:center;font:700 19px/1 var(--display);transform:translateY(6px)}
+
+  /* === contacts, numbers, profile === */
+  .vhead{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:24px}
+  .vhead .lede{margin:0}
+  .ccards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start}
+  .cc{background:var(--s1);border-radius:var(--r-xl);padding:28px 32px 24px;display:flex;flex-direction:column;gap:20px;position:relative}
+  .cc.hot{box-shadow:inset 0 0 0 2px rgba(255,74,98,.35)}
+  .cc.fresh{box-shadow:inset 0 0 0 3px var(--c-ok)}
+  .cc-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:20px;align-items:center}
+  .cc-top .avatar{width:68px;height:68px;font-size:28px}
+  .cc-name{font:700 44px/1 var(--display);letter-spacing:-.005em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cc-rel{color:var(--muted);font-size:21px;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .risk{text-align:right;min-width:170px}
+  .risk .rn{font:700 46px/1 var(--display);color:var(--c-denied)}
+  .risk .rl{font-size:16px;color:var(--muted);font-weight:600;margin-top:2px}
+  .risk .bar{height:8px;border-radius:4px;background:var(--s3);margin-top:8px;overflow:hidden;display:flex}
+  .risk .bar b{background:var(--c-denied)} .risk .bar i{background:var(--c-ok)}
+  .risk.calm{color:var(--faint);font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px;justify-content:flex-end}
+  .risk.calm svg.i{color:var(--c-ok);font-size:22px}
+  .cc-meta{display:flex;flex-wrap:wrap;gap:10px}
+  .chip.num{color:var(--text);border-color:var(--s3);font-size:18px}
+  .chip.cw-yes{border-color:transparent;background:rgba(47,194,122,.15);color:var(--c-ok)}
+  .chip.cw-yes i{background:var(--c-ok)}
+  .chip.cw-no{border-color:rgba(255,138,61,.5);color:var(--c-unver)}
+  .chip.cw-no i{background:var(--c-unver)}
+  .chans-cap{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:17px;font-weight:600}
+  .saved{color:var(--c-ok);font-weight:700;opacity:0;transition:opacity .3s}
+  .saved.on{opacity:1}
+  .chans{list-style:none;margin:-8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .chans li{display:grid;grid-template-columns:34px 30px minmax(0,1fr) auto auto;gap:14px;align-items:center;background:var(--s2);
+            border-radius:var(--r-md);padding:10px 12px 10px 14px}
+  .chans li.off .ch-main{opacity:.45}
+  .pos{width:34px;height:34px;border-radius:50%;background:var(--s3);display:grid;place-items:center;font:700 19px/1 var(--display)}
+  .chans li.off .pos{background:transparent;box-shadow:inset 0 0 0 2px var(--s3);color:var(--faint)}
+  .ch-ic{width:30px;height:30px;color:var(--muted)}
+  .ch-main{min-width:0;line-height:1.2}
+  .ch-kind{font-weight:600;font-size:20px}
+  .ch-handle{color:var(--muted);font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ch-note{color:var(--faint);font-size:15px;font-weight:600}
+  .arrows{display:flex;gap:4px}
+  .arr{width:40px;height:40px;border-radius:10px;border:0;background:var(--s3);color:var(--text);cursor:pointer;display:grid;place-items:center}
+  .arr:hover:not([disabled]){background:var(--rule)}
+  .arr[disabled]{opacity:.25;cursor:default}
+  .arr svg.i{font-size:20px}
+  .sw{position:relative;width:62px;height:36px;border-radius:18px;border:0;background:var(--s3);cursor:pointer;flex:none;transition:background .2s}
+  .sw::after{content:"";position:absolute;top:4px;left:4px;width:28px;height:28px;border-radius:50%;background:var(--muted);transition:transform .2s,background .2s}
+  .sw[aria-checked="true"]{background:var(--c-ok)}
+  .sw[aria-checked="true"]::after{transform:translateX(26px);background:#fff}
+  .cc-foot{display:flex;align-items:center;gap:10px;border-top:1.5px solid var(--rule);padding-top:16px;min-height:62px}
+  .cc-foot .grow{flex:1;color:var(--muted);font-size:17px}
+  .cc-foot .ok{color:var(--c-ok);font-weight:600}
+  .btn-sm{font-size:18px;padding:9px 18px}
+  .btn-danger{background:var(--c-denied);color:#fff}
+  .add-tile{min-height:260px;width:100%}
+  .cc-empty{color:var(--faint);font-size:18px}
+
+  dialog.sheet{border:0;padding:0;border-radius:var(--r-xl);background:var(--s1);color:var(--text);width:min(980px,94vw);max-height:92vh;
+               box-shadow:0 60px 120px -40px rgba(0,0,0,.9)}
+  dialog.sheet::backdrop{background:rgba(8,14,20,.72)}
+  .sheet form{padding:36px 44px 32px;display:flex;flex-direction:column;gap:22px}
+  .sheet h2{font:700 44px/1 var(--display);margin:0}
+  .frow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+  .fld{display:flex;flex-direction:column;gap:8px;font-size:18px;font-weight:600;color:var(--muted)}
+  .fld small{font-weight:500;color:var(--faint);font-size:16px}
+  .inp{font:500 21px/1.3 var(--font);color:var(--text);background:var(--bg);border:2px solid var(--rule);border-radius:12px;padding:12px 16px;width:100%}
+  .inp:focus{border-color:var(--c-check);outline:none}
+  .fchans{display:flex;flex-direction:column;gap:10px}
+  .fchan{display:grid;grid-template-columns:30px 150px minmax(0,1fr) auto;gap:16px;align-items:center}
+  .fchan .ch-kind{font-size:19px}
+  .ferr{color:var(--c-denied);font-weight:600;margin:0}
+  .factions{display:flex;gap:14px;justify-content:flex-end;align-items:center}
+
+  /* My numbers */
+  #v-numbers.v2{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:start}
+  .ghero{background:linear-gradient(150deg,rgba(43,74,110,.9),rgba(43,74,110,.35)) var(--s1);display:flex;flex-direction:column;gap:6px}
+  .ghero .kick{font-size:22px;font-weight:600;color:#C9D6E3}
+  .ghero .big{font:700 84px/1 var(--display);letter-spacing:-.005em;margin:10px 0 14px;color:#fff;white-space:nowrap}
+  .ghero p{color:#C9D6E3;margin:0;max-width:44ch}
+  .owner-row{display:flex;gap:12px;align-items:center;margin-top:16px}
+  .owner-row .inp{max-width:280px}
+  .nrows{list-style:none;padding:0;margin:20px 0 0;display:flex;flex-direction:column;gap:12px}
+  .nrows li{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:18px;align-items:center;background:var(--s2);border-radius:var(--r-lg);padding:16px 18px 16px 24px}
+  .nrows .lbl{color:var(--muted);font-size:18px;font-weight:600}
+  .nrows .num{font:700 38px/1.1 var(--display);letter-spacing:.01em;white-space:nowrap}
+  .nrows .pt{font-size:17px;font-weight:600;color:var(--muted);min-width:118px;text-align:right}
+  .nrows li.off .num{color:var(--faint)}
+  .xbtn{width:44px;height:44px;border-radius:12px;border:0;background:transparent;color:var(--faint);cursor:pointer;display:grid;place-items:center}
+  .xbtn:hover{background:var(--s3);color:var(--text)}
+  .xbtn svg.i{font-size:22px}
+  .nadd{display:grid;grid-template-columns:200px minmax(0,1fr) auto;gap:12px;margin-top:16px}
+
+  /* Profile and identity check */
+  .vflow{list-style:none;padding:0;margin:24px 0 28px;display:flex;flex-direction:column;gap:14px}
+  .vflow li{display:flex;gap:16px;align-items:center;font-size:22px;color:var(--faint);transition:color .3s}
+  .vflow .dot{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;box-shadow:inset 0 0 0 2px var(--s3);transition:all .3s}
+  .vflow .dot svg.i{font-size:22px;opacity:0}
+  .vflow li.now{color:var(--text)} .vflow li.now .dot{box-shadow:inset 0 0 0 3px var(--c-check);animation:mg-breathe 1s ease-in-out infinite}
+  .vflow li.done{color:var(--text)} .vflow li.done .dot{background:var(--c-ok);box-shadow:none;color:#fff}
+  .vflow li.done .dot svg.i{opacity:1}
+  @keyframes mg-breathe{50%{opacity:.5}}
+  .demo-tag{display:inline-flex;font-size:15px;font-weight:700;padding:3px 12px;border-radius:999px;background:rgba(255,196,37,.16);color:var(--c-check);margin-left:12px;vertical-align:6px;font-family:var(--font)}
+  .vbtns{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .vok{display:flex;align-items:center;gap:22px;margin-top:22px}
+  .vok .seal{width:84px;height:84px;border-radius:50%;background:var(--c-ok);display:grid;place-items:center;color:#fff;flex:none}
+  .vok .seal svg.i{font-size:44px;stroke-width:2.6}
+  .vok b{display:block;font:700 34px/1.1 var(--display)}
+  .vok span{color:var(--muted)}
+  .badge.flip{animation:mg-flip .7s cubic-bezier(.2,.8,.2,1)}
+  @keyframes mg-flip{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.15);opacity:1}100%{transform:scale(1)}}
+  #signup{position:fixed;inset:0;z-index:20;background:rgba(8,14,20,.72);display:grid;place-items:center}
+  #signup .card{width:min(820px,92vw);padding:44px 48px;box-shadow:0 60px 120px -40px rgba(0,0,0,.9),inset 0 0 0 2px rgba(255,196,37,.4)}
+  #signup h2{font:700 56px/1 var(--display);margin:6px 0 14px}
+  #signup .kick{color:var(--c-check);font-weight:700;font-size:19px}
+  #signup p{color:var(--muted);margin:0 0 30px;font-size:23px;max-width:46ch}
+
+  /* === live call === */
+  #v-live{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(0,1fr) 310px;grid-template-rows:auto minmax(0,1fr);gap:24px}
+  .lc-st-screen{--lc-c:var(--c-screen);--lc-on:#fff}
+  .lc-st-check{--lc-c:var(--c-check);--lc-on:var(--ink)}
+  .lc-st-denied{--lc-c:var(--c-denied);--lc-on:#fff}
+  .lc-st-ok{--lc-c:var(--c-ok);--lc-on:var(--ink)}
+  .lc-st-known{--lc-c:var(--c-known);--lc-on:var(--ink)}
+  .lc-st-expected{--lc-c:var(--c-expected);--lc-on:#fff}
+  .lc-st-unver{--lc-c:var(--c-unver);--lc-on:var(--ink)}
+  .lc-st-agent{--lc-c:#8C9CF0;--lc-on:var(--ink)}
+  .lc-hero{grid-column:1/3;position:relative;overflow:hidden;border-radius:var(--r-xl);height:236px;padding:24px 36px 28px;
+           display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr) auto;gap:0 36px;
+           background:var(--s1);color:var(--text);transition:background-color .45s ease,color .45s ease,box-shadow .45s ease}
+  .lc-hero.lc-live{background:var(--lc-c);color:var(--lc-on)}
+  .lc-hero.lc-last{box-shadow:inset 0 0 0 3px var(--lc-c)}
+  .lc-hero.lc-idle{background:radial-gradient(700px 260px at 0% 100%,rgba(43,74,110,.55),transparent 70%),var(--s1)}
+  .lc-top{grid-column:1;display:flex;align-items:center;gap:12px;font-size:21px;font-weight:600;opacity:.9;min-width:0;white-space:nowrap}
+  .lc-word{grid-column:1;align-self:end;font:800 104px/.95 var(--display);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-idle .lc-word{font-size:84px;color:var(--muted)}
+  .lc-last .lc-word{color:var(--lc-c)}
+  .lc-why{grid-column:1;margin:10px 0 0;font-size:25px;font-weight:600;line-height:1.25;max-width:64ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-idle .lc-why,.lc-last .lc-why{color:var(--muted)}
+  .lc-side{grid-column:2;grid-row:1/4;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;text-align:right;gap:12px}
+  .lc-secs{font:700 80px/1 var(--display);letter-spacing:-.01em}
+  .lc-cap{font-size:19px;font-weight:600;opacity:.85;margin-top:4px}
+  .lc-chans{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;max-width:420px}
+  .lc-chans .chip{border-color:currentColor;color:inherit;opacity:.9}
+  .lc-chans .chip.on{background:var(--lc-on);color:var(--lc-c);border-color:transparent;opacity:1}
+  .lc-try{display:flex;flex-direction:column;align-items:flex-end;gap:10px;color:var(--faint);font-size:17px;font-weight:600}
+  .lc-try div{display:flex;gap:10px}
+  .lc-try .btn{font-size:17px;padding:8px 16px;color:var(--muted)}
+  .lc-try .btn:hover{color:var(--text)}
+  .lc-bar{position:absolute;left:0;right:0;bottom:0;height:8px}
+  .lc-bar i{display:block;height:100%;width:0;background:currentColor;opacity:.4;transition:width .25s linear}
+  .lc-onair{width:13px;height:13px;border-radius:50%;background:var(--faint);flex:none}
+  .lc-onair.on{background:var(--c-denied);animation:lc-breathe 1.6s ease-in-out infinite}
+  .lc-live .lc-onair.on{background:currentColor}
+  @keyframes lc-breathe{50%{opacity:.3}}
+  .lc-stamp{animation:lc-stamp .5s cubic-bezier(.2,.8,.2,1)}
+  @keyframes lc-stamp{0%{opacity:0;transform:scale(1.06)}60%{opacity:1}100%{transform:none}}
+
+  .lc-talk{grid-column:1;grid-row:2;display:flex;flex-direction:column;padding:24px 32px 26px}
+  .lc-h{display:flex;align-items:center;gap:14px}
+  .lc-h h3{margin:0}
+  .lc-h-note{margin-left:auto;color:var(--faint);font-size:17px;font-weight:600}
+  .lc-convo{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:16px;padding:18px 2px 2px;
+            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 64px);mask-image:linear-gradient(to bottom,transparent 0,#000 64px)}
+  .lc-convo::-webkit-scrollbar{display:none}
+  .lc-convo>:first-child{margin-top:auto}
+  .lc-turn{flex:none;max-width:90%;animation:lc-in .3s ease}
+  @keyframes lc-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .lc-who{display:block;font-size:18px;font-weight:700;color:var(--muted);margin:0 0 2px}
+  .lc-turn.cont{margin-top:-8px}
+  .lc-turn.cont .lc-who{display:none}
+  .lc-said{margin:0;font:600 33px/1.28 var(--font);color:var(--text);overflow-wrap:anywhere}
+  .lc-turn.agent{align-self:flex-end;background:var(--s2);border-radius:22px 22px 6px 22px;padding:12px 22px 15px}
+  .lc-turn.agent .lc-who{color:#8FB4E8}
+  .lc-turn.agent .lc-said{font-size:28px;font-weight:500;color:#C9D6E3}
+  .lc-turn.live .lc-said{color:var(--muted)}
+  .lc-turn.live .lc-said::after{content:"";display:inline-block;width:3px;height:.95em;margin-left:6px;vertical-align:-.12em;border-radius:2px;
+                                background:currentColor;animation:lc-breathe 1.1s ease-in-out infinite}
+  .lc-mask{display:inline-block;border-radius:8px;padding:0 .35em;font-size:.78em;line-height:1.35;vertical-align:.1em;
+           background:rgba(255,196,37,.16);color:var(--c-check);box-shadow:inset 0 0 0 1.5px rgba(255,196,37,.45)}
+
+  .lc-facts{grid-column:2;grid-row:2;display:flex;flex-direction:column;padding:24px 28px 18px}
+  .lc-rows{margin:8px 0 0;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+  .lc-f{flex:none;display:flex;flex-direction:column;gap:3px;border-top:1.5px solid var(--rule);padding:8px 0 7px}
+  .lc-inl{font:600 17px/1 var(--font);color:var(--muted);margin-left:12px;letter-spacing:0}
+  .lc-last .lc-secs{font-size:56px}
+  .lc-f:first-child{border-top:0}
+  .lc-f dt{font-size:16px;font-weight:600;color:var(--muted)}
+  .lc-f dd{margin:0;min-width:0}
+  .lc-v{font:700 30px/1.1 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc-n{font-size:17px;color:var(--muted);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .lc-f.wait .lc-v{font:600 20px/1.3 var(--font);color:var(--faint)}
+  .lc-f.fresh{animation:lc-fresh 1.6s ease}
+  @keyframes lc-fresh{from{background:rgba(255,196,37,.12)}to{background:transparent}}
+  .lc-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+  .lc-tags .chip{font-size:15px;padding:2px 11px 2px 9px}
+  .lc-tags .chip.lc-red{border-color:transparent;background:rgba(255,74,98,.2);color:#fff}
+  .lc-tags .chip.lc-red i{background:var(--c-denied)}
+  .lc-tags .chip.lc-pop{animation:lc-pop .45s ease}
+  @keyframes lc-pop{40%{transform:scale(1.1)}}
+  .lc-tags .chip.lc-warn{border-color:rgba(255,138,61,.55);color:var(--c-unver)}
+  .lc-tags .chip.lc-warn i{background:var(--c-unver)}
+  .lc-n.lc-scam{color:var(--c-denied);font-weight:700;display:block;white-space:nowrap;text-overflow:ellipsis;margin-top:6px}
+  .lc-q{color:var(--text);font-size:19px;font-weight:600;margin-bottom:6px}
+
+  .lc-tl{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;padding:24px 22px 22px 26px}
+  .lc-steps{list-style:none;margin:14px 0 0;padding:0;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
+            -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 60px);mask-image:linear-gradient(to bottom,transparent 0,#000 60px)}
+  .lc-steps li{flex:none;display:grid;grid-template-columns:16px minmax(0,1fr);gap:0 14px;padding:0 0 14px;position:relative;animation:lc-in .3s ease}
+  .lc-steps li::before{content:"";position:absolute;left:7px;top:20px;bottom:-2px;width:2px;background:var(--rule)}
+  .lc-steps li:last-child{padding-bottom:0}
+  .lc-steps li:last-child::before{display:none}
+  .lc-steps .d{width:16px;height:16px;border-radius:50%;margin-top:5px;background:var(--k,var(--faint));box-shadow:0 0 0 4px var(--s1)}
+  .lc-steps .t{display:block;font-size:15px;font-weight:600;color:var(--faint)}
+  .lc-steps .x{font-size:18px;line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .lc-steps li:last-child .x{font-weight:600}
+  #lc-tl-empty,#lc-talk-empty{flex:1}
+
+  #nav a .lc-dot{display:none;position:absolute;right:16px;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:var(--c-denied);
+                 box-shadow:0 0 0 0 rgba(255,74,98,.6);animation:lc-ring 1.6s ease-out infinite}
+  #nav a.lc-on .lc-dot{display:block}
+  @keyframes lc-ring{70%{box-shadow:0 0 0 10px rgba(255,74,98,0)}100%{box-shadow:0 0 0 0 rgba(255,74,98,0)}}
+  #lc-banner{display:flex;align-items:center;gap:14px;margin:0 0 16px;padding:10px 22px;border-radius:999px;text-decoration:none;color:var(--text);
+             font-size:20px;font-weight:600;background:rgba(255,74,98,.14);box-shadow:inset 0 0 0 2px rgba(255,74,98,.45)}
+  #lc-banner:hover{background:rgba(255,74,98,.22)}
+  #lc-banner .lc-onair{background:var(--c-denied);animation:lc-breathe 1.6s ease-in-out infinite}
+  #lc-banner u{text-decoration:none;color:var(--c-denied);margin-left:auto}
+  @media (max-width:1100px){
+    #v-live{grid-template-columns:1fr;grid-template-rows:auto;height:auto}
+    .lc-hero,.lc-talk,.lc-facts,.lc-tl{grid-column:1;grid-row:auto}
+    .lc-hero{height:auto}.lc-word{font-size:64px}.lc-why{white-space:normal}
+    .lc-talk,.lc-tl{min-height:420px}
+  }
+
+  /* === expected calls === */
+  #v-expected .vhead{align-items:center;margin-bottom:20px}
+  .xrule{max-width:74ch;flex:1}
+  .xrule b{color:var(--text);font-weight:600}
+  .xpassed{display:inline-flex;align-items:center;gap:10px;font-size:18px;font-weight:600;color:var(--c-expected);flex:none;max-width:250px;line-height:1.25;
+           background:rgba(91,155,235,.14);border-radius:18px;padding:8px 16px 8px 14px}
+  .xpassed::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--c-expected);flex:none}
+  .xlist{display:flex;flex-direction:column;gap:12px}
+  .xr{background:var(--s1);border-radius:var(--r-xl);padding:14px 26px 14px 16px;display:grid;
+      grid-template-columns:110px minmax(0,1.5fr) minmax(0,1fr) auto;gap:22px;align-items:center;transition:opacity .25s}
+  .xr.fresh{box-shadow:inset 0 0 0 3px var(--c-ok)}
+  .xr.off{opacity:.5}
+  .xk{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--c-expected);font-size:15px;font-weight:700}
+  .xk .tile{width:56px;height:56px;border-radius:16px;background:rgba(91,155,235,.15);display:grid;place-items:center}
+  .xk .tile svg.i{font-size:32px}
+  .xr.off .xk{color:var(--faint)} .xr.off .xk .tile{background:var(--s2)}
+  .xwho{font:700 31px/1.08 var(--display);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .xnote{color:var(--muted);font-size:19px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xok{color:var(--c-ok);font-size:18px;font-weight:600;margin-top:6px}
+  .xkw{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .xkw .lab{width:100%;font-size:15px;font-weight:600;color:var(--faint)}
+  .chip.kw{color:var(--text);border-color:transparent;background:var(--s3);font-size:18px;padding:4px 14px}
+  .xact{display:flex;align-items:center;gap:14px}
+  .xst{font-size:17px;font-weight:600;color:var(--muted);min-width:76px;text-align:right}
+  .xbuilt{width:44px}
+  .xempty{padding:40px 44px}
+  .xkinds{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .xkind{display:flex;flex-direction:column;align-items:center;gap:10px;padding:22px 12px;border-radius:var(--r-lg);border:0;cursor:pointer;
+         background:var(--bg);box-shadow:inset 0 0 0 2px var(--rule);color:var(--muted);font-size:21px;font-weight:600}
+  .xkind svg.i{font-size:44px}
+  .xkind:hover{color:var(--text)}
+  .xkind[aria-checked="true"]{box-shadow:inset 0 0 0 3px var(--c-expected);background:rgba(91,155,235,.12);color:var(--text)}
+  .xkind[aria-checked="true"] svg.i{color:var(--c-expected)}
 
   /* Status line for failed requests */
   #status{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--s3);color:var(--text);border-radius:999px;
@@ -245,7 +618,9 @@
     <div class="mark"><svg class="shield" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield" fill="var(--c-check)" stroke="none"/><path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="#14202B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>My Guard</div>
     <nav id="nav" aria-label="Sections">
       <a href="#overview" data-view="overview"><svg class="i" aria-hidden="true"><use href="#i-overview"/></svg><span>Overview</span></a>
+      <a href="#live" data-view="live"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h1.5M7 8.5v7M11 5v14M15 8v8M19 10.5v3M21.5 12H21"/></svg><span>Live call</span><i class="lc-dot" aria-hidden="true"></i></a>
       <a href="#contacts" data-view="contacts"><svg class="i" aria-hidden="true"><use href="#i-people"/></svg><span>Trusted contacts</span></a>
+      <a href="#expected" data-view="expected"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5Z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg><span>Expected calls</span></a>
       <a href="#numbers" data-view="numbers"><svg class="i" aria-hidden="true"><use href="#i-phone"/></svg><span>My numbers</span></a>
       <a href="#graph" data-view="graph"><svg class="i" aria-hidden="true"><use href="#i-graph"/></svg><span>Knowledge graph</span></a>
       <a href="#profile" data-view="profile"><svg class="i" aria-hidden="true"><use href="#i-id"/></svg><span>Profile</span></a>
@@ -271,45 +646,157 @@
         <div class="stat"><span class="n" id="h-secs">–</span><span class="l">typical time to decide</span></div>
       </div>
       <div class="card ov-a"><h3>How calls ended</h3><p class="sub">Blocked, confirmed, unverified, expected.</p>
-        <div class="empty"><b>No calls yet.</b>Each screened call adds to this chart.</div></div>
-      <div class="card ov-b"><h3>Attempts over time</h3><p class="sub">Calls screened and blocked, oldest on the left.</p>
-        <div class="empty"><b>Nothing to plot yet.</b>The timeline fills in as calls come in.</div></div>
+        <div class="empty" id="ov-a-empty"><b>No calls yet.</b>Each screened call adds to this chart.</div>
+        <div class="ovb" id="ov-a-body" hidden></div></div>
+      <div class="card ov-b"><h3>Attempts over time</h3><p class="sub"><i class="key" style="background:var(--c-bar)"></i>Calls screened <i class="key" style="background:var(--c-denied)"></i>blocked, oldest on the left</p>
+        <div class="empty" id="ov-b-empty"><b>Nothing to plot yet.</b>The timeline fills in as calls come in.</div>
+        <div class="ovb" id="ov-b-body" hidden></div></div>
       <div class="card ov-c"><h3>Recent attempts</h3><p class="sub">Who they claimed to be, what they wanted, what happened.</p>
-        <div class="empty"><b>No attempts so far.</b>When someone pretends to be one of your people, it shows up here.</div></div>
+        <div class="empty" id="ov-c-empty"><b>No attempts so far.</b>When someone pretends to be one of your people, it shows up here.</div>
+        <ol class="ovb rlist" id="ov-c-body" hidden></ol></div>
       <div class="card ov-d"><h3>Pressure tactics</h3><p class="sub">Money, urgency, secrecy, a claimed relationship.</p>
-        <div class="empty"><b>None seen yet.</b>The guard notes every push it hears on a call.</div></div>
+        <div class="empty" id="ov-d-empty"><b>None seen yet.</b>The guard notes every push it hears on a call.</div>
+        <div class="ovb" id="ov-d-body" hidden></div></div>
+    </section>
+
+    <!-- Live call -->
+    <section class="view" id="v-live" data-title="Live call" hidden>
+      <div class="lc-hero" id="lc-hero" aria-live="polite">
+        <div class="lc-top" id="lc-top"></div>
+        <div class="lc-word" id="lc-word">Waiting for a call</div>
+        <p class="lc-why" id="lc-why"></p>
+        <div class="lc-side">
+          <div class="lc-clock" id="lc-clock"><div class="lc-secs" id="lc-secs"></div><div class="lc-cap" id="lc-cap"></div></div>
+          <div class="lc-chans" id="lc-chans"></div>
+          <div class="lc-try" id="lc-try" hidden>
+            <span>Play a test call</span>
+            <div><button class="btn btn-ghost btn-sm" type="button" data-test="scam">Scam, answered No</button><button class="btn btn-ghost btn-sm" type="button" data-test="real">Real, answered Yes</button></div>
+          </div>
+        </div>
+        <div class="lc-bar"><i id="lc-bar"></i></div>
+      </div>
+      <div class="card lc-talk">
+        <div class="lc-h"><span class="lc-onair" id="lc-onair" aria-hidden="true"></span><h3>Live transcript</h3><span class="lc-h-note" id="lc-talk-note"></span></div>
+        <div class="lc-convo" id="lc-convo"></div>
+        <div class="empty" id="lc-talk-empty"><b>Nobody on the line.</b>When a call comes in, every word the caller and the guard say appears here as it is spoken.</div>
+      </div>
+      <div class="card lc-facts">
+        <h3>What the guard sees</h3>
+        <dl class="lc-rows">
+          <div class="lc-f" id="lc-f-num"><dt>Calling from</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-who"><dt>Says they are</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-ask"><dt>Asks for</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-press"><dt>Pressure</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-ping"><dt>Question sent</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-dec"><dt>Decision</dt><dd></dd></div>
+        </dl>
+      </div>
+      <div class="card lc-tl">
+        <h3>Step by step</h3>
+        <ol class="lc-steps" id="lc-steps"></ol>
+        <div class="empty" id="lc-tl-empty">Each step the guard takes lands here, in order.</div>
+      </div>
     </section>
 
     <!-- Trusted contacts -->
     <section class="view" id="v-contacts" data-title="Trusted contacts" hidden>
-      <p class="lede">The people a caller might pretend to be. For each one, the guard knows their numbers and where to ask them "Is this you?", in your order.</p>
-      <div class="grid-cards">
-        <button class="add-card" type="button" id="add-contact"><span class="plus"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></span><b>Add someone you trust</b>Name, numbers, and how to reach them.</button>
-        <div class="ghost-card" aria-hidden="true"><div class="avatar" style="opacity:.5"></div><div style="height:22px"></div><div class="ghost-line" style="width:60%"></div><div class="ghost-line" style="width:40%"></div><div style="height:30px"></div><div class="ghost-line" style="width:80%"></div><div class="ghost-line" style="width:70%"></div><div class="ghost-line" style="width:75%"></div></div>
-        <div class="ghost-card" aria-hidden="true" style="opacity:.3"><div class="avatar" style="opacity:.5"></div><div style="height:22px"></div><div class="ghost-line" style="width:55%"></div><div class="ghost-line" style="width:35%"></div><div style="height:30px"></div><div class="ghost-line" style="width:80%"></div><div class="ghost-line" style="width:65%"></div></div>
+      <div class="vhead">
+        <p class="lede">The people a caller might pretend to be. When someone claims to be one of them, the guard asks the real person "Is this you?" on these apps, top to bottom.</p>
+        <button class="btn btn-solid" type="button" id="add-contact-top"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Add someone</button>
       </div>
+      <div class="ccards" id="ccards">
+        <button class="add-card add-tile" type="button" id="add-contact"><span class="plus"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></span><b>Add someone you trust</b>Name, numbers, and how to reach them.</button>
+      </div>
+      <dialog class="sheet" id="cform-dlg" aria-labelledby="cf-title">
+        <form id="cform" method="dialog" novalidate>
+          <h2 id="cf-title">Add someone you trust</h2>
+          <div class="frow">
+            <label class="fld">Name<input class="inp" id="cf-name" autocomplete="off" required></label>
+            <label class="fld">Relationship<input class="inp" id="cf-rel" autocomplete="off" placeholder="daughter, neighbour, doctor"></label>
+          </div>
+          <div class="frow">
+            <label class="fld">Also called<input class="inp" id="cf-nick" autocomplete="off" placeholder="Nicknames, separated by commas"></label>
+            <label class="fld">Their phone numbers<input class="inp" id="cf-nums" autocomplete="off" placeholder="+1 555 010 0000, separated by commas"></label>
+          </div>
+          <label class="fld">Family code word <small id="cf-code-hint">Asked when they can't answer in time. It is never shown again, not even to you.</small>
+            <input class="inp" id="cf-code" type="password" autocomplete="new-password"></label>
+          <div class="fld">Where to ask them, in this order <small>Leave an app empty to skip it. Turn one off to keep it but not use it.</small>
+            <div class="fchans" id="cf-chans"></div>
+          </div>
+          <p class="ferr" id="cf-err" hidden></p>
+          <div class="factions">
+            <button class="btn btn-ghost" type="button" id="cf-cancel">Cancel</button>
+            <button class="btn btn-solid" type="submit" id="cf-save">Add contact</button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+
+    <!-- Expected calls -->
+    <section class="view" id="v-expected" data-title="Expected calls" hidden>
+      <div class="vhead">
+        <p class="lede xrule">When a caller mentions something you're expecting, like your desk lamp delivery, the guard puts them through without asking anyone. <b>Never when they ask for money:</b> a "delivery fee" call is still stopped.</p>
+        <span class="xpassed" id="x-passed" hidden></span>
+        <button class="btn btn-solid" type="button" id="x-add" style="flex:none"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Expect a call</button>
+      </div>
+      <div class="xlist" id="x-list">
+        <div class="card xempty"><h3>Nothing expected right now</h3><p class="sub">Tell the guard about a delivery, a callback or an appointment, and that caller gets through without a question.</p></div>
+      </div>
+      <dialog class="sheet" id="xform-dlg" aria-labelledby="xf-title">
+        <form id="xform" method="dialog" novalidate>
+          <h2 id="xf-title">Expect a call</h2>
+          <div class="xkinds" id="xf-kinds" role="radiogroup" aria-label="What kind of call"></div>
+          <label class="fld">Who will call<input class="inp" id="xf-who" autocomplete="off" placeholder="Courier for the coffee order"></label>
+          <label class="fld">Words the caller will say <small>Separate with commas. The guard listens for at least one of them.</small>
+            <input class="inp" id="xf-words" autocomplete="off" placeholder="coffee, beans"></label>
+          <label class="fld">Note for you <small>Optional</small><input class="inp" id="xf-note" autocomplete="off" placeholder="Delivery for your coffee order."></label>
+          <p class="ferr" id="xf-err" hidden></p>
+          <div class="factions">
+            <button class="btn btn-ghost" type="button" id="xf-cancel">Cancel</button>
+            <button class="btn btn-solid" type="submit" id="xf-save">Expect this call</button>
+          </div>
+        </form>
+      </dialog>
     </section>
 
     <!-- My numbers -->
-    <section class="view" id="v-numbers" data-title="My numbers" hidden>
-      <div class="card">
-        <h3>Numbers the guard protects</h3>
-        <p class="sub">Calls from unknown numbers to these lines go to the guard first.</p>
-        <ul class="num-list" id="num-list"></ul>
-        <div class="empty" id="num-empty" style="margin-top:22px"><b>No numbers yet.</b>Add the phone lines you want screened.</div>
+    <section class="view v2" id="v-numbers" data-title="My numbers" hidden>
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <div class="card ghero">
+          <span class="kick">Forward your calls here</span>
+          <div class="big" id="guard-num">–</div>
+          <p>Set your phone to forward calls from numbers it doesn't know to this line. The guard answers, checks who is really calling, and puts the real ones through to you.</p>
+          <div class="flow"><span>Unknown caller</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span>Guard</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span id="flow-owner">You</span></div>
+        </div>
+        <div class="card">
+          <h3>Who the guard answers for</h3>
+          <p class="sub">The name the guard uses on calls: "Hello, this is <span id="owner-say">Mum</span>'s assistant."</p>
+          <form class="owner-row" id="owner-form"><input class="inp" id="owner-in" aria-label="Name the guard uses" autocomplete="off"><button class="btn btn-ghost btn-sm" type="submit">Save name</button><span class="saved" id="owner-saved">Saved</span></form>
+        </div>
       </div>
       <div class="card">
-        <h3>The guard's line</h3>
-        <p class="sub">Forward unknown callers here. The guard answers for you.</p>
-        <div class="guardnum" id="guard-num">–</div>
-        <div class="flow"><span>Unknown caller</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span>Guard</span><svg class="i" aria-hidden="true"><use href="#i-arrow"/></svg><span id="flow-owner">You</span></div>
+        <div class="chans-cap" style="justify-content:space-between"><h3 style="margin:0">Numbers the guard protects</h3><span class="saved" id="num-saved">Saved</span></div>
+        <p class="sub">Calls to these lines from unknown numbers go to the guard first.</p>
+        <ul class="nrows" id="num-list"></ul>
+        <div class="empty" id="num-empty" style="margin-top:22px" hidden><b>No numbers yet.</b>Add the phone lines you want screened.</div>
+        <form class="nadd" id="num-add">
+          <input class="inp" id="na-label" placeholder="Label, e.g. Mobile" autocomplete="off" aria-label="Label">
+          <input class="inp" id="na-number" placeholder="+1 555 010 0000" autocomplete="off" aria-label="Phone number">
+          <button class="btn btn-solid btn-sm" type="submit"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Add a number</button>
+        </form>
       </div>
     </section>
 
     <!-- Knowledge graph -->
     <section class="view" id="v-graph" data-title="Knowledge graph" hidden>
       <div class="card">
-        <div class="graph-empty" aria-hidden="true">
+        <div id="g-box" hidden>
+          <svg id="g-svg" role="img" aria-label="Knowledge graph"></svg>
+          <div class="g-top"><div class="g-sum" id="g-sum"></div><div class="g-src" id="g-src"></div></div>
+          <div class="g-legend" id="g-legend"></div>
+          <div id="g-card" hidden></div>
+        </div>
+        <div class="graph-empty" id="g-empty" aria-hidden="true">
           <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
             <g fill="none" stroke="#2C3F52" stroke-width="2">
               <circle cx="800" cy="430" r="150" stroke-dasharray="4 10"/><circle cx="800" cy="430" r="290" stroke-dasharray="4 10"/><circle cx="800" cy="430" r="420" stroke-dasharray="4 10" opacity=".6"/>
@@ -319,7 +806,7 @@
             <circle cx="800" cy="430" r="58" fill="#FFC425"/>
           </svg>
         </div>
-        <div class="graph-cap"><h3>Everything the guard knows, in one picture</h3><p class="sub">You in the middle, the people you trust around you, their numbers and apps, calls you expect, and every attempt pinned to the person it pretended to be.</p></div>
+        <div class="graph-cap" id="g-cap"><h3>Everything the guard knows, in one picture</h3><p class="sub">You in the middle, the people you trust around you, their numbers and apps, calls you expect, and every attempt pinned to the person it pretended to be. <a href="#contacts">Add someone you trust</a> to start it.</p></div>
       </div>
     </section>
 
@@ -327,28 +814,27 @@
     <section class="view" id="v-profile" data-title="Profile" hidden>
       <div class="card">
         <div class="me-card"><span class="avatar big" id="p-avatar"></span><div><div class="nm" id="p-name"></div><div class="em" id="p-email"></div></div></div>
-        <dl class="facts"><dt>Identity</dt><dd id="p-verified">Not verified yet</dd><dt>Protects</dt><dd id="p-owner">–</dd></dl>
+        <dl class="facts"><dt>Identity</dt><dd id="p-verified">Not verified yet</dd><dt>Signed in with</dt><dd id="p-via">–</dd><dt>Protects</dt><dd id="p-owner">–</dd></dl>
       </div>
-      <div class="card" id="verify-card" tabindex="-1">
-        <h3 id="v-head">Verify it's you</h3>
-        <p class="sub" id="v-sub">A one-time identity check, so nobody else can change who your guard trusts.</p>
-        <ol class="vsteps" id="v-steps">
-          <li>Open the identity check in a new tab.</li>
-          <li>Show a photo ID and take a quick selfie.</li>
-          <li>Come back here: your profile shows Verified.</li>
-        </ol>
-        <button class="btn btn-solid" id="verify-btn" type="button" disabled>The identity check opens here</button>
-      </div>
+      <div class="card" id="verify-card" tabindex="-1"></div>
     </section>
   </main>
 </div>
 
 <div id="status" role="status" hidden><i></i><span id="status-text"></span></div>
+<div id="signup" role="dialog" aria-modal="true" aria-labelledby="su-title" hidden>
+  <div class="card">
+    <span class="kick">One step left</span>
+    <h2 id="su-title">Verify it's you</h2>
+    <p>A one-time identity check with a photo ID and a selfie. It makes sure nobody else can change who your guard trusts.</p>
+    <div class="vbtns"><button class="btn btn-solid" type="button" id="su-go">Verify now</button><button class="btn btn-ghost" type="button" id="su-later">Later</button></div>
+  </div>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
-const VIEWS = ["overview", "contacts", "numbers", "graph", "profile"];
+const VIEWS = ["overview", "live", "contacts", "expected", "numbers", "graph", "profile"];
 let CONFIG = {}, ME = null;
 
 // ---------- requests ----------
@@ -446,6 +932,7 @@ function signedIn(me) {
   $("signin").hidden = true; $("app").hidden = false;
   route();
   loadData();
+  afterSignIn();
 }
 function renderMe() {
   const me = ME;
@@ -453,22 +940,7 @@ function renderMe() {
   avatar($("avatar"), me); avatar($("p-avatar"), me);
   $("p-name").textContent = me.name || "";
   $("p-email").textContent = me.email || "";
-  const b = $("badge");
-  if (me.verified) {
-    b.outerHTML = `<span class="badge ok" id="badge">${ICON("i-shield-check")}Verified</span>`;
-    $("p-verified").textContent = me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)";
-    $("verify-card").classList.add("done");
-    $("v-head").textContent = "You're verified";
-    $("v-sub").textContent = "Your identity was checked once. Nothing more to do here.";
-    $("v-steps").hidden = true; $("verify-btn").hidden = true;
-  } else {
-    b.outerHTML = `<button class="badge todo" id="badge" type="button">${ICON("i-alert")}Not verified yet</button>`;
-    $("badge").onclick = () => {
-      location.hash = "#profile";
-      const c = $("verify-card"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); c.focus({preventScroll: true});
-    };
-    $("p-verified").textContent = "Not verified yet";
-  }
+  renderBadge(); renderVerify(); // both in the contacts, numbers, profile block
 }
 function renderConfig() {
   const gn = CONFIG.guard_number || "–";
@@ -493,27 +965,1022 @@ async function loadData() {
   const [stats, profile] = await Promise.all([maybe("/api/stats"), maybe("/api/profile")]);
   if (stats && stats.headline) renderHeadline(stats.headline);
   if (profile) renderProfile(profile);
+  ovStart(stats);
 }
 function renderHeadline(h) {
-  const set = (id, v, dim) => { $(id).textContent = v; $(id).classList.toggle("dim", !!dim); };
-  set("h-blocked", h.blocked ?? 0);
+  const set = (id, v, fmt, dim) => { ovTween($(id), v, fmt); $(id).classList.toggle("dim", !!dim); };
+  set("h-blocked", h.blocked ?? 0, String);
   $("h-blocked-l").textContent = h.blocked === 1 ? "call blocked" : "calls blocked";
   $("h-money").textContent = h.money_not_sent ? `${money(h.money_not_sent)} kept` : "";
-  set("h-calls", h.calls_screened ?? 0);
-  set("h-asked", h.questions_asked ?? 0);
-  set("h-money2", money(h.money_not_sent));
+  set("h-calls", h.calls_screened ?? 0, String);
+  set("h-asked", h.questions_asked ?? 0, String);
+  set("h-money2", +h.money_not_sent || 0, money);
   const s = h.median_seconds_to_decide;
-  set("h-secs", s == null ? "–" : `${(+s).toFixed(1)} s`, s == null);
+  if (s == null) { $("h-secs")._v = undefined; $("h-secs").textContent = "–"; $("h-secs").classList.add("dim"); }
+  else set("h-secs", +s, v => `${Math.round(v)} s`);
 }
-function renderProfile(p) {
-  if (p.guard_number) { $("guard-num").textContent = p.guard_number; $("rail-guard").textContent = p.guard_number; }
-  if (p.owner_name) { $("p-owner").textContent = p.owner_name; $("flow-owner").textContent = p.owner_name; }
+// === contacts, numbers, profile ===
+const KINDS = ["whatsapp", "telegram", "email", "call"];
+const KIND_LABEL = {whatsapp: "WhatsApp", telegram: "Telegram", email: "Email", call: "Phone call"};
+const KIND_HINT = {whatsapp: "+1 555 010 0000", telegram: "@username", email: "name@example.com", call: "+1 555 010 0000"};
+const CH_SVG = {
+  whatsapp: '<path d="M4 20l1.3-4.2A8.3 8.3 0 1 1 8.6 19Z"/><path d="M9.3 8.3c0 3.2 3 6.3 6.3 6.4l.9-1.6-2-1-.9.8a4.6 4.6 0 0 1-2.4-2.4l.8-.9-1-2Z"/>',
+  telegram: '<path d="M21 4.5 3 11.3l5.6 2L18 7.5l-7.6 7 .3 5 2.9-3.6 4.3 3.2Z"/>',
+  email: '<rect x="3" y="5.5" width="18" height="13" rx="2.2"/><path d="m3.6 7.2 8.4 6 8.4-6"/>',
+  call: '<path d="M5.2 3.8h3.4l1.6 4.1-2.1 1.4a11.5 11.5 0 0 0 6.6 6.6l1.4-2.1 4.1 1.6v3.4a1.6 1.6 0 0 1-1.7 1.6C10.4 19.8 4.2 13.6 3.6 5.5a1.6 1.6 0 0 1 1.6-1.7Z"/>',
+};
+const chIcon = (k, px = 28) => `<svg class="i" viewBox="0 0 24 24" style="font-size:${px}px;color:var(--muted)" aria-hidden="true">${CH_SVG[k] || ""}</svg>`;
+const SVG = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const UP = SVG('<path d="m6 15 6-6 6 6"/>'), DOWN = SVG('<path d="m6 9 6 6 6-6"/>'), XMARK = SVG('<path d="M6 6l12 12M18 6 6 18"/>');
+const AV_COLORS = ["#2B4A6E", "#5A3A86", "#1F6B5C", "#7A4B22", "#2F5597", "#7A2E45"];
+const avColor = s => AV_COLORS[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % AV_COLORS.length];
+const firstName = n => String(n || "").trim().split(/\s+/)[0] || "them";
+function fmtNum(s) { // display only: US numbers as +1 (555) 010-0001
+  const d = String(s || "").replace(/\D/g, "");
+  if (d.length === 11 && d[0] === "1") return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `+1 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return String(s || "");
+}
+function flashSaved(el) {
+  if (!el) return;
+  el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 1800);
+}
+const liveCh = k => !CONFIG.channels_live || CONFIG.channels_live[k] !== false;
+
+// ---------- after sign-in: identity-check return, sign-up step, contacts ----------
+async function afterSignIn() {
+  const inq = new URLSearchParams(location.search).get("inquiry-id");
+  if (inq) {
+    history.replaceState(null, "", location.pathname + location.hash);
+    try { ME = await api("/api/verify/complete", {method: "POST", body: {inquiry_id: inq}}); justVerified(); location.hash = "#profile"; }
+    catch (e) { say(`Couldn't finish the identity check: ${e.message}`); }
+  } else if (!ME.verified && !sessionStorage.getItem("mg-later")) $("signup").hidden = false;
+  loadContacts();
+  loadExpected();
+  maybe("/api/profile").then(p => { if (p) renderProfile(p); }); // own fetch: does not depend on loadData()
+}
+addEventListener("hashchange", () => { if (ME && location.hash === "#contacts") loadContacts(); });
+$("su-later").onclick = () => { sessionStorage.setItem("mg-later", "1"); $("signup").hidden = true; };
+$("su-go").onclick = () => { $("signup").hidden = true; location.hash = "#profile"; startVerify(); };
+addEventListener("keydown", e => { if (e.key === "Escape" && !$("signup").hidden) $("su-later").click(); });
+
+// ---------- trusted contacts ----------
+let CONTACTS = [], freshId = null, confirmId = null, savedId = null;
+async function loadContacts() {
+  const list = await maybe("/api/contacts");
+  if (Array.isArray(list)) { CONTACTS = list; renderContacts(); }
+}
+function riskHTML(c) {
+  const r = c.risk || {}, n = r.claimed || 0, first = esc(firstName(c.name));
+  if (!n) return `<div class="risk calm">${ICON("i-shield-check")}No attempts yet</div>`;
+  const pct = v => Math.round(100 * (v || 0) / n);
+  return `<div class="risk"><div class="rn">${n}</div><div class="rl">${n === 1 ? "time" : "times"} someone claimed to be ${first}</div>
+    <div class="bar"><b style="width:${pct(r.blocked)}%"></b><i style="width:${pct(r.confirmed)}%"></i></div>
+    <div class="rl">${r.blocked || 0} blocked${r.confirmed ? `, ${r.confirmed} really ${first}` : ""}</div></div>`;
+}
+function chansHTML(c) {
+  if (!c.channels.length) return `<p class="cc-empty">No apps yet. Edit ${esc(firstName(c.name))} to add where the guard should ask.</p>`;
+  let pos = 0;
+  return `<ol class="chans">${c.channels.map((ch, i) => {
+    const on = !!ch.enabled, label = KIND_LABEL[ch.kind] || ch.kind;
+    return `<li class="${on ? "" : "off"}"><span class="pos">${on ? ++pos : "–"}</span>${chIcon(ch.kind)}
+      <div class="ch-main"><div class="ch-kind">${esc(label)}${liveCh(ch.kind) ? "" : ' <span class="ch-note">not connected yet</span>'}</div>
+        <div class="ch-handle">${esc(ch.handle ? (ch.kind === "call" || ch.kind === "whatsapp" ? fmtNum(ch.handle) : ch.handle) : "No handle yet")}</div></div>
+      <button class="sw" type="button" role="switch" aria-checked="${on}" aria-label="Ask on ${esc(label)}" data-act="toggle" data-i="${i}"></button>
+      <span class="arrows"><button class="arr" type="button" data-act="up" data-i="${i}" aria-label="Ask on ${esc(label)} earlier" ${i === 0 ? "disabled" : ""}>${UP}</button><button class="arr" type="button" data-act="down" data-i="${i}" aria-label="Ask on ${esc(label)} later" ${i === c.channels.length - 1 ? "disabled" : ""}>${DOWN}</button></span></li>`;
+  }).join("")}</ol>`;
+}
+function cardHTML(c) {
+  const first = esc(firstName(c.name)), r = c.risk || {};
+  const nick = (c.nicknames || []).filter(Boolean);
+  const nums = (c.known_numbers || []).map(n => `<span class="chip num">${chIcon("call", 18)}${esc(fmtNum(n))}</span>`).join("");
+  const code = c.has_code_word ? `<span class="chip cw-yes"><i></i>Code word set</span>` : `<span class="chip cw-no"><i></i>No code word</span>`;
+  let foot;
+  if (confirmId === c.id) foot = `<span class="grow">Remove ${esc(c.name)} from the people you trust?</span>
+      <button class="btn btn-danger btn-sm" type="button" data-act="remove-yes">Yes, remove</button><button class="btn btn-ghost btn-sm" type="button" data-act="remove-no">Cancel</button>`;
+  else foot = `<span class="grow">${freshId === c.id ? `<span class="ok">The guard knows ${first} from the next call on.</span>`
+      : r.last_ts ? `Last attempt ${esc(new Date(r.last_ts).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}` : ""}</span>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="edit">Edit</button><button class="btn btn-ghost btn-sm" type="button" data-act="remove">Remove</button>`;
+  return `<article class="cc${r.claimed ? " hot" : ""}${freshId === c.id ? " fresh" : ""}" data-id="${esc(c.id)}">
+    <div class="cc-top"><span class="avatar" style="background:${avColor(c.name)}">${esc(initials(c.name))}</span>
+      <div style="min-width:0"><div class="cc-name">${esc(c.name)}</div><div class="cc-rel">${esc(c.relationship ? c.relationship.charAt(0).toUpperCase() + c.relationship.slice(1) : "Trusted contact")}${nick.length ? `, also called ${esc(nick.join(", "))}` : ""}</div></div>
+      ${riskHTML(c)}</div>
+    <div class="cc-meta">${nums}${code}</div>
+    <div class="chans-cap">The guard asks ${first} in this order<span class="saved">Saved</span></div>
+    ${chansHTML(c)}
+    <div class="cc-foot">${foot}</div></article>`;
+}
+function renderContacts() {
+  const list = CONTACTS.map((c, i) => [c, i]).sort((a, b) => ((b[0].risk || {}).claimed || 0) - ((a[0].risk || {}).claimed || 0) || a[1] - b[1]).map(x => x[0]);
+  $("ccards").innerHTML = list.map(cardHTML).join("") +
+    `<button class="add-card add-tile" type="button" data-act="add"><span class="plus">${ICON("i-plus")}</span><b>Add someone you trust</b>Name, numbers, and how to reach them.</button>`;
+  if (savedId) { const s = document.querySelector(`.cc[data-id="${CSS.escape(savedId)}"] .saved`); savedId = null; flashSaved(s); }
+}
+const contactIn = c => ({name: c.name, relationship: c.relationship, nicknames: c.nicknames || [], known_numbers: c.known_numbers || [],
+                         channels: c.channels.map(({kind, handle, enabled}) => ({kind, handle, enabled}))});
+async function saveContact(c) {
+  renderContacts();
+  try {
+    const out = await api(`/api/contacts/${encodeURIComponent(c.id)}`, {method: "PUT", body: contactIn(c)});
+    CONTACTS = CONTACTS.map(x => x.id === c.id ? out : x); savedId = c.id; renderContacts();
+  } catch (e) { say(`Couldn't save ${c.name}: ${e.message}`); loadContacts(); }
+}
+$("ccards").addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act, card = b.closest(".cc"), c = card && CONTACTS.find(x => x.id === card.dataset.id), i = +b.dataset.i;
+  if (act === "add") return openForm(null);
+  if (!c) return;
+  if (act === "toggle") { c.channels[i].enabled = !c.channels[i].enabled; return saveContact(c); }
+  if (act === "up" || act === "down") {
+    const j = act === "up" ? i - 1 : i + 1; if (j < 0 || j >= c.channels.length) return;
+    [c.channels[i], c.channels[j]] = [c.channels[j], c.channels[i]];
+    await saveContact(c);
+    const again = document.querySelector(`.cc[data-id="${CSS.escape(c.id)}"] [data-act="${act}"][data-i="${j}"]`);
+    if (again && !again.disabled) again.focus();
+    return;
+  }
+  if (act === "edit") return openForm(c);
+  if (act === "remove") { confirmId = c.id; return renderContacts(); }
+  if (act === "remove-no") { confirmId = null; return renderContacts(); }
+  if (act === "remove-yes") {
+    try { await api(`/api/contacts/${encodeURIComponent(c.id)}`, {method: "DELETE"}); CONTACTS = CONTACTS.filter(x => x.id !== c.id); }
+    catch (e) { say(`Couldn't remove ${c.name}: ${e.message}`); }
+    confirmId = null; renderContacts();
+  }
+});
+$("add-contact-top").onclick = () => openForm(null);
+
+// The add / edit form
+let editing = null;
+const splitList = s => String(s || "").split(",").map(x => x.trim()).filter(Boolean);
+function openForm(c) {
+  editing = c;
+  $("cf-title").textContent = c ? `Edit ${c.name}` : "Add someone you trust";
+  $("cf-save").textContent = c ? "Save changes" : "Add contact";
+  $("cf-name").value = c ? c.name : "";
+  $("cf-rel").value = c ? c.relationship || "" : "";
+  $("cf-nick").value = c ? (c.nicknames || []).join(", ") : "";
+  $("cf-nums").value = c ? (c.known_numbers || []).join(", ") : "";
+  $("cf-code").value = "";
+  $("cf-code").placeholder = c ? (c.has_code_word ? "Leave empty to keep the current one" : "Set a code word") : "A word only the two of you know";
+  $("cf-code-hint").textContent = c ? "Leave empty to keep the current one. It is never shown, not even to you."
+                                    : "Asked when they can't answer in time. It is never shown again, not even to you.";
+  const have = c ? c.channels.map(x => ({...x})) : [];
+  for (const k of KINDS) if (!have.some(x => x.kind === k)) have.push({kind: k, handle: "", enabled: !c});
+  $("cf-chans").innerHTML = have.map(ch => `<div class="fchan" data-kind="${ch.kind}">${chIcon(ch.kind)}
+    <span class="ch-kind">${KIND_LABEL[ch.kind]}${liveCh(ch.kind) ? "" : '<br><span class="ch-note">not connected yet</span>'}</span>
+    <input class="inp" value="${esc(ch.handle)}" placeholder="${KIND_HINT[ch.kind]}" aria-label="${KIND_LABEL[ch.kind]} handle" autocomplete="off">
+    <button class="sw" type="button" role="switch" aria-checked="${!!ch.enabled}" aria-label="Ask on ${KIND_LABEL[ch.kind]}"></button></div>`).join("");
+  $("cf-err").hidden = true;
+  $("cform-dlg").showModal();
+  $("cf-name").focus();
+}
+$("cf-chans").addEventListener("click", e => {
+  const s = e.target.closest(".sw"); if (s) s.setAttribute("aria-checked", s.getAttribute("aria-checked") !== "true");
+});
+$("cf-cancel").onclick = () => $("cform-dlg").close();
+$("cform").addEventListener("submit", async e => {
+  e.preventDefault();
+  const body = {
+    name: $("cf-name").value.trim(), relationship: $("cf-rel").value.trim(),
+    nicknames: splitList($("cf-nick").value), known_numbers: splitList($("cf-nums").value),
+    channels: [...$("cf-chans").children].map(r => ({kind: r.dataset.kind, handle: r.querySelector("input").value.trim(),
+      enabled: r.querySelector(".sw").getAttribute("aria-checked") === "true"})).filter(ch => ch.handle),
+  };
+  const code = $("cf-code").value.trim();
+  if (code) body.code_word = code;
+  const err = m => { $("cf-err").textContent = m; $("cf-err").hidden = false; };
+  if (!body.name) return err("Give the contact a name.");
+  if (!editing && !code) return err("Set a code word, so the guard can still check a caller when nobody answers.");
+  $("cf-save").disabled = true;
+  try {
+    const out = editing ? await api(`/api/contacts/${encodeURIComponent(editing.id)}`, {method: "PUT", body})
+                        : await api("/api/contacts", {method: "POST", body});
+    if (editing) { CONTACTS = CONTACTS.map(x => x.id === editing.id ? out : x); savedId = out.id; }
+    else { CONTACTS.push(out); freshId = out.id; setTimeout(() => { if (freshId === out.id) { freshId = null; renderContacts(); } }, 12000); }
+    $("cform-dlg").close();
+    renderContacts();
+    const el = document.querySelector(`.cc[data-id="${CSS.escape(out.id)}"]`);
+    if (el) el.scrollIntoView({block: "nearest", behavior: "smooth"});
+  } catch (x) { err(x.message); }
+  finally { $("cf-save").disabled = false; }
+});
+
+// ---------- my numbers ----------
+let PROFILE = null;
+function renderProfile(p) { // called by loadData() and after every save
+  PROFILE = p;
+  if (p.guard_number) { $("guard-num").textContent = fmtNum(p.guard_number); $("rail-guard").textContent = p.guard_number; }
+  const owner = p.owner_name || CONFIG.owner_name || "";
+  for (const id of ["p-owner", "flow-owner", "owner-say"]) $(id).textContent = owner || "You";
+  if (document.activeElement !== $("owner-in")) $("owner-in").value = owner;
   const nums = p.numbers || [];
   $("num-empty").hidden = nums.length > 0;
-  $("num-list").innerHTML = nums.map(n => `<li><span><span class="lbl">${esc(n.label || "Phone")}</span><br><span class="num">${esc(n.number)}</span></span>
-    <span class="chip ${n.protected ? "on" : "off"}"><i></i>${n.protected ? "Protected" : "Not protected"}</span></li>`).join("");
+  $("num-list").innerHTML = nums.map((n, i) => `<li class="${n.protected ? "" : "off"}"><div style="min-width:0"><div class="lbl">${esc(n.label || "Phone")}</div><div class="num">${esc(fmtNum(n.number))}</div></div>
+    <span class="pt">${n.protected ? "Protected" : "Not protected"}</span>
+    <button class="sw" type="button" role="switch" aria-checked="${!!n.protected}" aria-label="Protect ${esc(n.label || n.number)}" data-nact="toggle" data-i="${i}"></button>
+    <button class="xbtn" type="button" data-nact="remove" data-i="${i}" aria-label="Remove ${esc(n.label || n.number)}">${XMARK}</button></li>`).join("");
 }
-$("add-contact").onclick = () => say("Adding contacts opens here soon.");
+async function saveProfile(savedEl) {
+  try {
+    renderProfile(await api("/api/profile", {method: "PUT", body: {owner_name: PROFILE.owner_name, numbers: PROFILE.numbers}}));
+    flashSaved(savedEl);
+  } catch (e) { say(`Couldn't save: ${e.message}`); const p = await maybe("/api/profile"); if (p) renderProfile(p); }
+}
+$("num-list").addEventListener("click", e => {
+  const b = e.target.closest("[data-nact]"); if (!b || !PROFILE) return;
+  const i = +b.dataset.i;
+  if (b.dataset.nact === "toggle") PROFILE.numbers[i].protected = !PROFILE.numbers[i].protected;
+  else PROFILE.numbers.splice(i, 1);
+  renderProfile(PROFILE); saveProfile($("num-saved"));
+});
+$("num-add").addEventListener("submit", e => {
+  e.preventDefault();
+  const number = $("na-number").value.trim(); if (!number || !PROFILE) return $("na-number").focus();
+  PROFILE.numbers.push({label: $("na-label").value.trim() || "Phone", number, protected: true});
+  $("na-label").value = $("na-number").value = "";
+  renderProfile(PROFILE); saveProfile($("num-saved"));
+});
+$("owner-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = $("owner-in").value.trim(); if (!v || !PROFILE) return;
+  PROFILE.owner_name = v; $("owner-in").blur(); saveProfile($("owner-saved"));
+});
+
+// ---------- profile and identity check ----------
+let VSTATE = "idle", vUrl = null, vPoll = 0, demoStep = 0;
+const when = iso => iso ? new Date(iso).toLocaleString("en-US", {month: "long", day: "numeric", hour: "numeric", minute: "2-digit"}) : "";
+function renderBadge(flip) {
+  const me = ME, b = $("badge");
+  if (me.verified) b.outerHTML = `<span class="badge ok${flip ? " flip" : ""}" id="badge">${ICON("i-shield-check")}Verified</span>`;
+  else {
+    b.outerHTML = `<button class="badge todo" id="badge" type="button">${ICON("i-alert")}Not verified yet</button>`;
+    $("badge").onclick = () => {
+      location.hash = "#profile";
+      const c = $("verify-card"); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); c.focus({preventScroll: true});
+    };
+  }
+  $("p-verified").textContent = me.verified ? (me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)") +
+    (me.verified_at ? `, ${when(me.verified_at)}` : "") : "Not verified yet";
+  $("p-via").textContent = me.id === "demo" ? "Demo sign-in" : "Google";
+}
+const VSTEPS = [["Photo ID", "Hold up a driver's license or passport."], ["Selfie", "A quick picture of your face."], ["Match", "The face on the ID matches yours."]];
+function renderVerify() {
+  const c = $("verify-card"), me = ME, demo = CONFIG.persona_mode !== "hosted";
+  c.classList.toggle("done", !!me.verified);
+  if (me.verified) {
+    c.innerHTML = `<h3>You're verified</h3><p class="sub">Checked once, at sign-up. Nothing more to do here.</p>
+      <div class="vok"><span class="seal">${ICON("i-check")}</span><div><b>${me.verified_via === "persona" ? "Verified with Persona" : "Verified (demo check)"}</b>
+      <span>${esc(when(me.verified_at))}</span></div></div>`;
+    return;
+  }
+  const tag = demo ? '<span class="demo-tag">Demo check</span>' : "";
+  const steps = VSTEPS.map(([t, s], i) => {
+    const st = VSTATE === "demo" ? (i < demoStep ? "done" : i === demoStep ? "now" : "") : "";
+    return `<li class="${st}"><span class="dot">${ICON("i-check")}</span><span><b style="color:var(--text)">${t}</b>. ${s}</span></li>`;
+  }).join("");
+  if (VSTATE === "waiting") {
+    c.innerHTML = `<h3>Finish the check in the other tab</h3><p class="sub">Persona opened in a new tab. When it sends you back, this page turns Verified by itself.</p>
+      <ol class="vflow">${steps}</ol><div class="vbtns"><button class="btn btn-solid" type="button" id="v-done">I'm done</button>
+      <a class="btn btn-ghost" href="${esc(vUrl)}" target="_blank" rel="noopener">Open the check again</a></div>`;
+    $("v-done").onclick = () => completeVerify();
+    return;
+  }
+  c.innerHTML = `<h3>Verify it's you${tag}</h3><p class="sub">A one-time check, so nobody else can change who your guard trusts.</p>
+    <ol class="vflow">${steps}</ol>
+    <div class="vbtns"><button class="btn btn-solid" type="button" id="v-start" ${VSTATE === "demo" ? "disabled" : ""}>${VSTATE === "demo" ? "Checking…" : demo ? "Run the demo check" : "Verify it's you"}</button></div>`;
+  $("v-start").onclick = () => startVerify();
+}
+async function startVerify() {
+  if (ME.verified || VSTATE !== "idle") return;
+  let r;
+  try { r = await api("/api/verify/start", {method: "POST"}); }
+  catch (e) { return say(`Couldn't start the identity check: ${e.message}`); }
+  if (r.mode === "hosted" && r.url) {
+    vUrl = r.url; VSTATE = "waiting"; window.open(r.url, "_blank", "noopener"); renderVerify();
+    clearInterval(vPoll);
+    vPoll = setInterval(async () => {
+      if (VSTATE !== "waiting") return clearInterval(vPoll);
+      try { const me = await api("/api/me"); if (me.verified) { ME = me; justVerified(); } } catch (_) {}
+    }, 3000);
+    return;
+  }
+  VSTATE = "demo"; demoStep = 0; renderVerify();
+  const tick = () => {
+    demoStep++; renderVerify();
+    if (demoStep < VSTEPS.length) setTimeout(tick, 1000); else setTimeout(completeVerify, 500);
+  };
+  setTimeout(tick, 1000);
+}
+async function completeVerify() {
+  try { ME = await api("/api/verify/complete", {method: "POST", body: {}}); justVerified(); }
+  catch (e) { VSTATE = "idle"; renderVerify(); say(`Couldn't finish the identity check: ${e.message}`); }
+}
+function justVerified() {
+  VSTATE = "idle"; clearInterval(vPoll); $("signup").hidden = true;
+  renderBadge(true); renderVerify();
+}
+
+// === overview and graph ===
+const OUTCOME_COLOR = {blocked: "var(--c-denied)", confirmed: "var(--c-ok)", unverified: "var(--c-unver)",
+  expected: "var(--c-expected)", known_number: "var(--c-known)", other: "var(--c-other)"};
+const CHANNEL_NAME = {whatsapp: "WhatsApp", telegram: "Telegram", email: "email", call: "a phone call"};
+const TACTIC_KEYS = ["money", "urgency", "secrecy", "authority_or_kinship"];
+const TACTIC_NAME = {money: "Money", urgency: "Urgency", secrecy: "Secrecy", authority_or_kinship: "Authority or kinship"};
+const OV = {sig: {}, seen: null, people: {}, peopleAt: 0, busy: false};
+const ovInt = v => String(Math.round(v));
+const ovShown = id => !!ME && !$("app").hidden && !$(id).hidden && !document.hidden;
+const ovReduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Count a number to its new value instead of jumping (first load counts up from zero).
+function ovTween(el, to, fmt) {
+  const from = el._v ?? 0;
+  el._v = to;
+  cancelAnimationFrame(el._raf);
+  if (from === to || ovReduced()) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), dur = 700;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(k < 1 ? from + (to - from) * e : to);
+    if (k < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
+function ovStart(stats) { if (stats) renderOverview(stats); gRefresh(); }
+async function ovRefresh() {
+  if (OV.busy || !ovShown("v-overview")) return;
+  OV.busy = true;
+  try {
+    const s = await maybe("/api/stats");
+    if (s && s.headline) { renderHeadline(s.headline); await renderOverview(s); }
+    ovFitRows();
+  } finally { OV.busy = false; }
+}
+async function ovPeople() {
+  if (Date.now() - OV.peopleAt < 15000) return;
+  OV.peopleAt = Date.now();
+  try { OV.people = Object.fromEntries(((await api("/api/contacts")) || []).map(c => [c.id, c])); } catch (_) {}
+}
+async function renderOverview(s) {
+  await ovPeople();
+  const has = (s.headline && s.headline.calls_screened) > 0, recent = s.recent || [];
+  ovCard("a", has, () => ovDonut(s.outcomes || []), s.outcomes);
+  ovCard("b", has, () => ovBars(s.over_time || []), s.over_time);
+  ovCard("c", recent.length > 0, () => ovRecent(recent), [recent, Object.values(OV.people).map(p => [p.id, p.name, p.relationship])]);
+  ovCard("d", has, () => ovTactics(s), [s.tactics, s.channels_answered, s.headline && s.headline.calls_screened]);
+}
+// Redraw a card only when its data changed, so the 5 s refresh never flickers.
+function ovCard(k, has, draw, data) {
+  $(`ov-${k}-empty`).hidden = has; $(`ov-${k}-body`).hidden = !has;
+  if (!has) { OV.sig[k] = ""; return; }
+  const sig = JSON.stringify(data);
+  if (sig === OV.sig[k]) return;
+  OV.sig[k] = sig; draw();
+}
+
+function ovDonut(outcomes) {
+  const body = $("ov-a-body"), R = 76, C = 2 * Math.PI * R;
+  if (!body.querySelector(".donut")) {
+    body.innerHTML = `<div class="dn-wrap"><svg class="donut" viewBox="0 0 200 200" aria-hidden="true"><circle class="track" cx="100" cy="100" r="${R}"/>
+      <g transform="rotate(-90 100 100)">${outcomes.map(o => `<circle class="seg" data-k="${esc(o.key)}" cx="100" cy="100" r="${R}" style="stroke:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other};stroke-dasharray:0 ${C}"/>`).join("")}</g>
+      <text class="tot" x="100" y="104" text-anchor="middle">0</text><text class="tl" x="100" y="132" text-anchor="middle">calls</text></svg>
+      <ul class="legend"></ul></div>`;
+    body.getBoundingClientRect(); // commit the empty ring so the first fill animates
+  }
+  const total = outcomes.reduce((a, o) => a + (o.count || 0), 0), live = outcomes.filter(o => o.count > 0).length;
+  let acc = 0;
+  for (const o of outcomes) {
+    const seg = body.querySelector(`.seg[data-k="${CSS.escape(o.key)}"]`);
+    const len = total ? (o.count || 0) / total * C : 0, gap = live > 1 && len > 8 ? 4 : 0;
+    if (seg) { seg.style.strokeDasharray = `${Math.max(0, len - gap)} ${C}`; seg.style.strokeDashoffset = `${-acc}`; }
+    acc += len;
+  }
+  ovTween(body.querySelector(".tot"), total, ovInt);
+  body.querySelector(".tl").textContent = total === 1 ? "call" : "calls";
+  body.querySelector(".legend").innerHTML = outcomes.map(o => `<li class="${o.count ? "" : "zero"}"><i style="background:${OUTCOME_COLOR[o.key] || OUTCOME_COLOR.other}"></i><span>${esc(o.label)}</span><b>${o.count || 0}</b></li>`).join("");
+}
+
+function ovBars(rows) {
+  const body = $("ov-b-body");
+  let wrap = body.querySelector(".bars");
+  if (!wrap || wrap.dataset.n !== String(rows.length)) {
+    body.innerHTML = `<div class="bars" data-n="${rows.length}"><div class="plot">${rows.map(() => `<div class="col"><div class="val z">0</div><div class="bar"><div class="blk"></div></div></div>`).join("")}</div>
+      <div class="labels">${rows.map(() => "<span></span>").join("")}</div></div>`;
+    wrap = body.querySelector(".bars"); wrap.getBoundingClientRect();
+  }
+  const max = Math.max(1, ...rows.map(r => r.calls || 0)), cols = wrap.querySelectorAll(".col"), labs = wrap.querySelectorAll(".labels span");
+  const every = rows.length > 12 ? 2 : 1;
+  rows.forEach((r, i) => {
+    const c = cols[i], n = r.calls || 0, b = r.blocked || 0;
+    c.title = `${r.label}: ${n} ${n === 1 ? "call" : "calls"}, ${b} blocked`;
+    const v = c.querySelector(".val"); v.textContent = n; v.classList.toggle("z", !n);
+    c.querySelector(".bar").style.height = n ? `calc((100% - 32px) * ${n / max})` : "0px";
+    c.querySelector(".blk").style.height = n ? `${b / n * 100}%` : "0%";
+    labs[i].textContent = (rows.length - 1 - i) % every ? "" : r.label;
+  });
+}
+
+function ovTactics(s) {
+  const body = $("ov-d-body"), calls = (s.headline && s.headline.calls_screened) || 0;
+  if (!body.querySelector(".tac")) {
+    body.innerHTML = `<div class="tac">${TACTIC_KEYS.map(k => `<div class="tac-row" data-k="${k}"><span>${esc(TACTIC_NAME[k])}</span><div class="trk"><div class="fil"></div></div><b>0</b></div>`).join("")}
+      <div class="answered" id="ov-ans"></div></div>`;
+    body.getBoundingClientRect();
+  }
+  for (const t of s.tactics || []) {
+    const row = body.querySelector(`.tac-row[data-k="${CSS.escape(t.key)}"]`);
+    if (!row) continue;
+    row.querySelector("span").textContent = t.label || TACTIC_NAME[t.key] || t.key;
+    row.querySelector(".fil").style.width = `${Math.min(100, (t.count || 0) / Math.max(1, calls) * 100)}%`;
+    ovTween(row.querySelector("b"), t.count || 0, ovInt);
+    row.classList.toggle("zero", !t.count);
+    row.title = `Heard on ${t.count || 0} of ${calls} calls`;
+  }
+  const ans = (s.channels_answered || []).filter(a => a.count > 0);
+  $("ov-ans").innerHTML = `<span class="al">Who answered</span>` + (ans.length
+    ? ans.map(a => `<span class="ac">${esc(a.label || a.kind)}<b>${a.count}</b></span>`).join("")
+    : `<span class="none">Nobody had to be asked yet.</span>`);
+}
+
+const ovTime = ts => { const d = new Date(ts); return isNaN(d) ? "" : d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false}); };
+function ovHow(r) {
+  const ch = CHANNEL_NAME[r.channel] || r.channel || "their phone";
+  const t = r.seconds_to_decide == null ? "" : ` in ${Math.max(1, Math.round(r.seconds_to_decide))} s`;
+  switch (r.decided_by) {
+    case "tap": return r.outcome === "confirmed" ? `said Yes on ${ch}${t}` : r.outcome === "blocked" ? `said No on ${ch}${t}` : `answered on ${ch}${t}`;
+    case "timeout": return `no answer${t}`;
+    case "code_word": return r.outcome === "confirmed" ? "gave the family code word" : "no answer, code word failed";
+    case "repeat_attempt": return "same number tried again, ended at once";
+    case "expected_but_money": return "expected call asked for money";
+    case "expected": return "expected call, let through";
+    case "known_number": return "known number, put through";
+    case "lookup": return "named someone the guard doesn't know";
+    default: return r.decided_by ? String(r.decided_by).replace(/_/g, " ") : "";
+  }
+}
+function ovWant(r) {
+  if (r.asks_for) return r.asks_for;
+  if (r.amount) return r.method ? `${r.amount} by ${r.method}` : r.amount;
+  return "";
+}
+function ovRecent(recent) {
+  const body = $("ov-c-body"), first = OV.seen === null, seen = OV.seen || new Set();
+  body.innerHTML = recent.slice(0, 8).map(r => {
+    const p = r.contact_id && OV.people[r.contact_id];
+    const name = p ? p.name : (r.claimed_name || "Unknown caller");
+    const extra = p && p.relationship ? `<span class="rel">your ${esc(p.relationship)}</span>`
+      : r.claimed_name ? `<span class="rel">not one of your people</span>`
+      : r.caller_number ? `<span class="num">${esc(r.caller_number)}</span>` : "";
+    const tac = r.tactics || [], want = ovWant(r);
+    const live = r.outcome === "other" && !r.decided_by && Date.now() - new Date(r.ts) < 120000; // still being decided
+    const dots = `<span class="tdots" title="${esc(tac.map(k => TACTIC_NAME[k] || k).join(", ") || "No pressure tactics")}">${TACTIC_KEYS.map(k => `<i class="${tac.includes(k) ? "on" : ""}"></i>`).join("")}</span>`;
+    return `<li class="rr${!first && !seen.has(r.call_id) ? " new" : ""}"><time>${ovTime(r.ts)}</time>
+      <div style="min-width:0"><div class="l1"><b>${esc(name)}</b>${extra}</div>
+        <div class="l2">${dots}<span class="want${want ? "" : " no"}">${esc(want || "Didn't ask for anything")}</span>${r.scam_type ? `<span class="scam">${esc(r.scam_type)}</span>` : ""}</div></div>
+      <div class="ro">${live ? `<span class="oc" style="--oc:var(--c-check)">Asking now</span><span class="how">waiting for an answer</span>`
+        : `<span class="oc" style="--oc:${OUTCOME_COLOR[r.outcome] || OUTCOME_COLOR.other}">${esc(r.outcome_label || r.outcome)}</span><span class="how">${esc(ovHow(r))}</span>`}</div></li>`;
+  }).join("");
+  OV.seen = new Set(recent.map(r => r.call_id));
+  ovFitRows(); requestAnimationFrame(ovFitRows); setTimeout(ovFitRows, 400);
+}
+// Show only the rows that fit completely: no scrollbar, no half-cut row.
+function ovFitRows() {
+  const body = $("ov-c-body");
+  if (body.hidden || !body.clientHeight) return;
+  const rows = [...body.children];
+  rows.forEach(li => li.hidden = false);
+  const bottom = body.getBoundingClientRect().bottom + 1;
+  let over = false;
+  for (const li of rows) { over = over || li.getBoundingClientRect().bottom > bottom; li.hidden = over; }
+}
+
+setInterval(ovRefresh, 5000);
+addEventListener("hashchange", () => setTimeout(() => { ovRefresh(); gRefresh(); }, 0));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { ovRefresh(); gRefresh(); } });
+let ovResizeT = 0;
+addEventListener("resize", () => { clearTimeout(ovResizeT); ovResizeT = setTimeout(() => { ovFitRows(); gRefresh(); }, 200); });
+
+// ---------- knowledge graph ----------
+// HACK: placeholder until the graph view lands; replaced below.
+async function gRefresh() {}
+// ovg:part4
+
+// === expected calls ===
+const XKINDS = {
+  delivery: ["Delivery", '<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5Z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9M7.8 5.3l8.4 4.5"/>'],
+  callback: ["Callback", '<path d="M5.2 3.8h3.4l1.6 4.1-2.1 1.4a11.5 11.5 0 0 0 6.6 6.6l1.4-2.1 4.1 1.6v3.4a1.6 1.6 0 0 1-1.7 1.6C10.4 19.8 4.2 13.6 3.6 5.5a1.6 1.6 0 0 1 1.6-1.7Z"/><path d="M20.5 3.5l-5.5 5.5M15 4.5V9h4.5"/>'],
+  appointment: ["Appointment", '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 15l2 2 4-4"/>'],
+};
+const xIcon = k => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${(XKINDS[k] || XKINDS.delivery)[1]}</svg>`;
+let EXPECTED = [], xFresh = null, xSaved = null, xKind = "delivery";
+const capFirst = s => { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1); };
+async function loadExpected() {
+  const [list, stats] = await Promise.all([maybe("/api/expected"), maybe("/api/stats")]);
+  if (Array.isArray(list)) { EXPECTED = list; renderExpected(); }
+  const n = stats && Array.isArray(stats.recent) ? stats.recent.filter(r => r.outcome === "expected").length : 0;
+  $("x-passed").hidden = !n;
+  $("x-passed").textContent = `${n} expected ${n === 1 ? "call" : "calls"} passed without a question`;
+}
+addEventListener("hashchange", () => { if (ME && location.hash === "#expected") loadExpected(); });
+function xRowHTML(x) {
+  const on = !!x.expected, kw = (x.keywords || []).map(k => `<span class="chip kw">${esc(k)}</span>`).join("");
+  return `<article class="xr${on ? "" : " off"}${xFresh === x.id ? " fresh" : ""}" data-id="${esc(x.id)}">
+    <span class="xk"><span class="tile">${xIcon(x.kind)}</span>${esc((XKINDS[x.kind] || [x.kind])[0])}</span>
+    <div style="min-width:0"><div class="xwho">${esc(capFirst(x.who))}</div>${x.note ? `<div class="xnote">${esc(x.note)}</div>` : ""}
+      ${xFresh === x.id ? '<div class="xok">The guard lets this call through, unless it asks for money.</div>' : ""}</div>
+    <div class="xkw"><span class="lab">Listens for</span>${kw || '<span class="cc-empty">No words yet</span>'}</div>
+    <div class="xact"><span class="saved">Saved</span><span class="xst">${on ? "Expected" : "Off"}</span>
+      <button class="sw" type="button" role="switch" aria-checked="${on}" aria-label="Expect ${esc(x.who)}" data-xact="toggle"></button>
+      ${x.builtin ? '<span class="xbuilt"></span>' : `<button class="xbtn" type="button" data-xact="remove" aria-label="Remove ${esc(x.who)}">${XMARK}</button>`}</div>
+  </article>`;
+}
+function renderExpected() {
+  const order = {delivery: 0, callback: 1, appointment: 2};
+  const list = EXPECTED.map((x, i) => [x, i]).sort((a, b) => (+!a[0].expected - +!b[0].expected) || ((order[a[0].kind] ?? 3) - (order[b[0].kind] ?? 3)) || a[1] - b[1]).map(p => p[0]);
+  $("x-list").innerHTML = list.length ? list.map(xRowHTML).join("")
+    : `<div class="card xempty"><h3>Nothing expected right now</h3><p class="sub">Tell the guard about a delivery, a callback or an appointment, and that caller gets through without a question.</p></div>`;
+  if (xSaved) { const s = document.querySelector(`.xr[data-id="${CSS.escape(xSaved)}"] .saved`); xSaved = null; flashSaved(s); }
+}
+$("x-list").addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-xact]"); if (!b) return;
+  const row = b.closest(".xr"), x = row && EXPECTED.find(e => e.id === row.dataset.id); if (!x) return;
+  if (b.dataset.xact === "toggle") {
+    x.expected = !x.expected; renderExpected();
+    try { const out = await api(`/api/expected/${encodeURIComponent(x.id)}`, {method: "PUT", body: {expected: x.expected}});
+          EXPECTED = EXPECTED.map(e => e.id === x.id ? out : e); xSaved = x.id; renderExpected(); }
+    catch (e) { say(`Couldn't save: ${e.message}`); loadExpected(); }
+  } else if (b.dataset.xact === "remove") {
+    try { await api(`/api/expected/${encodeURIComponent(x.id)}`, {method: "DELETE"}); EXPECTED = EXPECTED.filter(e => e.id !== x.id); renderExpected(); }
+    catch (e) { say(`Couldn't remove it: ${e.message}`); }
+  }
+});
+function xRenderKinds() {
+  $("xf-kinds").innerHTML = Object.entries(XKINDS).map(([k, [label]]) =>
+    `<button class="xkind" type="button" role="radio" aria-checked="${k === xKind}" data-kind="${k}">${xIcon(k)}${label}</button>`).join("");
+}
+$("xf-kinds").addEventListener("click", e => { const b = e.target.closest("[data-kind]"); if (b) { xKind = b.dataset.kind; xRenderKinds(); } });
+$("x-add").onclick = () => {
+  xKind = "delivery"; xRenderKinds();
+  $("xf-who").value = $("xf-words").value = $("xf-note").value = "";
+  $("xf-err").hidden = true;
+  $("xform-dlg").showModal(); $("xf-who").focus();
+};
+$("xf-cancel").onclick = () => $("xform-dlg").close();
+$("xform").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = m => { $("xf-err").textContent = m; $("xf-err").hidden = false; };
+  const body = {kind: xKind, who: $("xf-who").value.trim(), keywords: splitList($("xf-words").value), note: $("xf-note").value.trim()};
+  if (!body.who) return err("Say who will call.");
+  if (!body.keywords.length) return err("Add at least one word the caller will say.");
+  $("xf-save").disabled = true;
+  try {
+    const out = await api("/api/expected", {method: "POST", body});
+    EXPECTED.push(out); xFresh = out.id;
+    setTimeout(() => { if (xFresh === out.id) { xFresh = null; renderExpected(); } }, 12000);
+    $("xform-dlg").close(); renderExpected();
+  } catch (x) { err(x.status === 404 ? "The server can't save expected calls yet. Try again in a minute." : x.message); }
+  finally { $("xf-save").disabled = false; }
+});
+
+// === live call ===
+// The same story as the audience screen: final lines and steps from /events, words in progress from /live.
+(function liveCall() {
+  const FLAGS = {money: "Money", urgency: "Urgency", secrecy: "Secrecy", authority_or_kinship: "Authority or kinship"};
+  const CHN = {telegram: "Telegram", whatsapp: "WhatsApp", email: "Email", call: "Phone call"};
+  const human = s => String(s ?? "").replace(/[._]/g, " ");
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const chLabel = c => CHN[c] || cap(human(c));
+  const chans = p => ((p && p.channels) || ["telegram"]).map(chLabel).join(", ");
+  const ms = ts => Date.parse(String(ts).replace(/(\.\d{3})\d+/, "$1"));
+  const owner = () => CONFIG.owner_name || "Mum";
+  const verb = d => d && d.channel && d.channel !== "telegram" ? "answered" : "tapped";
+  const onCh = d => d && d.channel ? " on " + chLabel(d.channel) : "";
+  const secsBetween = (a, b) => Math.max(0, (b - a) / 1000).toFixed(1);
+  const onLive = () => !!ME && location.hash === "#live";
+
+  let since = 0, S = null, skew = null, primed = false, quiet = 0, busy = false, timer = 0, lastWord = "";
+  const talk = {live: {}, awaiting: {}, signal: 0, inflight: false};
+  const now = () => Date.now() - (skew ?? 0);
+  const name = () => S && S.lookup && S.lookup.contact ? S.lookup.contact.name : "the real person";
+
+  const banner = document.createElement("a");
+  banner.id = "lc-banner"; banner.href = "#live"; banner.hidden = true;
+  banner.innerHTML = '<span class="lc-onair" aria-hidden="true"></span><span>Call in progress: watch it live</span><u id="lc-banner-word"></u>';
+  document.querySelector("#app main").prepend(banner);
+
+  function reset(e) {
+    S = {id: e.call_id, t0: ms(e.ts), lastAt: ms(e.ts), number: (e.data || {}).caller_number, flags: null, seenFlags: new Set(),
+         popped: new Set(), claim: null, scam: null, lookup: null, expected: null, expectedWho: null, expectedKind: null, ping: null,
+         notice: null, decision: null, first: null, cred: null, ended: false, late: 0, stepup: false, codeFailed: false,
+         askedName: false, tookMessage: false, expectedMoney: false};
+    talk.live = {}; talk.awaiting = {}; talk.signal = Date.now();
+    $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = "";
+    lastWord = "";
+  }
+
+  // ---------- the call's state, from events ----------
+  function apply(e) {
+    const d = e.data || {};
+    switch (e.type) {
+      case "transcript": addFinal(d.role, d.text); break;
+      case "claim": S.claim = d; break;
+      case "flags": S.flags = d; break;
+      case "script.match": S.scam = d; break;
+      case "contact.lookup": S.lookup = d; break;
+      case "ping.sent": S.ping = {...d, at: ms(e.ts)}; break;
+      case "notice.sent": S.notice = {...d, at: ms(e.ts)}; break;
+      case "decision": S.decision = {...d, at: ms(e.ts)}; S.first = S.first || S.decision; talk.signal = Date.now(); break;
+      case "credential.verified": S.cred = d; break;
+      case "call.ended": S.ended = true; talk.signal = Date.now(); break;
+      case "action":
+        if (d.kind === "late_denial") S.late = ms(e.ts);
+        if (d.kind === "stepup") S.stepup = true;
+        if (d.kind === "code_word_failed") S.codeFailed = true;
+        if (d.kind === "ask_name") S.askedName = true;
+        if (d.kind === "take_message") S.tookMessage = true;
+        if (d.kind === "expected_but_money") S.expectedMoney = true;
+        break;
+      default:
+        if (e.type.startsWith("context.")) { S.expected = d.why || `${owner()} was expecting this call.`; S.expectedWho = d.who; S.expectedKind = d.kind; }
+    }
+  }
+  function handle(e, fresh) {
+    if (fresh) skew = Math.min(skew ?? Infinity, Date.now() - ms(e.ts));
+    if (e.type === "call.started") reset(e);
+    if (!S || e.call_id !== S.id) return;
+    S.lastAt = Math.max(S.lastAt, ms(e.ts));
+    apply(e);
+    addStep(e);
+  }
+  // live: in progress or decided moments ago; last: finished and kept on screen; none: no call yet
+  function phase() {
+    if (!S) return "none";
+    const idle = now() - S.lastAt;
+    if (idle > 120000) return "last";
+    if ((S.decision || S.ended || S.codeFailed) && idle > 15000) return "last";
+    return "live";
+  }
+
+  // ---------- outcome wording, as on the audience screen ----------
+  function byText(d) {
+    const n = name();
+    return {tap: `${n} ${verb(d)} ${d.state === "confirmed" ? "Yes" : "No"}${onCh(d)}`, timeout: `no answer from ${n}`,
+            known_number: "known number, harmless request", lookup: `caller not in ${owner()}'s circle`,
+            repeat_attempt: "number already denied today", stepup: "identity check", code_word: "family code word",
+            ping_cap: "too many attempts today", credential: "verified agent credential",
+            stepup_unavailable: "identity check unavailable", expected: "an expected call", context: "an expected call",
+            expected_but_money: "expected caller asked for money"}[d.by] || human(d.by);
+  }
+  function outcome() {
+    const n = name(), d = S.decision, O = owner();
+    const after = d && S.ping ? ` after ${secsBetween(S.ping.at, d.at)} s` : "";
+    if (S.late) return ["denied", "Blocked", `${n} tapped Not me. The guard hung up.`];
+    if (S.codeFailed) return ["unver", "Not verified", "Wrong code word twice. The guard hung up."];
+    if (d) {
+      const by = d.by;
+      if (d.state === "denied") return ["denied", "Blocked", {
+        tap: `${n} ${verb(d)} No${onCh(d)}${after}. The guard hung up.`,
+        repeat_attempt: `This number was already denied as ${n} today. Hung up without asking again.`,
+        stepup: `Failed ${n}'s identity check. The guard hung up.`}[by] || `Denied by ${human(by)}. The guard hung up.`];
+      if (d.state === "confirmed") {
+        if (by === "code_word") return ["ok", "Put through", `${n} didn't answer, but the caller knew the family code word.`];
+        if (S.expected || by === "context" || by === "expected") return ["expected", "Expected call", S.expected || `${O} was expecting this call.`];
+        if (by === "known_number") return ["known", "Known number", `${n}'s own number, harmless request. Put through; ${n} got a heads-up.`];
+        return ["ok", "Put through", {tap: `${n} ${verb(d)} Yes${onCh(d)}${after}. Put through to ${O}.`,
+          stepup: `${n} passed the identity check. Put through to ${O}.`}[by] || `Confirmed by ${human(by)}. Put through.`];
+      }
+      if (d.state === "unverified") return ["unver", "Not verified", {
+        timeout: `No answer from ${n}${after}. The caller can still give the family code word.`,
+        lookup: S.tookMessage ? `Not in ${O}'s circle and not expected. Taking a message.` : `Not someone in ${O}'s circle. Asking who they are.`,
+        expected_but_money: "Says it's an expected delivery, but asks for money. No shortcut; don't pay.",
+        ping_cap: `Too many attempts as ${n} today. The caller can still give the family code word.`,
+        stepup_unavailable: "The identity check is unavailable. Don't send money.",
+        code_word: "Wrong code word twice. The guard hung up."}[by] || `Unverified (${human(by)}). Don't send money.`];
+      if (d.state === "agent_verified") return ["agent", "Verified agent",
+        S.cred ? `${S.cred.agent}, acting for ${S.cred.principal}.` : "A verified agent credential."];
+      if (/expect/.test(d.state)) return ["expected", "Expected call", S.expected || `${O} was expecting this call.`];
+      return ["screen", cap(human(d.state)), `Decided by ${human(by)}.`];
+    }
+    if (S.stepup) return ["check", "Checking identity", `${n} tapped Yes. Now confirming it is really ${n}.`];
+    if (S.ping) return ["check", "Is this you?", `Asked ${n} on ${chans(S.ping)}. The caller is on hold.`];
+    if (S.expected) return ["screen", "Screening", S.expected];
+    if (S.askedName) return ["screen", "Screening", "The guard asked the caller for their first name."];
+    return ["screen", "Screening", "The guard is answering and listening."];
+  }
+
+  // ---------- timeline ----------
+  const KIND = {call: "var(--muted)", heard: "var(--c-unver)", scam: "var(--c-denied)", contact: "var(--c-known)",
+                context: "var(--c-expected)", ask: "var(--c-check)", act: "#8FB4E8", owner: "var(--text)"};
+  const DEC = {denied: "var(--c-denied)", confirmed: "var(--c-ok)", unverified: "var(--c-unver)", agent_verified: "#8C9CF0"};
+  const STATE_WORD = {denied: "Blocked", confirmed: "Put through", unverified: "Not verified", agent_verified: "Verified agent"};
+  function describe(e) {
+    const d = e.data || {}, n = name(), O = owner();
+    switch (e.type) {
+      case "transcript": return null;
+      case "call.started": return ["call", `Call came in${d.caller_number ? " from " + d.caller_number : ""}`];
+      case "flags": {
+        const added = Object.keys(FLAGS).filter(k => d[k] && !S.seenFlags.has(k));
+        added.forEach(k => S.seenFlags.add(k));
+        return added.length ? ["heard", `Heard pressure: ${added.map(k => FLAGS[k].toLowerCase()).join(", ")}`] : null;
+      }
+      case "claim": {
+        const ask = d.asks_for || d.amount;
+        if (!d.claimed_name && !ask) return null;
+        return ["heard", d.claimed_name ? `Claims to be ${d.claimed_name}${ask ? ", asks for " + ask : ""}` : `Asks for ${ask}`];
+      }
+      case "script.match": return d.benign || !d.title ? null : ["scam", `Matches a known scam: ${d.title}`];
+      case "contact.lookup": return ["contact", d.contact ? `Found ${d.contact.name} in the trusted contacts` : `Not in ${O}'s trusted contacts`];
+      case "context.expected": return ["context", `Expected ${d.kind || "call"}${d.why ? ": " + d.why : ""}`];
+      case "ping.sent": return ["ask", `Asked ${n} on ${chans(d)}: “Is this you?”`];
+      case "notice.sent": return ["ask", `Sent ${n} a heads-up`];
+      case "decision": return ["dec:" + d.state, `${STATE_WORD[d.state] || cap(human(d.state))}: ${byText(d)}`];
+      case "credential.verified": return ["context", `Verified agent ${d.agent} acting for ${d.principal}`];
+      case "owner.notified": return ["owner", `Told ${O}: “${d.text}”`];
+      case "call.ended": return ["call", "Call ended"];
+      case "action": {
+        const k = d.kind;
+        const t = {hangup: "Hung up on the caller", forward: `Put the call through to ${O}`, ask_name: "Asked the caller for their first name",
+                   late_denial: `${n} tapped Not me: hung up`, code_word_failed: "Wrong code word twice: hung up",
+                   stepup: `Sent ${n} an identity check`, take_message: "Took a message instead of putting the call through",
+                   expected_but_money: "Expected call, but it asks for money: no shortcut",
+                   say: `Told the caller: “${d.text}”`,
+                   challenge: /code word/i.test(d.text || "") ? "Asked the caller for the family code word" : `Asked the caller: “${d.text}”`}[k];
+        return ["act", t || cap(human(k || "action")) + (d.text ? ": " + d.text : "")];
+      }
+    }
+    return ["call", cap(human(e.type))];
+  }
+  function addStep(e) {
+    const r = describe(e);
+    if (!r) return;
+    const [kind, text] = r;
+    const li = document.createElement("li");
+    li.style.setProperty("--k", kind.startsWith("dec:") ? (DEC[kind.slice(4)] || "var(--c-screen)") : (KIND[kind] || "var(--faint)"));
+    li.innerHTML = `<span class="d"></span><span><span class="t">+${Math.max(0, (ms(e.ts) - S.t0) / 1000).toFixed(1)} s</span><span class="x"></span></span>`;
+    li.querySelector(".x").textContent = text;
+    const box = $("lc-steps");
+    box.appendChild(li);
+    while (box.children.length > 24) box.firstChild.remove();
+  }
+
+  // ---------- transcript: finals from /events, words in progress from /live ----------
+  const words = t => String(t || "").toLowerCase().replace(/[^\p{L}\p{N}•]+/gu, " ").trim();
+  const sameLine = (a, b) => { a = words(a); b = words(b); const k = Math.min(a.length, b.length, 14); return k > 0 && a.slice(0, k) === b.slice(0, k); };
+  // Redaction arrives already done by the server; this only styles it.
+  const maskHTML = t => esc(t).replace(/•{2,}/g, '<span class="lc-mask" title="Code word hidden">••••</span>')
+                              .replace(/\[([A-Za-z][A-Za-z ]{0,30})\]/g, '<span class="lc-mask">$1</span>');
+  function setSaid(el, text) {
+    if (el.dataset.text === text) return;
+    el.dataset.text = text;
+    el.querySelector(".lc-said").innerHTML = maskHTML(text);
+  }
+  function newTurn(role) {
+    const el = document.createElement("div");
+    el.className = "lc-turn " + role;
+    el.dataset.role = role;
+    el.innerHTML = '<span class="lc-who"></span><p class="lc-said"></p>';
+    el.querySelector(".lc-who").textContent = role === "caller" ? "Caller" : "Guard";
+    return el;
+  }
+  function tidyTalk() {
+    const box = $("lc-convo");
+    while (box.children.length > 40) box.firstChild.remove();
+    let prev = null;
+    for (const el of box.children) { el.classList.toggle("cont", !!prev && prev.dataset.role === el.dataset.role); prev = el; }
+    box.scrollTop = box.scrollHeight;
+  }
+  function addFinal(role, text) {
+    role = role === "caller" ? "caller" : "agent";
+    talk.signal = Date.now();
+    let el = talk.awaiting[role] && sameLine(talk.awaiting[role].dataset.text, text) ? talk.awaiting[role] : null;
+    if (el) delete talk.awaiting[role];
+    else if (talk.live[role] && (talk.live[role].dataset.stale || sameLine(talk.live[role].dataset.text, text))) {
+      el = talk.live[role]; delete talk.live[role]; // the line being spoken settles in place
+    }
+    if (el) el.classList.remove("live");
+    else { el = newTurn(role); $("lc-convo").insertBefore(el, $("lc-convo").querySelector(".lc-turn.live")); }
+    setSaid(el, text);
+    tidyTalk();
+  }
+  function applyLive(L) {
+    if (!S || !S.id || !L || L.call_id !== S.id) return;
+    let changed = false;
+    for (const role of ["caller", "agent"]) {
+      const p = L[role];
+      let el = talk.live[role];
+      if (p && p.text) {
+        talk.signal = Date.now();
+        if (el && el.dataset.stale && !sameLine(el.dataset.text, p.text)) {
+          el.classList.remove("live"); talk.awaiting[role] = el; el = null; // a new line began before the last one's final
+        }
+        if (!el) { el = newTurn(role); el.classList.add("live"); $("lc-convo").appendChild(el); talk.live[role] = el; }
+        delete el.dataset.stale;
+        setSaid(el, p.text);
+        changed = true;
+      } else if (el && !el.dataset.stale) el.dataset.stale = Date.now();
+    }
+    if (changed) { tidyTalk(); renderPanels(); }
+  }
+  function expireLive() { // words that never got a final fade after a moment
+    for (const role of ["caller", "agent"]) {
+      const el = talk.live[role];
+      if (el && el.dataset.stale && Date.now() - el.dataset.stale > 2500) { el.remove(); delete talk.live[role]; tidyTalk(); }
+    }
+  }
+  const liveWanted = () => !!(S && S.id) && ((!S.ended && !S.decision) || Date.now() - talk.signal < 15000);
+  async function pollLive() {
+    if (document.hidden || !onLive() || !S) return;
+    expireLive();
+    if (!liveWanted() || talk.inflight) return;
+    talk.inflight = true;
+    try { applyLive(await api("/live")); } catch (_) {} finally { talk.inflight = false; }
+  }
+
+  // ---------- render ----------
+  function setHTML(id, html) { const el = $(id); if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; } }
+  function ago(t) {
+    const s = (now() - t) / 1000;
+    return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+  }
+  function renderHero() {
+    const ph = phase(), O = owner();
+    let cls = "", word = "Waiting for a call", why = `The guard answers ${O}'s calls from unknown numbers. Each one plays out here as it happens.`, top;
+    if (S) [cls, word, why] = outcome();
+    const from = S && S.number ? " from " + esc(S.number) : "";
+    if (ph === "live") top = `<span class="lc-onair on"></span>Live call to ${esc(O)}${from}`;
+    else if (ph === "last") top = `<span class="lc-onair"></span>Last call${from}, ${ago(S.lastAt)}. Waiting for the next call.`;
+    else top = `<span class="lc-onair"></span>${esc(O)}'s line is protected`;
+    $("lc-hero").className = `lc-hero lc-${ph === "none" ? "idle" : ph}${cls ? " lc-st-" + cls : ""}`;
+    setHTML("lc-top", top);
+    const w = $("lc-word");
+    if (word !== lastWord) {
+      w.textContent = word; w.classList.remove("lc-stamp");
+      if (ph === "live") { void w.offsetWidth; w.classList.add("lc-stamp"); }
+      lastWord = word;
+    }
+    $("lc-why").textContent = why; $("lc-why").title = why;
+    let ch = "";
+    if (ph === "live" && S.ping) ch = (S.ping.channels || ["telegram"]).map(c =>
+      `<span class="chip${S.decision && S.decision.channel === c ? " on" : ""}">${esc(chLabel(c))}</span>`).join("");
+    setHTML("lc-chans", ch);
+    $("lc-try").hidden = !(CONFIG.fake && ph !== "live");
+    tick();
+  }
+  function tick() {
+    const ph = phase();
+    let secs = "", capt = "", bar = 0;
+    if (S) {
+      const t = now(), d = S.decision;
+      if (ph === "live" && S.ping && !d && !S.stepup && S.ping.timeout_s != null) {
+        const left = Math.max(0, S.ping.timeout_s - (t - S.ping.at) / 1000);
+        secs = Math.ceil(left) + " s"; capt = "left to answer, asked on"; bar = left / S.ping.timeout_s;
+      } else if (S.late) { secs = ((S.late - S.t0) / 1000).toFixed(1) + " s"; capt = "to catch it"; }
+      else if (d && d.seconds_to_decide != null) { secs = (+d.seconds_to_decide).toFixed(1) + " s"; capt = "to decide"; }
+      else if (ph === "live" && !S.ended) { secs = Math.max(0, (t - S.t0) / 1000).toFixed(1) + " s"; capt = "on the line"; }
+    }
+    $("lc-secs").textContent = secs; $("lc-cap").textContent = capt;
+    $("lc-bar").style.width = (bar * 100).toFixed(1) + "%";
+  }
+  function row(id, html, wait) {
+    const el = $(id), sig = (wait ? "w" : "f") + html, was = el.dataset.sig || "w";
+    if (el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    el.classList.toggle("wait", !!wait);
+    el.querySelector("dd").innerHTML = html;
+    el.classList.remove("fresh");
+    if (!wait && was[0] === "w" && S) { void el.offsetWidth; el.classList.add("fresh"); }
+  }
+  const V = (v, note) => `<div class="lc-v">${esc(v)}</div>${note ? `<div class="lc-n">${esc(note)}</div>` : ""}`;
+  const Q = text => `<div class="lc-n lc-q">${esc(text)}</div>`;
+  function renderFacts() {
+    const O = owner();
+    if (!S) {
+      row("lc-f-num", V("No call yet"), true); row("lc-f-who", V("Listening"), true); row("lc-f-ask", V("Listening"), true);
+      row("lc-f-press", `<div class="lc-tags">${Object.values(FLAGS).map(l => `<span class="chip"><i></i>${l}</span>`).join("")}</div>`, false);
+      row("lc-f-ping", V("Not yet"), true); row("lc-f-dec", V("Not yet"), true);
+      return;
+    }
+    const d = S.decision, lk = S.lookup;
+    row("lc-f-num", `<div class="lc-v">${esc(S.number || "Hidden number")}${lk ? `<span class="lc-inl">${lk.number_known ? "known number" : "unknown number"}</span>` : ""}</div>`, false);
+
+    let who = null, tag = "";
+    if (S.cred) who = `${S.cred.agent}, agent for ${S.cred.principal}`;
+    else if (S.claim && (S.claim.claimed_name || S.claim.relationship)) who = [S.claim.claimed_name, S.claim.relationship && `(${S.claim.relationship})`].filter(Boolean).join(" ");
+    else if (lk && lk.contact) who = lk.contact.name;
+    else if (S.expectedWho) who = {delivery: "A delivery", callback: "A callback", appointment: "An appointment"}[S.expectedKind] || "An expected caller";
+    else if (S.expectedMoney) who = "An expected delivery";
+    if (lk && lk.contact) tag = `<span class="chip on"><i></i>${esc(lk.contact.name)}${lk.contact.relationship ? ` (${esc(lk.contact.relationship)})` : ""} is a trusted contact</span>`;
+    else if (lk) tag = '<span class="chip lc-warn"><i></i>Not in the trusted contacts</span>';
+    else if (who) tag = '<span class="chip"><i></i>Checking the trusted contacts</span>';
+    if (S.expected && !(lk && lk.contact)) tag += '<span class="chip on"><i></i>Expected call</span>';
+    row("lc-f-who", who || tag ? `<div class="lc-v">${esc(who || "No name given")}</div><div class="lc-tags">${tag}</div>` : V("Listening"), !who && !tag);
+
+    let a = null, m;
+    if (S.claim && S.claim.asks_for) a = S.claim.asks_for;
+    else if (S.claim && (S.claim.amount || S.claim.method)) a = [S.claim.amount, S.claim.method && "by " + S.claim.method].filter(Boolean).join(" ");
+    else if (S.ping && (m = String(S.ping.text || "").match(/asking for (.+?)(?: \(attempt \d+ today\))?\. Is this you\?/))) a = m[1];
+    else if (S.flags && S.flags.money) a = "Money";
+    else if (lk || d) a = "Nothing sensitive";
+    row("lc-f-ask", V(a || "Listening"), !a);
+
+    const f = S.flags || {};
+    const scam = S.scam && S.scam.title && !S.scam.benign && !(d && d.state === "confirmed")
+      ? `<div class="lc-n lc-scam" title="${esc(S.scam.title)}">Known scam: ${esc(S.scam.title)}</div>` : "";
+    row("lc-f-press", `<div class="lc-tags">${Object.entries(FLAGS).map(([k, l]) =>
+      `<span class="chip${f[k] ? " lc-red" : ""}" data-k="${k}"><i></i>${l}</span>`).join("")}</div>${scam}`, false);
+    for (const k of Object.keys(FLAGS)) if (f[k] && !S.popped.has(k)) {
+      S.popped.add(k);
+      const c = document.querySelector(`#lc-f-press [data-k="${k}"]`); if (c) c.classList.add("lc-pop");
+    }
+
+    if (S.ping) {
+      const chs = (S.ping.channels || ["telegram"]).map(c => { const hit = S.first && S.first.channel === c;
+        return `<span class="chip${hit ? " on" : ""}"><i></i>${esc(chLabel(c))}${hit ? ", answered" : ""}</span>`; }).join("");
+      row("lc-f-ping", `${Q(S.ping.text)}<div class="lc-tags">${chs}</div>`, false);
+    } else if (S.notice) row("lc-f-ping", `${Q(S.notice.text)}<div class="lc-tags"><span class="chip on"><i></i>Heads-up only</span></div>`, false);
+    else if (d) row("lc-f-ping", V(S.expected ? "Not needed: this call was expected" : {
+      lookup: `Nobody to ask: not in ${O}'s circle`, expected_but_money: `Nobody to ask: not in ${O}'s circle`,
+      repeat_attempt: "Not asked again: already denied today", ping_cap: "Not asked: too many attempts today",
+      credential: "Not needed: a verified agent is calling"}[d.by] || "No question sent"), true);
+    else row("lc-f-ping", V("Not yet"), true);
+
+    if (d) {
+      const [cls, word] = outcome();
+      const how = cap(byText(d)) + (S.ping && d.by === "tap" ? `, ${secsBetween(S.ping.at, d.at)} s after the question` : "")
+        + (d.seconds_to_decide != null ? `. Decided ${d.seconds_to_decide} s into the call.` : ".");
+      row("lc-f-dec", `<div class="lc-v lc-st-${cls}" style="color:var(--lc-c)">${esc(word)}</div><div class="lc-n">${esc(how)}</div>`, false);
+    } else row("lc-f-dec", V(S.ping ? "Waiting for the answer" : "Not yet"), true);
+  }
+  function renderPanels() {
+    const ph = phase(), has = $("lc-convo").children.length > 0;
+    $("lc-convo").hidden = !has; $("lc-talk-empty").hidden = has;
+    $("lc-onair").classList.toggle("on", ph === "live" && !!S && !S.ended);
+    $("lc-talk-note").textContent = ph === "last" ? "Last call" : "";
+    const steps = $("lc-steps").children.length > 0;
+    $("lc-steps").hidden = !steps; $("lc-tl-empty").hidden = steps;
+  }
+  function renderGlobal() {
+    const active = !!ME && phase() === "live";
+    const a = document.querySelector('#nav a[data-view="live"]');
+    if (a) a.classList.toggle("lc-on", active);
+    banner.hidden = !active || location.hash === "#live";
+    if (active) $("lc-banner-word").textContent = outcome()[1];
+  }
+  function render() {
+    renderGlobal();
+    if (!onLive()) return;
+    renderHero(); renderFacts(); renderPanels();
+  }
+
+  // ---------- polling: fast while watched or a call is on, slow otherwise, none while the tab is hidden ----------
+  const fast = () => onLive() || phase() === "live";
+  async function pollEvents() {
+    clearTimeout(timer);
+    if (ME && !document.hidden && !busy) {
+      busy = true;
+      try {
+        const evs = await api("/events?since=" + since);
+        for (const e of evs) { handle(e, primed); since = e.id; }
+        primed = true;
+        if (evs.length) quiet = 0;
+        else if (since > 0 && ++quiet % 10 === 0) {
+          // The server was restarted if even our last event is gone: start over.
+          const last = await api("/events?since=" + (since - 1));
+          if (!last.length) { since = 0; primed = false; S = null; $("lc-convo").innerHTML = ""; $("lc-steps").innerHTML = ""; }
+        }
+      } catch (_) {}
+      busy = false;
+      render();
+    }
+    if (!document.hidden) timer = setTimeout(pollEvents, !ME ? 600 : fast() ? 500 : 3000);
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) pollEvents(); });
+  addEventListener("hashchange", () => {
+    render();
+    if (onLive()) { $("lc-convo").scrollTop = $("lc-convo").scrollHeight; pollEvents(); }
+  });
+  $("lc-try").addEventListener("click", async ev => {
+    const b = ev.target.closest("button[data-test]");
+    if (!b) return;
+    // Same payloads as the audience screen's scene buttons.
+    const O = owner();
+    const GREET = `Hello, this is ${O}'s assistant. Who is calling, and what is it about?`, HOLD = "One moment, I am trying to reach her.";
+    const body = b.dataset.test === "scam"
+      ? {claimed_name: "Jakob", caller_number: "+15550999999", lines: [`${O}, it's me, I'm in trouble.`, "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."],
+         agent_lines: {0: GREET, 3: HOLD}, tap: "no", tap_after_s: 4}
+      : {claimed_name: "Jakob", caller_number: "+15550100002", lines: [`Hi ${O}, it's Jakob.`, "Can you pick me up at five?"],
+         agent_lines: {0: GREET, 2: HOLD}, tap: "yes", tap_after_s: 4};
+    const btns = [...$("lc-try").querySelectorAll("button")];
+    btns.forEach(x => x.disabled = true);
+    try { await api("/sim/reset", {method: "POST"}); await api("/sim/call", {method: "POST", body}); pollEvents(); }
+    catch (e) { say(`The test call didn't start: ${e.message}`); }
+    finally { btns.forEach(x => x.disabled = false); }
+  });
+  setInterval(pollLive, 200);
+  setInterval(() => { if (S && onLive() && !document.hidden) tick(); }, 250);
+  pollEvents();
+})();
 
 // ---------- start: decide signed-in or not before anything shows ----------
 (async function boot() {
