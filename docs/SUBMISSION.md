@@ -65,7 +65,7 @@ Expected calls use stored records, the user's list and a mailbox scan; the scan 
 
 ## Team and links
 
-Jakob and Erick Julyan
+Jakob Volbracht and Erick Julyan
 
 Product: https://kincheck-caller.lovable.app/
 
