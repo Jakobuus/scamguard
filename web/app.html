@@ -236,7 +236,7 @@
   .g-sum{font:700 30px/1.1 var(--display)}
   .g-sum span{color:var(--muted);font:500 20px var(--font);margin-left:12px}
   .g-src{color:var(--faint);font-size:17px;font-weight:600}
-  .g-legend{position:absolute;left:36px;right:36px;bottom:22px;display:flex;flex-wrap:wrap;gap:8px 26px;color:var(--muted);font-size:17px;pointer-events:none}
+  .g-legend{position:absolute;left:36px;right:36px;bottom:24px;display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--muted);font-size:17px;pointer-events:none}
   .g-legend span{display:inline-flex;align-items:center;gap:9px}
   .g-legend svg{width:20px;height:20px;overflow:visible}
   .gn{cursor:pointer;transition:opacity .2s}
@@ -421,10 +421,23 @@
   .lc-chans{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;max-width:420px}
   .lc-chans .chip{border-color:currentColor;color:inherit;opacity:.9}
   .lc-chans .chip.on{background:var(--lc-on);color:var(--lc-c);border-color:transparent;opacity:1}
-  .lc-try{display:flex;flex-direction:column;align-items:flex-end;gap:10px;color:var(--faint);font-size:17px;font-weight:600}
-  .lc-try div{display:flex;gap:10px}
-  .lc-try .btn{font-size:17px;padding:8px 16px;color:var(--muted)}
-  .lc-try .btn:hover{color:var(--text)}
+  .lc-scenes{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;opacity:.55;transition:opacity .2s}
+  .lc-scenes:hover,.lc-scenes:focus-within{opacity:1}
+  .lc-scenes button{font:600 14px var(--font);padding:5px 10px;border-radius:9px;border:1.5px solid var(--rule);background:transparent;color:var(--muted);cursor:pointer}
+  .lc-scenes button:hover{background:var(--s2);color:var(--text)}
+  .lc-scenes button[disabled]{opacity:.5;cursor:default}
+  .lc-pbtn{margin-left:auto;font-size:16px;padding:6px 12px;box-shadow:inset 0 0 0 1.5px var(--rule)}
+  .lc-sub{font:600 17px/1.3 var(--font);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.lc-present #rail,body.lc-present #top{display:none}
+  body.lc-present #app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+  body.lc-present main{padding:28px 32px}
+  body.lc-present #v-live{grid-template-columns:minmax(0,1.65fr) minmax(0,1fr) 300px}
+  body.lc-present .lc-hero{height:300px;padding:28px 44px 30px}
+  body.lc-present .lc-word{font-size:150px}
+  body.lc-present .lc-why{font-size:31px}
+  body.lc-present .lc-secs{font-size:108px}
+  body.lc-present .lc-said{font-size:40px}
+  body.lc-present .lc-turn.agent .lc-said{font-size:33px}
   .lc-bar{position:absolute;left:0;right:0;bottom:0;height:8px}
   .lc-bar i{display:block;height:100%;width:0;background:currentColor;opacity:.4;transition:width .25s linear}
   .lc-onair{width:13px;height:13px;border-radius:50%;background:var(--faint);flex:none}
@@ -669,10 +682,6 @@
         <div class="lc-side">
           <div class="lc-clock" id="lc-clock"><div class="lc-secs" id="lc-secs"></div><div class="lc-cap" id="lc-cap"></div></div>
           <div class="lc-chans" id="lc-chans"></div>
-          <div class="lc-try" id="lc-try" hidden>
-            <span>Play a test call</span>
-            <div><button class="btn btn-ghost btn-sm" type="button" data-test="scam">Scam, answered No</button><button class="btn btn-ghost btn-sm" type="button" data-test="real">Real, answered Yes</button></div>
-          </div>
         </div>
         <div class="lc-bar"><i id="lc-bar"></i></div>
       </div>
@@ -684,18 +693,20 @@
       <div class="card lc-facts">
         <h3>What the guard sees</h3>
         <dl class="lc-rows">
-          <div class="lc-f" id="lc-f-num"><dt>Calling from</dt><dd></dd></div>
           <div class="lc-f" id="lc-f-who"><dt>Says they are</dt><dd></dd></div>
           <div class="lc-f" id="lc-f-ask"><dt>Asks for</dt><dd></dd></div>
           <div class="lc-f" id="lc-f-press"><dt>Pressure</dt><dd></dd></div>
-          <div class="lc-f" id="lc-f-ping"><dt>Question sent</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-ping"><dt id="lc-f-ping-dt">Question sent</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-notice" hidden><dt>Heads-up sent</dt><dd></dd></div>
+          <div class="lc-f" id="lc-f-told"><dt id="lc-f-told-dt">What Mum was told</dt><dd></dd></div>
           <div class="lc-f" id="lc-f-dec"><dt>Decision</dt><dd></dd></div>
         </dl>
       </div>
       <div class="card lc-tl">
-        <h3>Step by step</h3>
+        <div class="lc-h"><h3>Step by step</h3><button class="iconbtn lc-pbtn" type="button" id="lc-present" aria-pressed="false">Present</button></div>
         <ol class="lc-steps" id="lc-steps"></ol>
         <div class="empty" id="lc-tl-empty">Each step the guard takes lands here, in order.</div>
+        <nav class="lc-scenes" id="lc-scenes" aria-label="Test calls" hidden></nav>
       </div>
     </section>
 
@@ -1534,7 +1545,10 @@ function gLayout(nodes, edges, byId, W, H) {
   for (const g of groups) {
     const span = wt(g) / total * 2 * Math.PI, mid = a + span / 2, n = g.items.length;
     const use = span * (wt(g) - GAP) / wt(g), step = n ? use / n : 0;
-    if (g.hub) P[g.hub.id] = at(mid, 0.42);
+    if (g.hub) { // inner ring, but never closer than ~230 px to the owner
+      const p = at(mid, 0.48), dx = p[0] - cx, dy = p[1] - cy, dist = Math.hypot(dx, dy) || 1, k = Math.max(1, 230 / dist);
+      P[g.hub.id] = [cx + dx * k, cy + dy * k];
+    }
     g.items.forEach((it, i) => {
       const stag = n > 3 ? (i % 2 ? 0.09 : -0.07) : 0;
       P[it.id] = at(mid - use / 2 + step * (i + 0.5), (g.hub ? 0.88 : 0.74) + stag);
@@ -1632,8 +1646,9 @@ function gDraw(d, W, H) {
     }
     for (const p of paths) { const ed = edges[+p.dataset.i]; p.setAttribute("d", gPath(cur[ed.from], cur[ed.to], p.classList.contains("e-contact"))); }
     for (const t of elabs) {
-      const ed = edges[+t.dataset.i], a = cur[ed.from], b = cur[ed.to];
-      t.setAttribute("x", ((a[0] + b[0]) / 2).toFixed(1)); t.setAttribute("y", ((a[1] + b[1]) / 2 - 12).toFixed(1));
+      const ed = edges[+t.dataset.i], ownerFirst = byId[ed.from].type === "owner";
+      const c = cur[ownerFirst ? ed.to : ed.from], o = cur[ownerFirst ? ed.from : ed.to]; // label sits nearer the contact
+      t.setAttribute("x", (c[0] + (o[0] - c[0]) * 0.3).toFixed(1)); t.setAttribute("y", (c[1] + (o[1] - c[1]) * 0.3 - 12).toFixed(1));
     }
     G.pos = cur;
     if (k < 1) G.raf = requestAnimationFrame(frame);
@@ -1642,7 +1657,72 @@ function gDraw(d, W, H) {
   G.raf = requestAnimationFrame(frame);
   gChrome(nodes, d.source);
 }
-// ovg:part8
+function gChrome(nodes, source) {
+  const count = t => nodes.filter(n => n.type === t).length, att = nodes.filter(n => n.type === "attempt");
+  const blk = att.filter(n => n.blocked).length, people = count("contact");
+  const bits = [att.length ? `${att.length} recent ${att.length === 1 ? "attempt" : "attempts"}, ${blk} blocked` : "",
+    count("fact") ? `${count("fact")} remembered ${count("fact") === 1 ? "fact" : "facts"}` : "",
+    count("expected") ? `${count("expected")} expected ${count("expected") === 1 ? "call" : "calls"}` : ""].filter(Boolean);
+  $("g-sum").innerHTML = `${people} ${people === 1 ? "person" : "people"} you trust<span>${esc(bits.join(", "))}</span>`;
+  $("g-src").textContent = `Memory: ${source === "cognee" ? "Cognee" : "local"}`;
+  const legend = [["owner", "Protected person"], ["contact", "Trusted contact"], ["number", "Phone number"], ["channel", "Channel to ask on"],
+    ["expected", "Expected call"], ["fact", "Remembered fact"]].filter(([t]) => count(t));
+  if (att.some(n => n.blocked)) legend.push(["attempt", "Attempt, blocked", true]);
+  if (att.some(n => !n.blocked)) legend.push(["attempt", "Attempt, let through", false]);
+  $("g-legend").innerHTML = legend.map(([t, l, b]) => `<span>${gSwatch(t, b)}${esc(l)}</span>`).join("");
+}
+function gFocus(id) {
+  const svg = $("g-svg"), set = new Set(id ? [id, ...(G.adj[id] || [])] : []);
+  svg.classList.toggle("focus", !!id);
+  for (const g of svg.querySelectorAll(".gn")) { g.classList.toggle("hl", set.has(g.dataset.id)); g.classList.toggle("sel", g.dataset.id === id); }
+  for (const e of svg.querySelectorAll(".ge,.gel")) e.classList.toggle("hl", !!id && (e.dataset.a === id || e.dataset.b === id));
+  gCard(id);
+}
+function gCard(id) {
+  const c = $("g-card"), n = id && G.byId[id];
+  if (!n || !G.pos[id]) { c.hidden = true; return; }
+  const what = n.type === "attempt" ? (n.blocked ? "Attempt, blocked" : "Attempt, let through")
+    : n.type === "number" && String(id).startsWith("own:") ? "Your own number" : (GT[n.type] || {name: n.type}).name;
+  const links = (G.adj[id] || []).map(x => G.byId[x] && G.byId[x].label).filter(Boolean);
+  c.innerHTML = `<div class="gk"><i style="background:${gColor(n)}"></i>${esc(what)}</div><div class="gt">${esc(n.label)}</div>
+    <p class="gd">${esc(n.detail || "")}</p><div class="gp">${links.length ? `Linked to ${esc(links.slice(0, 4).join(", "))}${links.length > 4 ? ` and ${links.length - 4} more` : ""}. ` : ""}${G.pinned === id ? "Click empty space to let go." : "Click to pin."}</div>`;
+  c.hidden = false;
+  const [x, y] = G.pos[id], r = gR(n), cw = c.offsetWidth, ch = c.offsetHeight, lb = G.lab[id];
+  let left = lb && lb.anchor === "start" ? x - r - 28 - cw : x + r + 28;
+  if (left + cw > G.w - 16) left = x - r - 28 - cw;
+  if (left < 16) left = Math.min(G.w - cw - 16, x + r + 28);
+  c.style.left = `${Math.max(16, left)}px`;
+  c.style.top = `${Math.min(Math.max(16, y - ch / 2), G.h - ch - 16)}px`;
+}
+(function gWire() {
+  const svg = $("g-svg");
+  svg.addEventListener("pointerover", e => { const g = e.target.closest(".gn"); if (g && !G.pinned) gFocus(g.dataset.id); });
+  svg.addEventListener("pointerout", e => {
+    const g = e.target.closest(".gn");
+    if (g && !G.pinned && !(e.relatedTarget && g.contains(e.relatedTarget))) gFocus(null);
+  });
+  svg.addEventListener("click", e => {
+    const g = e.target.closest(".gn");
+    if (g) { G.pinned = G.pinned === g.dataset.id ? null : g.dataset.id; gFocus(G.pinned || g.dataset.id); }
+    else { G.pinned = null; gFocus(null); }
+  });
+})();
+async function gRefresh() {
+  if (G.busy || !ovShown("v-graph")) return;
+  G.busy = true;
+  try {
+    const d = await maybe("/api/graph");
+    if (!d || !Array.isArray(d.nodes)) return;
+    const empty = d.nodes.length <= 1, box = $("g-box");
+    $("g-empty").hidden = !empty; $("g-cap").hidden = !empty; box.hidden = empty;
+    if (empty) { G.sig = ""; G.pos = {}; return; }
+    const sig = JSON.stringify(d), W = box.clientWidth, H = box.clientHeight;
+    if (sig === G.sig && W === G.w && H === G.h) return;
+    G.sig = sig; G.w = W; G.h = H;
+    gDraw(d, W, H);
+  } finally { G.busy = false; }
+}
+setInterval(gRefresh, 10000);
 
 // === expected calls ===
 const XKINDS = {
