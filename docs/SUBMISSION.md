@@ -67,9 +67,9 @@ Expected calls use stored records and the user's list, with no connected inbox o
 
 Jakob and Erick [SURNAME]
 
-Product: [PRODUCT LINK]
+Product: https://kincheck-caller.lovable.app/
 
-Repository: [REPO LINK]
+Repository: https://github.com/Jakobuus/scamguard
 
 Demo video: [VIDEO LINK]
 

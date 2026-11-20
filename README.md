@@ -37,7 +37,7 @@ Memory and scam-script matches can choose whom to ask and what to warn about. Th
 
 ## Try it
 
-Open [PRODUCT LINK], or run locally with Python 3.12+ and uv:
+Open https://kincheck-caller.lovable.app/, or run locally with Python 3.12+ and uv:
 
 ```sh
 FAKE=1 make dev
