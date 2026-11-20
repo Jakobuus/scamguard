@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from guard import settings, state
-from guard.brain import context, contacts, memory
+from guard.brain import context, contacts, gmail_scan, memory
 
 _DATA = Path(__file__).resolve().parent.parent / "data"
 _ACCOUNT = _DATA / "account.local.json"
@@ -381,7 +381,9 @@ def _build_graph() -> dict:
             learned = [f.get("text") if isinstance(f, dict) else f for f in learned]
             learned = [f for f in learned if isinstance(f, str) and f.strip()]
             known = [f for f in known if isinstance(f, str) and f.strip() and f not in learned]
-            learned_facts.extend((c.id, f, "Learned from a verified call") for f in learned[:4])
+            mailed = gmail_scan.fact_texts()  # facts the mailbox scan added are not call outcomes
+            learned_facts.extend((c.id, f, "From your email" if f in mailed or " emailed " in f
+                                  else "Learned from a verified call") for f in learned[:4])
             origin = f"Known about {c.name}" if source == "local" else "From memory"
             plain_facts.extend((c.id, f, origin) for f in known[:max(0, 4 - len(learned))])
         owner_facts = []

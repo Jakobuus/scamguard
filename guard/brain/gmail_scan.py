@@ -138,7 +138,12 @@ def _sender(frm: str) -> str:
     return name or domain.title()
 
 
-def _contact_for(name: str):
+def _contact_for(frm: str):
+    # A display name is free text: on a real inbox only the stored address counts.
+    name, addr = parseaddr(frm)
+    name = _decode_name(name).strip().strip('"')
+    if real():
+        return next((c for c in contacts._all() if c.email and addr.casefold() == c.email.casefold()), None)
     return next((c for c in contacts._all()
                  if any(name.casefold() == n.casefold() for n in [c.name, *c.nicknames])), None)
 
@@ -170,7 +175,8 @@ def _until(msg: dict, text: str, default_days: int) -> str:
 
 
 def _eid(kind: str, key: str) -> str:
-    return "gmail-" + hashlib.sha1(f"{kind}|{key}".encode()).hexdigest()[:10]
+    slug = re.sub(r"[^a-z0-9]+", "-", key.lower()).strip("-")[:40]
+    return f"gmail-{slug or hashlib.sha1(key.encode()).hexdigest()[:8]}-{kind}"
 
 
 def _record(kind: str, merchant: str, item: str, msg: dict, text: str, will_call: bool) -> dict:
@@ -213,7 +219,7 @@ def scan() -> dict:
         for msg in sorted(msgs, key=lambda m: m["date"]):  # oldest first: the newest mail names the entry
             text = f"{msg['subject']}\n{msg.get('body') or msg.get('snippet', '')}"
             merchant = _sender(msg["from"])
-            contact = _contact_for(merchant)
+            contact = _contact_for(msg["from"])
             if contact:
                 for fact in _facts_for(contact, text):
                     mine = per_contact.setdefault(contact.id, [])
@@ -271,7 +277,9 @@ def apply(result: dict) -> dict:
         for row in rows:
             if old.get(row["id"], {}).get("expected") is False:
                 row["expected"] = False  # the owner switched this one off; a rescan keeps it off
-        if rows or old:
+            elif result.get("source") == "gmail" and row["id"] not in old:
+                row["expected"] = False  # real mail is untrusted: the owner switches a new entry on
+        if result.get("scanned") and (rows or old):  # an unreadable mailbox changes nothing
             account.EXPECTED_PATH.parent.mkdir(parents=True, exist_ok=True)
             account.EXPECTED_PATH.write_text(json.dumps([r for r in local if not _is_gmail(r)] + rows, indent=2))
     added = 0
