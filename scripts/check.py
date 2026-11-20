@@ -347,7 +347,8 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     original_partial = flow.on_partial
     def capture_fee_partial(call_id, role, text):
         original_partial(call_id, role, text)
-        fee_partials.append(flow.live())
+        live = flow.live()  # words only: "ts" is a float that can contain "1111" by chance
+        fee_partials.append({r: (live[r] or {}).get("text") for r in ("caller", "agent")})
     with patch.object(flow, "on_partial", side_effect=capture_fee_partial):
         fee_id, fee_events = run(c, "Fake delivery fee", {
             "caller_number": "+15550440002",
