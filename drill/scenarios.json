@@ -1,0 +1,165 @@
+{
+  "_note": "claims_identity=false scams make no identity claim; the agent handles them by never paying (no ping). Catch rate counts identity-claim scams.",
+  "scam": [
+    {
+      "id": "grandparent_jail",
+      "text": "Mum, it's me, Jake. I'm in jail and I need two thousand dollars in gift cards right now. Don't tell dad.",
+      "claims_identity": true
+    },
+    {
+      "id": "accident_hospital",
+      "text": "Hi Mum, it's Lena. I had a car accident, I'm at the hospital and they need $1500 before they treat me. Please send it now.",
+      "claims_identity": true
+    },
+    {
+      "id": "new_phone",
+      "text": "Mum it's me, I dropped my phone, this is my new number. Can you transfer $800 for the repair today?",
+      "claims_identity": true
+    },
+    {
+      "id": "lawyer_for_grandson",
+      "text": "This is attorney Mark Davis calling for your son Jakob. He has been arrested and needs $5000 bail wired immediately.",
+      "claims_identity": true
+    },
+    {
+      "id": "kidnap",
+      "text": "We have your daughter. Wire $10,000 now and don't call the police or tell anyone.",
+      "claims_identity": true
+    },
+    {
+      "id": "irs",
+      "text": "This is the IRS. You owe back taxes and there is a warrant for your arrest. Pay $3,200 in gift cards today to avoid jail.",
+      "claims_identity": true
+    },
+    {
+      "id": "ssa",
+      "text": "This is the Social Security Administration. Your number was suspended. Confirm it and buy a $500 prepaid card to reactivate.",
+      "claims_identity": true
+    },
+    {
+      "id": "bank_code",
+      "text": "Hello, this is your bank's fraud department. Your account is frozen. Read me the six digit code we just texted you.",
+      "claims_identity": true
+    },
+    {
+      "id": "tech_support",
+      "text": "This is Microsoft support. Your computer has a virus. Install this app so I can access your computer, then pay $299 to fix it.",
+      "claims_identity": true
+    },
+    {
+      "id": "amazon_refund",
+      "text": "This is Amazon. We refunded you $900 by mistake. Please send the difference back in gift cards immediately.",
+      "claims_identity": true
+    },
+    {
+      "id": "utility_shutoff",
+      "text": "This is the power company. Your electricity will be cut off in 30 minutes unless you pay $450 now by Zelle.",
+      "claims_identity": true
+    },
+    {
+      "id": "customs_fee",
+      "text": "Hi, delivery here. Your parcel is held at customs, you need to pay a $35 fee by card before we can deliver it.",
+      "claims_identity": false
+    },
+    {
+      "id": "toll",
+      "text": "This is the toll authority, you have an unpaid toll of $12.50, pay now with your card number to avoid a fine.",
+      "claims_identity": true
+    },
+    {
+      "id": "romance",
+      "text": "Darling, it's David. I'm stuck overseas and my account is blocked. Can you send $2,000 by wire? Keep it between us.",
+      "claims_identity": true
+    },
+    {
+      "id": "crypto_investment",
+      "text": "I'm calling with a guaranteed crypto investment. Put $5,000 into this Bitcoin ATM today and double it in a week.",
+      "claims_identity": false
+    },
+    {
+      "id": "lottery",
+      "text": "Congratulations, you won $250,000! To release it you must pay a $500 processing fee in gift cards.",
+      "claims_identity": false
+    },
+    {
+      "id": "jury_duty",
+      "text": "This is the sheriff's office. You missed jury duty and there's a warrant. Pay $1,000 bond now to cancel the arrest.",
+      "claims_identity": true
+    },
+    {
+      "id": "police_bail",
+      "text": "Ma'am, this is Officer Brown. Your grandson is in custody. Bail is $3,000 cash, a courier will come to pick it up.",
+      "claims_identity": true
+    },
+    {
+      "id": "boss_gift_cards",
+      "text": "Hi, it's your boss. I need you to buy five Apple gift cards for a client right away and send me the codes. Keep it quiet.",
+      "claims_identity": true
+    },
+    {
+      "id": "landlord_deposit",
+      "text": "Hi it's your landlord, the bank details changed. Please send this month's rent to the new account today.",
+      "claims_identity": true
+    },
+    {
+      "id": "charity",
+      "text": "I'm collecting for the flood victims. Can you give your credit card number so we can process a $200 donation now?",
+      "claims_identity": false
+    },
+    {
+      "id": "son_vague_money",
+      "text": "Mum it's your son. I'm in trouble and need money fast. Please don't ask questions, just send it.",
+      "claims_identity": true
+    }
+  ],
+  "legit": [
+    {
+      "id": "son_late",
+      "text": "Hi Mum, it's Jakob. I'm running late for Sunday dinner, be there around seven."
+    },
+    {
+      "id": "daughter_groceries",
+      "text": "Hi Mum, it's Lena. I'm at the store, do you need milk or bread?"
+    },
+    {
+      "id": "doctor_reminder",
+      "text": "Hello, this is Dr. Patel's office reminding you of your appointment on Tuesday at 10 a.m."
+    },
+    {
+      "id": "delivery_at_door",
+      "text": "Hi, this is your delivery driver, I'm outside with your desk lamp order. Can you come to the door?"
+    },
+    {
+      "id": "plumber",
+      "text": "Hi, this is the plumber, I'm confirming I'll come tomorrow morning to fix the sink."
+    },
+    {
+      "id": "friend_coffee",
+      "text": "Hi, it's Margaret from book club. Do you want to get coffee on Thursday?"
+    },
+    {
+      "id": "son_recipe",
+      "text": "Mum, it's Jake. What was the recipe for your apple cake? I want to bake it this weekend."
+    },
+    {
+      "id": "pharmacy",
+      "text": "This is the pharmacy, your prescription is ready to pick up."
+    },
+    {
+      "id": "neighbor",
+      "text": "Hi, it's Tom next door. Your package was left on my porch, I'll bring it over."
+    },
+    {
+      "id": "daughter_photos",
+      "text": "Hi Mum, it's Lena. Can you send me the photos from the birthday party?"
+    },
+    {
+      "id": "son_paid_back",
+      "text": "Mum it's Jakob, I just wanted to say I paid back the money you lent me last month. Thanks again."
+    },
+    {
+      "id": "library",
+      "text": "This is the library, the book you reserved has arrived."
+    }
+  ]
+}
