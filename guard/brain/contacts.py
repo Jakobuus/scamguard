@@ -80,3 +80,11 @@ def learn(call: Call) -> None:
             contact.known_numbers.append(call.caller_number)
     elif call.state in ("denied", "unverified"):
         _attempts.append((datetime.now(timezone.utc), call.model_copy(deep=True)))
+
+
+def reset_demo() -> None:
+    """Forget attempts and reload configured numbers, preserving call history."""
+    global _contacts
+    today = datetime.now(timezone.utc).date()
+    _attempts[:] = [(when, call) for when, call in _attempts if when.date() != today]
+    _contacts = None

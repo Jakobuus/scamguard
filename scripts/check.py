@@ -64,8 +64,33 @@ def run(c, name, body, final, types):
 
 with TestClient(app) as c:  # keeps one event loop alive so timers fire
     assert c.get("/health").json()["fake"] is True
+    assert c.get("/health").json()["owner_name"] == settings.OWNER_NAME
+    async def audience_claims():
+        for method, display in (("gift cards", "$2,000 in gift cards"), ("wire", "$2,000 by wire")):
+            cid = flow.start_call("+15550990001")
+            await flow.on_transcript(cid, "caller", f"This is Jakob, I need $2000 in {method}")
+            await flow.verify_caller(cid, None)
+            evs = [e for e in state.events_since(0) if e.call_id == cid]
+            assert next(e.data for e in evs if e.type == "claim")["asks_for"] == display
+            assert next(e.data for e in evs if e.type == "ping.sent")["timeout_s"] == settings.TIMEOUT_S
+            await flow.on_tap(cid, "no")
+            if method == "gift cards":
+                flow.reset_demo()
+    c.portal.call(audience_claims)
+    before_reset = c.get("/events").json()
+    assert c.post("/sim/reset").status_code == 200
+    assert c.get("/events").json() == before_reset
+    _, reset_events = run(c, "Reset permits denied number", {
+        "caller_number": "+15550990001", "lines": ["This is Jakob, wire $2000"], "tap": "no"},
+        "denied", BASE)
+    assert any(e["type"] == "ping.sent" for e in reset_events)
+    assert c.post("/sim/reset").status_code == 200
+    ok("audience claims, timeout, health and silent demo reset")
     # This fixed vector catches using the raw secret or a different derivation.
     sim_key = "b0493850cfe3ca766171"
+    with patch.dict(os.environ, {"APP_SECRET": "test-app-secret"}), patch.object(settings, "FAKE", False):
+        assert c.post("/sim/reset").status_code == 403
+        assert c.post("/sim/reset", headers={"X-Sim-Key": sim_key}).status_code == 200
     with patch.dict(os.environ, {"APP_SECRET": "test-app-secret"}), patch.object(settings, "FAKE", False):
         for route in ("/sim/call", "/sim/tap"):
             for kwargs in ({}, {"params": {"key": sim_key}},
@@ -91,6 +116,8 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         "lines": ["Hi, I'm the driver with your desk lamp, are you home?"]}, "confirmed",
         ["context.expected", "decision", "action", "owner.notified"])
     assert c.get(f"/calls/{delivery_id}").json()["decided_by"] == "expected"
+    assert next(e for e in delivery_events if e["type"] == "contact.lookup")["data"]["note"] == "Not someone from the circle."
+    assert [e["type"] for e in delivery_events].index("contact.lookup") < [e["type"] for e in delivery_events].index("context.expected")
     assert not any(e["type"] == "ping.sent" for e in delivery_events)
     assert any(e["data"].get("kind") == "forward" for e in delivery_events)
     assert any("desk lamp" in e["data"].get("text", "") for e in delivery_events if e["type"] == "owner.notified")
@@ -98,6 +125,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         "caller_number": "+15550440002",
         "lines": ["Your desk lamp parcel is held, pay a 40 dollar customs fee with a gift card"]}, "unverified",
         ["decision", "action", "owner.notified"])
+    assert any(e["type"] == "context.expected" for e in fee_events)
     assert c.get(f"/calls/{fee_id}").json()["decided_by"] == "expected_but_money"
     assert any(e["data"].get("kind") == "expected_but_money" for e in fee_events)
     assert not any(e["data"].get("kind") == "forward" for e in fee_events)
@@ -238,7 +266,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
     scam_id, scam_events = run(c, "scam, tap no", {**scam, "tap": "no", "tap_after_s": 0.5}, "denied",
         BASE + ["owner.notified", "call.ended"])
     ping = next(e["data"]["text"] for e in scam_events if e["type"] == "ping.sent")
-    assert "Mum" in ping and "$2000" in ping and "wire" in ping.lower()
+    assert "Mum" in ping and "$2,000" in ping and "wire" in ping.lower()
     run(c, "real, tap yes", {"claimed_name": "Jake", "caller_number": "+15550100002",
         "lines": ["Hi, it's Jakob."], "tap": "yes", "tap_after_s": 0.5}, "confirmed", BASE)
     run(c, "scam, no answer", {**scam, "caller_number": "+15550888888"}, "unverified", BASE + ["owner.notified"])
@@ -548,6 +576,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         claim = classify.claim("Mum, it's your son, I need $2000 in gift cards")
         assert claim.claimed_name is None and claim.relationship == "son"
         assert claim.amount == "$2000" and claim.method == "gift cards" and claim.quote
+        assert classify.flags(claim.quote).latency_ms >= 1
         assert classify.flags(claim.quote).needs_verification
         assert not classify.flags("Please wire $2000").needs_verification
         assert contacts.lookup("Jake", None).contact.id == "jakob"

@@ -34,7 +34,7 @@ def _fake_flags(text: str) -> Flags:
         t = (text or "").lower().replace("’", "'")
         hits = {k: any(_hit(w, t) for w in ws) for k, ws in RULES.items()}
         return Flags(**hits, needs_verification=hits["authority_or_kinship"] and hits["money"], risk=sum(hits.values()) / len(hits),
-                     latency_ms=int((time.perf_counter() - t0) * 1000), source="fake")
+                     latency_ms=max(1, int((time.perf_counter() - t0) * 1000)), source="fake")
     except Exception:
         return Flags()
 

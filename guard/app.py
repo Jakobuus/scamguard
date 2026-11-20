@@ -22,7 +22,7 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 
 @app.get("/health")
 def health():
-    return {"ok": True, "fake": settings.FAKE, "services": settings.services()}
+    return {"ok": True, "fake": settings.FAKE, "owner_name": settings.OWNER_NAME, "services": settings.services()}
 
 
 @app.get("/calls/{call_id}")

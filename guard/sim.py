@@ -53,6 +53,12 @@ async def _play(call_id: str, b: SimCall) -> None:
         await flow.on_tap(call_id, b.tap)
 
 
+@router.post("/sim/reset")
+async def sim_reset():
+    flow.reset_demo()
+    return {"ok": True}
+
+
 @router.post("/sim/call")
 async def sim_call(b: SimCall):
     call_id = flow.start_call(b.caller_number)

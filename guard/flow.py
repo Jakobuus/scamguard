@@ -16,6 +16,13 @@ _pings: dict[tuple, int] = {}
 _cap_notified: set[tuple] = set()
 
 
+def reset_demo() -> None:
+    contacts.reset_demo()
+    _pings.clear()
+    _cap_notified.clear()
+    _caller_text.clear()
+
+
 def _normalize(text):
     return " ".join(re.findall(r"\w+", text.casefold()))
 
@@ -74,6 +81,10 @@ async def _expected_call(call_id, found) -> bool:
                or call.flags.needs_verification)
     if expectation is None and money:
         return False  # Generic money claims retain the ordinary unverified path.
+    state.emit(call_id, "contact.lookup", {"contact": None, "number_known": False,
+               "note": "Not someone from the circle."})
+    if expectation:
+        state.emit(call_id, "context.expected", expectation.model_dump())
     # Both backends already provide the atomic screening -> pending -> decision
     # path. Reserve it without a ping, keeping state backend ownership intact.
     if not state.set_pending(call_id, None):
@@ -95,7 +106,6 @@ async def _expected_call(call_id, found) -> bool:
         if await _resolve(call_id, "unverified", "expected_but_money"):
             await _notify(call_id, f"Caller claims to be your {expectation.kind} but asks for money. Don't pay.")
     else:
-        state.emit(call_id, "context.expected", expectation.model_dump())
         if await _resolve(call_id, "confirmed", "expected"):
             why = expectation.why[:1].lower() + expectation.why[1:]
             await _notify(call_id, f"Expected: {why} Putting the call through.")
@@ -108,6 +118,7 @@ async def verify_caller(call_id, claimed_name) -> None:
         return
     claim = classify.claim(_caller_text.get(call_id, ""))
     claim.claimed_name = claim.claimed_name or claimed_name
+    state.emit(call_id, "claim", {**claim.model_dump(), "asks_for": telegram.asks_for(claim)})
     state.update_call(call_id, claimed_name=claim.claimed_name)
     found = contacts.candidates(claim, call.caller_number)
     if await _expected_call(call_id, found):
@@ -132,7 +143,7 @@ async def verify_caller(call_id, claimed_name) -> None:
             else:
                 telegram.send_notice(state.get_call(call_id), lk.contact)
             state.emit(call_id, "notice.sent", {
-                "contact_id": lk.contact.id, "channels": ["telegram"],
+                "contact_id": lk.contact.id, "channels": ["telegram"], "timeout_s": None,
                 "text": f"You are calling {settings.OWNER_NAME} right now. Not you? Tap below.",
             })
         return
@@ -154,7 +165,7 @@ async def verify_caller(call_id, claimed_name) -> None:
     _pings[key] = _pings.get(key, 0) + 1
     telegram.send_ping(state.get_call(call_id), lk.contact, claim)
     text = telegram.ping_text(lk.contact, claim)
-    state.emit(call_id, "ping.sent", {"contact_id": lk.contact.id, "channels": ["telegram"], "text": text})
+    state.emit(call_id, "ping.sent", {"contact_id": lk.contact.id, "channels": ["telegram"], "timeout_s": settings.TIMEOUT_S, "text": text})
     spawn(_timeout(call_id))
 
 
@@ -216,7 +227,7 @@ async def on_code_word(call_id, spoken: str) -> str:
         else:
             telegram.send_notice(c, contact)
         state.emit(call_id, "notice.sent", {
-            "contact_id": contact.id, "channels": ["telegram"],
+            "contact_id": contact.id, "channels": ["telegram"], "timeout_s": None,
             "text": f"Someone reached {settings.OWNER_NAME} with your code word. Not you? Tap below.",
         })
         return "ok"

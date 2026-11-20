@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import logging
 import os
+import re
 
 import httpx
 from fastapi import APIRouter, Request
@@ -51,12 +52,28 @@ def _api(method: str, payload: dict):
     return body.get("result")
 
 
+def asks_for(claim) -> str:
+    """Shared request wording for the message and audience event."""
+    if not claim or not (claim.amount or claim.method):
+        return ""
+    amount = (claim.amount or "money").strip()
+    if re.fullmatch(r"\$?\s*\d[\d,]*(?:\.\d+)?", amount):
+        raw = amount.replace("$", "").replace(",", "").strip()
+        whole, dot, fraction = raw.partition(".")
+        amount = "$" + format(int(whole), ",") + (dot + fraction if dot else "")
+    method = (claim.method or "").strip().lower()
+    if method in ("wire", "transfer", "bank transfer"):
+        return amount + " by wire"
+    if method:
+        return amount + " in " + method
+    return amount
+
+
 def ping_text(contact: Contact, claim=None) -> str:
     text = f"Someone is calling {settings.OWNER_NAME} as you"
-    if claim and (claim.amount or claim.method):
-        text += ", asking for " + (claim.amount or "money")
-        if claim.method:
-            text += f" in {claim.method}"
+    request = asks_for(claim)
+    if request:
+        text += ", asking for " + request
     attempts = contacts.attempts_today(contact.id)
     if attempts:
         text += f" (attempt {attempts + 1} today)"

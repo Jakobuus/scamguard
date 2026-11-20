@@ -155,7 +155,7 @@
       <div id="msgs"><div class="quiet" id="m-quiet">No message yet</div></div>
     </div></div>
     <div id="owner" class="empty">
-      <div class="from"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" fill="currentColor"/></svg><span>What Mum was told</span></div>
+      <div class="from"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" fill="currentColor"/></svg><span id="owner-heading">What Mum was told</span></div>
       <div id="owner-text">Nothing yet</div>
     </div>
     <div id="words">
@@ -171,7 +171,7 @@ if (fragment.has("k")) {
   sessionStorage.setItem("sim-key", fragment.get("k"));
   history.replaceState(null, "", window.location.pathname + window.location.search);
 }
-const OWNER = "Mum"; // HACK: the owner label is not in the event data; matches the OWNER_NAME default
+let OWNER = "Mum";
 const FLAGS = {authority_or_kinship:"Identity claim", money:"Money", urgency:"Urgency", secrecy:"Secrecy"};
 const SCAM = ["Mum, it's me, I'm in trouble.", "I need you to wire $2000 right now.", "Don't tell dad, it's a secret."];
 // One line per scene. `label` is the button text and is not sent to the server.
@@ -192,7 +192,7 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 let since = 0, S = null, skew = Infinity;
 
 function reset(e) {
-  S = {id: e.call_id, t0: ms(e.ts), number: e.data.caller_number, lookup: null, flags: null,
+  S = {id: e.call_id, t0: ms(e.ts), number: e.data.caller_number, lookup: null, flags: null, claim: null,
        ping: null, notice: null, decision: null, late: 0, stepup: false, codeFailed: false,
        askedName: false, expected: null, cred: null, ended: false};
   $("steps").innerHTML = ""; $("lines").innerHTML = "";
@@ -284,6 +284,7 @@ function apply(e) {
       $("lines").appendChild(p);
       break;
     }
+    case "claim": S.claim = d; break;
     case "flags": S.flags = d; break;
     case "contact.lookup": S.lookup = d; break;
     case "ping.sent": S.ping = {...d, at: ms(e.ts)}; break;
@@ -375,7 +376,9 @@ function tick() {
   $("secs").textContent = Math.max(0, t).toFixed(1) + " s";
   $("secs-cap").textContent = label;
   const w = document.querySelector("#msgs .waiting");
-  if (w && S && S.ping) w.textContent = `Waiting for a tap, ${Math.max(0, (now - S.ping.at) / 1000).toFixed(0)} s`;
+  if (w && S && S.ping) w.textContent = S.ping.timeout_s != null
+    ? `Waiting for a tap, ${Math.max(0, Math.ceil(S.ping.timeout_s - (now - S.ping.at) / 1000))} s left`
+    : `Waiting for a tap, ${Math.max(0, (now - S.ping.at) / 1000).toFixed(0)} s`;
 }
 
 // ---------- 2. the claim ----------
@@ -393,11 +396,16 @@ function renderClaim() {
   else if (S.expectedMoney) { w = "An expected delivery"; wsub = "by its own account"; }
   else if (S.lookup || S.decision) w = `Nobody in ${OWNER}'s circle`;
   else if (S.askedName) wsub = "asked for a name";
+  if (S.claim && (S.claim.claimed_name || S.claim.relationship)) {
+    w = S.claim.claimed_name || S.claim.relationship;
+    if (S.claim.claimed_name && S.claim.relationship) w += ` (${S.claim.relationship})`;
+  }
   $("who").className = "val" + (w ? "" : " dim");
   $("who").innerHTML = esc(w || "Listening") + (wsub ? `<small>${esc(wsub)}</small>` : "");
 
   const m = S.ping && S.ping.text.match(/asking for (.+?)(?: \(attempt \d+ today\))?\. Is this you\?/);
-  if (m) a = m[1];
+  if (S.claim && S.claim.asks_for) a = S.claim.asks_for;
+  else if (m) a = m[1];
   else if (S.flags && S.flags.money) { // HACK: no claim event yet; read the amount from the caller's words
     const said = [...$("lines").querySelectorAll(".caller")].map(l => l.textContent).join(" ");
     const amt = said.match(/\$\s?\d[\d,]*(?:\.\d{2})?|\b\d[\d,]*\s*dollars?\b/i), how = said.match(/\b(gift cards?|wire|bank transfer|crypto|cash)\b/i);
@@ -484,15 +492,46 @@ async function poll() {
     }
   } catch (_) {}
 }
-function scene(k) {
+function simHeaders() {
   const key = sessionStorage.getItem("sim-key");
-  const {label, ...body} = SCENES[k];
-  fetch("/sim/call", {method:"POST", headers:{"Content-Type":"application/json", ...(key ? {"X-Sim-Key":key} : {})}, body:JSON.stringify(body)});
+  return {"Content-Type":"application/json", ...(key ? {"X-Sim-Key":key} : {})};
 }
+async function resetDemo() {
+  const response = await fetch("/sim/reset", {method:"POST", headers:simHeaders()});
+  if (!response.ok) throw new Error("Reset failed");
+  const evs = await (await fetch("/events")).json();
+  if (evs.length) since = evs[evs.length - 1].id;
+  reset({call_id:null, ts:new Date().toISOString(), data:{}});
+  S = null;
+  $("who").textContent = $("ask").textContent = "No call yet";
+  $("who").className = $("ask").className = "val dim";
+  $("clsrc").textContent = "";
+  $("owner-of").textContent = "The real person's phone";
+  $("chips").innerHTML = Object.values(FLAGS).map(l => `<span class="chip"><i></i>${l}</span>`).join("");
+  render();
+}
+async function scene(k) {
+  await resetDemo();
+  const {label, ...body} = SCENES[k];
+  const response = await fetch("/sim/call", {method:"POST", headers:simHeaders(), body:JSON.stringify(body)});
+  if (!response.ok) throw new Error("Scene failed");
+}
+const resetButton = document.createElement("button");
+resetButton.textContent = "Reset demo";
+resetButton.dataset.label = "reset-demo";
+resetButton.onclick = () => resetDemo().catch(console.error);
+$("scenes").appendChild(resetButton);
+fetch("/health").then(r => r.json()).then(h => {
+  OWNER = h.owner_name || OWNER;
+  TAG.owner = OWNER;
+  $("owner-heading").textContent = `What ${OWNER} was told`;
+  for (const scene of Object.values(SCENES)) scene.lines = scene.lines.map(line => line.replace(/Mum/g, OWNER));
+  render();
+}).catch(console.error);
 for (const [k, s] of Object.entries(SCENES)) {
   const b = document.createElement("button");
   b.textContent = s.label || cap(human(k));
-  b.onclick = () => scene(k);
+  b.onclick = () => scene(k).catch(console.error);
   $("scenes").appendChild(b);
 }
 $("chips").innerHTML = Object.values(FLAGS).map(l => `<span class="chip"><i></i>${l}</span>`).join("");

@@ -326,3 +326,23 @@ Fake mode keeps both tables in memory with the same functions.
 - Stuck for 15 minutes on an outside service: keep its fake, say so in the chat, move on.
 - Sync points: **12:15** each lane has one real piece behind its seam · **13:30** real call end to end ·
   **15:00** sponsors wired · **15:30** freeze.
+
+## Audience event data and demo reset
+
+`verify_caller` emits `claim` each time it builds a claim, before contact lookup. Data keeps
+`claimed_name`, `relationship`, `amount`, `method`, and `quote`, plus `asks_for`: the shared
+Telegram/display wording (for example `$2,000 in gift cards` or `$2,000 by wire`). Plain numeric
+amounts gain a dollar sign and thousands separators. Cash uses `in cash`; absent methods add no
+suffix. The screen prefers this event and retains its older fallbacks.
+
+Expected-call paths emit `contact.lookup` with a null contact and note `Not someone from the circle.`
+before `context.expected`. Matched expectations emit context in both allowed and blocked cases.
+`ping.sent.timeout_s` is the configured pending wait; `notice.sent.timeout_s` is null. The phone
+card counts down the pending wait. Fake classifier latency is measured in milliseconds, minimum 1.
+`GET /health` includes `owner_name` from `OWNER_NAME`; the page uses it for the owner's label.
+
+`POST /sim/reset` uses the same `X-Sim-Key` authorization as the other sim routes outside fake mode.
+It clears attempt history, the daily ping budget and warning, learned numbers via
+`contacts.reset_demo()`, and accumulated caller text. It emits no events and preserves calls and
+past events. The page's Reset demo button returns the screen to idle; every scene resets before
+starting its call so previous decisions do not affect the next scene.
