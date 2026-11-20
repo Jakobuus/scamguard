@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
-from guard import channels, credential, flow, settings, sim, state, telemetry, telegram, vapi
+from guard import account, channels, credential, flow, settings, sim, state, telemetry, telegram, vapi
 from guard.brain import drill
 
 @asynccontextmanager
@@ -15,7 +15,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="guard", lifespan=lifespan)
-for r in (channels.router, vapi.router, telegram.router, sim.router, drill.router):
+for r in (channels.router, vapi.router, telegram.router, sim.router, drill.router, account.router):
     app.include_router(r)
 
 WEB = Path(__file__).resolve().parent.parent / "web"

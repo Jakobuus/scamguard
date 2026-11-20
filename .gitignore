@@ -10,6 +10,7 @@ __pycache__
 *.pyc
 
 data/contacts.local.json
+data/account.local.json
 clips/*.mp3
 clips/*.m4a
 clips/*.wav
