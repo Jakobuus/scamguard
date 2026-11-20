@@ -1,0 +1,18 @@
+{
+  "scam": [
+    "Hi Mum, it's me.",
+    "It's Jakob. Listen, I crashed the car and I need two thousand dollars in gift cards right now.",
+    "Please don't tell dad. Can you just do it?",
+    "I don't have my phone, it's broken."
+  ],
+  "codeword": [
+    "Hi Mum, it's Jakob, I lost my phone and I'm stuck at the station.",
+    "The family code word? It's Bruno."
+  ],
+  "harmless": [
+    "Hi Mum, it's Jakob. Can you pick me up at five?"
+  ],
+  "delivery": [
+    "Hi, I'm the driver with your desk lamp, are you home?"
+  ]
+}

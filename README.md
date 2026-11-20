@@ -36,3 +36,9 @@ Shared: `guard/contracts.py`, `env.example`, `docs/SYSTEM.md`.
 Copy `env.example` to `.env` and fill in the keys you have. Fake mode needs no keys at all. Never commit `.env`.
 
 `OWNER_NAME` sets the owner label in verification pings; it defaults to `Mum`.
+
+## Stage
+Preview clips: `uv run python scripts/make_clips.py --dry-run`.
+Generate: set `FAKE=0`, `REAL_ELEVENLABS=1`, `ELEVENLABS_API_KEY`; run `uv run python scripts/make_clips.py --sample sample.wav`.
+Play on macOS: `uv run python scripts/play_scene.py scam` (Enter next, `r` repeat, `q` quit; `--auto 2` for a fixed gap).
+See [clips/README.md](clips/README.md) for voice reuse, the stock delivery voice and text-only fake mode.
