@@ -1,114 +1,67 @@
 # KinCheck: is this you?
 
-A call guard that asks the real person to verify a caller, instead of judging their voice.
-
-A caller claims to be Erick and asks Jakob for gift cards. KinCheck holds the caller and asks Erick on his own phone: "Is this you?" His answer decides whether the call reaches Jakob.
+A personal phone agent that beats voice-clone scams: when a caller claims to be someone you trust and asks for money, it holds the call and asks that real person on their own phone, "Is this you?", before anything happens. SingleStore makes one answer win, Superlinked catches the claim and risk signals, and Cognee resolves who the caller means.
 
 ## What happens on a call
 
-1. The assistant asks who is calling. It never offers a name.
-2. A supplied name is matched to the circle. For "your teammate from the hackathon", cached memory facts can resolve a clear match without offering a name. Memory chooses whom to ask; it cannot verify the caller, even from a saved number.
-3. The question goes to that contact's own enabled channels: WhatsApp through Beeper Desktop, Telegram and email through Resend. Deliveries start together. Channel labels show selected deliveries, not receipts.
-4. First answer wins through one atomic SingleStore update. Yes puts the call through. No ends it and warns Jakob on Telegram. Competing later answers cannot reverse that decision.
-5. After 20 seconds without an answer, the call becomes unverified and the assistant asks for the code word. A late No after this timeout still ends the call. A late Yes cannot reopen it.
+A teammate calls and says, "It's your teammate from the hackathon." KinCheck never offers a name or judges the voice. Cognee memory resolves the relationship to a trusted contact. The question goes to his own phone through his enabled channels: WhatsApp via Beeper, Telegram and email via Resend. He answers Yes. SingleStore records the decision, and code puts him through.
 
-- **Code word:** a matched caller can give it while waiting or after timeout. Success puts the call through; two wrong answers end it. A Telegram "Not me" notice lets the contact stop a call passed by code word.
-- **Expected calls:** the user's list covers deliveries, callbacks and appointments. A specific match can pass without a question after the caller stops talking. The transcript safety net waits 2.5 seconds of quiet by default. Money, pressure or a sensitive request blocks the shortcut. A later money request after an expected call passes triggers a warning.
-- **Known number:** a named contact from a saved number can pass without a sensitive request, with a "Not me" notice. Memory resolution does not use this shortcut.
-- **Privacy:** detected card numbers, addresses, passwords and other personal data are masked in events and live text. Names and amounts stay readable. Code words are hidden separately. Raw call records are outside this boundary.
+Then the same voice, cloned, asks for gift cards. KinCheck holds the call and asks the real person, "Is this you?" He answers No. Code ends the call and sends you a warning. The familiar voice never decides the outcome.
 
-The guard never judges the voice, offers a name or agrees to pay. No model output hangs up or forwards a call. Code applies the verification, timeout and explicit call rules.
+If nobody answers within 20 seconds, the call becomes unverified and the agent asks for the code word. A late No still ends it. Expected deliveries, callbacks and appointments can pass without a question when the caller matches and makes no sensitive request.
+
+## Built with our partners
+
+| Partner | What it does in KinCheck | Where in the code |
+|---|---|---|
+| SingleStore | Stores calls and audit events, makes competing answers resolve through one atomic update, and finds known scam scripts with vector search. | [guard/state.py](guard/state.py), [guard/brain/scripts.py](guard/brain/scripts.py) |
+| Superlinked | Runs GLiNER decisions and extraction for identity claims, money, urgency and secrecy, plus bge-m3 embeddings that let warnings name a matching scam script. | [guard/brain/classify.py](guard/brain/classify.py), [guard/brain/scripts.py](guard/brain/scripts.py), [guard/brain/redact.py](guard/brain/redact.py) |
+| Cognee | Supplies cached circle facts to resolve relationship phrases, shows the memory graph, and stores facts learned from the real person's answers. | [guard/brain/memory.py](guard/brain/memory.py), [guard/brain/contacts.py](guard/brain/contacts.py) |
+| Amplitude | Records each call as an Agent Analytics session with a tool trace and four rule evals, so the agent's behavior can be checked. | [guard/telemetry.py](guard/telemetry.py) |
+| Firedrill | Simulates scam and genuine callers against the agent's rules so we can find and fix missed impersonations and false alarms. | [drill/scenarios.json](drill/scenarios.json), [drill/run.py](drill/run.py), [guard/brain/drill.py](guard/brain/drill.py) |
+| Persona | Verifies the owner once at account setup through a hosted verification flow. | [guard/account.py](guard/account.py), [web/app.html](web/app.html) |
+| Vapi | Answers and holds the live call, delivers transcripts and tool calls, and applies the server's call actions. | [guard/vapi.py](guard/vapi.py), [scripts/vapi_setup.py](scripts/vapi_setup.py) |
+| Deepgram via Vapi | Transcribes with nova-3 and boosts contacts' names and relationships so the guard can understand whom the caller claims to be. | [scripts/vapi_setup.py](scripts/vapi_setup.py) |
+| OpenAI GPT-4.1 | Runs the Vapi agent's conversation and calls the verification tools while code controls the outcome. | [scripts/vapi_setup.py](scripts/vapi_setup.py) |
+| Beeper / WhatsApp | Sends the question to the contact's own WhatsApp chat and accepts typed Yes/No replies through the Desktop API. | [guard/channels.py](guard/channels.py) |
+| Telegram | Sends questions with signed answer buttons, owner warnings and "Not me" notices. | [guard/telegram.py](guard/telegram.py), [guard/channels.py](guard/channels.py) |
+| Resend | Sends email questions with signed answer links and a confirmation form. | [guard/channels.py](guard/channels.py) |
+| ElevenLabs | Generates cloned-voice scam clips for the call demonstration. | [scripts/make_clips.py](scripts/make_clips.py) |
+| Senso | Retrieves stored expected-call records for code to match against the caller's reason. | [guard/brain/context.py](guard/brain/context.py) |
 
 ## How it works
 
-See the [interactive code map](docs/how-it-works.html) and [system guide](docs/SYSTEM.md).
+See the [interactive code map](docs/how-it-works.html) for the call flow, partner APIs and audit trail.
 
-```text
-Call → transcript → flags and claim → contact or memory lookup → contact's channels
-     → atomic decision → call action → events and dashboards
-```
+Vapi answers and transcribes. Superlinked extracts the claim and flags risk. Cognee memory chooses whom to ask, and questions start on the contact's enabled channels together. SingleStore's conditional update lets one answer win. The model talks; only code acts.
 
-- [Phone adapter](guard/vapi.py): Vapi transcripts, tools and call control. A configured transfer destination is needed to ring the protected person's phone.
-- [Call flow](guard/flow.py): questions, quiet period, answers, timeouts, code words and warnings.
-- [Memory](guard/brain/memory.py) and [contacts](guard/brain/contacts.py): Cognee facts about the circle are prefetched. A local token match resolves relationship phrases when there is a clear winner. Verified confirmations and denials add facts. `GET /memory` exposes cached facts, learned outcomes with pending write status, and the cached graph. The account graph shows cached memory notes or seed facts; the live views do not yet render the lookup's memory facts. Fake mode reads seed facts.
-- [Scam match](guard/brain/scripts.py): Superlinked embeddings and SingleStore vector search compare the caller's words with stored scam scripts. With risk flags, a strong match labels the script and adds it to later warnings. This runs beside the call and cannot decide it. Fake mode uses word overlap.
-- [Channels](guard/channels.py): questions use each contact's own targets. Disabled channels are excluded. Legacy global targets apply when the contact has no own target; configure contact targets before a live run. Email uses signed links and a confirmation form; WhatsApp accepts typed Yes/No; Telegram uses signed buttons.
-- [State](guard/state.py): a conditional update permits one winner per allowed transition. Fake mode uses a memory lock. Timeout recovery and code-word notices have explicit late-denial paths.
-- [Telemetry](guard/telemetry.py): Amplitude Agent Analytics gets one session per call, conversation placeholders, a tool-call trace and four rule scores: no offered name, no agreement to pay, actions following decisions, and asking the real person for sensitive contact claims. These are rule checks, not a voice assessment. Text sharing requires explicit opt-in.
+Memory and scam-script matches can choose whom to ask and what to warn about. They cannot verify a caller. The app at `/app` manages trusted contacts, expected calls and the Cognee memory graph. Persona verifies the owner once at account setup through its hosted flow.
 
-## Account app and live view
+## Try it
 
-Open `/app` to manage trusted contacts and their channels, your own numbers and expected calls. It also shows scam-attempt statistics, a knowledge graph and a live view. Statistics describe recorded calls and requested amounts; they do not measure actual payments prevented. The standalone audience screen at `/` shows the conversation, flags, claim, scam match, channels, decision and audit trail. Its current scene buttons script both lines and answers.
-
-Persona has an identity check when an account is set up, with hosted and demo paths. This does not establish that a live check ran. Hosted completion can trust a redirect if the API lookup is unavailable; it is not used to decide calls.
-
-## Built with
-
-External services are off in fake mode. These are implemented paths, not a claim that every service is live.
-
-| Technology | Concrete use |
-|---|---|
-| Vapi | Phone conversation, transcripts and call control |
-| SingleStore | Scam-script vector search, call state, atomic decisions and audit events |
-| Superlinked inference engine | Risk flags, claim extraction, scam-script embeddings and optional extra personal-data detection |
-| Beeper / WhatsApp | Questions and typed Yes/No replies through the Desktop API |
-| Telegram | Questions, signed answer buttons, warnings and "Not me" notices |
-| Resend | Email questions with signed answer links |
-| Cognee | Circle facts, relationship lookup and verified outcome memory |
-| Amplitude | Agent Analytics sessions, tool-call traces and four rule scores |
-| Senso | Retrieval of stored expected-call records |
-| Persona | Identity check when an account is set up; hosted and demo paths |
-| ElevenLabs | Cloned-voice scam clips prepared before playback |
-| OpenAI | Conversation model configured for the Vapi assistant |
-| Firedrill | Local caller scenarios prepared for loading as personas; no Firedrill API integration |
-| Python, FastAPI, Uvicorn, HTTPX, HTML, CSS, JavaScript, uv | Server, service requests, account app, audience screen and command runner |
-
-## Scam drill
-
-[The drill](drill/README.md) scores text against the classifier, not live voice calls. Its recorded keyword baseline caught 16 of 18 identity-claim scam callers and falsely flagged 1 of 12 genuine callers. Plural payment words and bank-code requests were missed. The updated keyword rules catch 18 of 18 with 0 of 12 false alarms on our drill set. Four further scam texts without identity claims are counted separately. This is a local drill result, not a Firedrill run.
-
-## Run it
-
-Install Python 3.12+ and uv. Start with no keys or external services:
+Open [PRODUCT LINK], or run locally with Python 3.12+ and uv:
 
 ```sh
 FAKE=1 make dev
 make check
 ```
 
-Open <http://localhost:8000>. Buttons play **Scam, tap No**, **Real, tap Yes**, **Scam, no answer**, **Delivery driver, expected** and **Fake delivery fee** through the same flow. Each resets demo attempts. Code-word recovery and known-number calls are covered by `make check`; they have no scene buttons.
+Open <http://localhost:8000> for the call screen or <http://localhost:8000/app> for the account app. Try the scam with No, genuine call with Yes, unanswered scam, expected delivery and fake delivery fee scenes. Fake mode needs no keys and makes no external calls.
 
-For real calls, copy `env.example` to `.env` and configure keys privately. Set `OWNER_NAME` to the protected person. Configure each trusted contact's own channel targets in `/app` or ignored `data/contacts.local.json`. Set `FAKE=0`, `REAL_VAPI=1`, `REAL_BEEPER=1`, `REAL_TELEGRAM=1` and `REAL_EMAIL=1` to use all three question channels. Set `PUBLIC_BASE_URL` to a public HTTPS address for this app. Configure the Vapi phone ID, Telegram chat IDs, `APP_SECRET`, `VAPI_SERVER_SECRET`, `TELEGRAM_WEBHOOK_SECRET` and `TRANSFER_TO_NUMBER`. WhatsApp needs Beeper Desktop running with its Desktop API enabled, `BEEPER_ACCESS_TOKEN` and `BEEPER_CHAT_ID`. Email needs `RESEND_API_KEY` and `PING_EMAIL_TO`; set `PING_EMAIL_FROM` for your sender. Private contact overrides belong in ignored `data/contacts.local.json`.
+## Measured
 
-```sh
-FAKE=0 REAL_VAPI=1 uv run python scripts/vapi_setup.py
-FAKE=0 REAL_TELEGRAM=1 uv run python scripts/telegram_setup.py
-FAKE=0 make dev
-```
+Firedrill simulated 34 scam and genuine callers; we fixed what it caught. On our 34-caller drill set, the rules went from 16 of 18 impersonations flagged and 1 of 12 genuine calls falsely flagged to 18 of 18 and 0 of 12. Four further scam callers without identity claims are counted separately. The [drill runner](drill/run.py) scores text against the classifier.
 
-Enable other services individually with `REAL_DB`, `REAL_SIE`, `REAL_COGNEE`, `REAL_AMPLITUDE` or `REAL_SENSO` set to `1` and their matching settings from `env.example`. Export `SIE_API_KEY` and `SENSO_API_KEY` in the shell for their standalone setup scripts:
-
-```sh
-FAKE=0 REAL_DB=1 uv run python scripts/db_check.py
-FAKE=0 REAL_SIE=1 uv run python scripts/sie_warm.py --keep
-FAKE=0 REAL_COGNEE=1 uv run python -m guard.brain.memory seed
-FAKE=0 REAL_SENSO=1 uv run python scripts/senso_load.py
-```
-
-For scam-script search, load the library with the database and Superlinked configured, then enable `REAL_MATCH=1` alongside `REAL_DB=1` and `REAL_SIE=1`:
-
-```sh
-FAKE=0 REAL_DB=1 REAL_SIE=1 uv run python scripts/scam_scripts_load.py
-```
-
-Set `REDACT_SIE=1` to add Superlinked personal-data extraction to final transcript events when SIE is enabled. Rules still run when the engine is off or fails.
-
-Run local text drills with `FAKE=1 uv run python drill/run.py`. Preview clips with `uv run python scripts/make_clips.py --dry-run`. Optional generation requires exported `ELEVENLABS_API_KEY`, `FAKE=0` and `REAL_ELEVENLABS=1`; see [clips/README.md](clips/README.md). On macOS, `uv run python scripts/play_scene.py scam` plays saved clips, with Enter to advance.
+Amplitude Agent Analytics records each call as a session with four rule evals: never offered a name, never agreed to pay, only verified actions, asked the real person. These checks inspect the conversation and action trace.
 
 ## Limits
 
-KinCheck is a demo for one protected person and a small configured circle. The account app uses shared local storage.
-The screen simulations use scripted lines and answers; fake mode places no calls.
-Expected calls combine sample records with the user's saved list; there is no connected inbox or calendar.
-Redaction covers events and live text; call records and the raw call API are outside that boundary.
-Live calls need working phone and message services; some failures fall back to local state or simulated actions.
+KinCheck is a demo for one owner and a configured circle. The app uses shared local storage. Screen scenes script both lines and answers; the drill figures measure classifier behavior on our set, not live voice calls or general scam detection.
+
+Live calls need configured phone and message services and a transfer destination. Service failures can fall back to local state or simulated actions. Channel labels show selected deliveries, not receipts. A known number can pass a named contact without a sensitive request; memory-resolved contacts still get a question.
+
+Persona has hosted and demo paths. Hosted completion can trust the redirect when the API lookup is unavailable. Contact editing currently requires sign-in, without a separate Persona verification gate.
+
+Expected calls use stored records and the user's list, with no connected inbox or calendar. Sensitive requests block the shortcut; money after a match triggers a warning.
+
+Redaction covers detected personal data in events and live text. Raw call records and the raw call API are outside that boundary. Code words are checked in code and masked on screen. Amplitude receives text lengths instead of conversation text unless sharing is explicitly enabled.
