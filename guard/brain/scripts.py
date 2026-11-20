@@ -23,6 +23,7 @@ _library: list | None = None
 _last: dict[str, str] = {}  # call_id -> script_id last emitted
 _best: dict[str, dict] = {}  # call_id -> non-benign match above threshold
 _done: set[str] = set()
+_busy: set[str] = set()
 
 
 def library() -> list:
@@ -64,7 +65,7 @@ def _fake(text: str) -> dict | None:
         sc = len(q & w) / math.sqrt(len(q) * len(w)) if q and w else 0.0
         if sc > score:
             best, score = s, sc
-    if best is None or score < 0.25:
+    if best is None or score < 0.4:
         return None
     return {"script_id": best["id"], "title": best["title"], "score": round(score, 3),
             "benign": bool(best.get("benign")), "method": "keyword",
@@ -88,19 +89,27 @@ def _real(text: str) -> dict | None:
 def match(text: str) -> dict | None:
     if not (text or "").strip():
         return None
-    if settings.REAL_MATCH and settings.REAL_DB and settings.REAL_SIE and not settings.FAKE:
+    if settings.FAKE:
+        return _fake(text)  # the keyword stand-in exists for simulated demos only
+    if settings.REAL_MATCH and settings.REAL_DB and settings.REAL_SIE:
         return _real(text)
-    return _fake(text)
+    return None
 
 
-async def on_text(call_id: str, text: str) -> None:
+async def on_text(call_id: str, text: str, flags=None) -> None:
     """Fire-and-forget from the flow: never raises, never changes a decision."""
     try:
-        if call_id in _done:
+        if call_id in _done or call_id in _busy:
             return
-        m = await asyncio.wait_for(asyncio.to_thread(match, text), BUDGET_S)
+        _busy.add(call_id)
+        try:
+            m = await asyncio.wait_for(asyncio.to_thread(match, text), BUDGET_S)
+        finally:
+            _busy.discard(call_id)
         if not m:
             return
+        if not m["benign"] and not (flags is not None and (flags.money or flags.needs_verification)):
+            return  # the classifier does not see a money or identity risk: do not call it a scam
         known = not m["benign"] and (m["score"] >= THRESHOLD or m["method"] != "vector")
         if not m["benign"] and not known:
             return  # weak match to a scam script: say nothing
@@ -123,4 +132,4 @@ def warning(call_id: str) -> str:
 
 
 def reset() -> None:
-    _last.clear(); _best.clear(); _done.clear()
+    _last.clear(); _best.clear(); _done.clear(); _busy.clear()

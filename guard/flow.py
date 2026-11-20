@@ -144,7 +144,7 @@ async def on_transcript(call_id, role, text) -> None:
         f = classify.flags(_caller_text[call_id])
         state.update_call(call_id, flags=f)
         state.emit(call_id, "flags", f.model_dump())
-        spawn(scripts.on_text(call_id, _caller_text[call_id]))  # fire-and-forget, never blocks the call
+        spawn(scripts.on_text(call_id, _caller_text[call_id], f))  # fire-and-forget, never blocks the call
 
 
 async def _expected_call(call_id, found) -> bool:

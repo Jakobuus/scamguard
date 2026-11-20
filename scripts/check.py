@@ -894,5 +894,29 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert not any(e["type"] == "script.match" for e in bad_events)
         assert all("known scam" not in e["data"]["text"] for e in bad_events if e["type"] == "owner.notified")
     ok("scam script match: event, owner warning, benign case, raising and hanging matcher change nothing")
+    # classifier agreement, stand-in only in fake mode, one match at a time
+    import asyncio
+    from guard.contracts import Flags
+    harmless = "Hi Mum, just calling to say hello, how was your week? Tell dad I said hi."
+    scam_line = "Mum, it's me, I need $2000 in gift cards now, don't tell dad"
+    def matches(cid, text, flags):
+        asyncio.run(scripts.on_text(cid, text, flags))
+        return [e.data for e in state.backend.events if e.call_id == cid and e.type == "script.match"]
+    assert not [m for m in matches("m-h1", harmless, Flags(money=False)) if not m["benign"]]
+    assert not [m for m in matches("m-h2", harmless, Flags(money=True, needs_verification=True)) if not m["benign"]]
+    assert not matches("m-s0", scam_line, Flags(money=False)) and "m-s0" not in scripts._done
+    assert matches("m-s1", scam_line, Flags(money=True))[0]["script_id"] == "grandparent_giftcards"
+    with patch.object(settings, "FAKE", False):
+        assert scripts.match(scam_line) is None
+    seen = []
+    def slow(t):
+        seen.append(1); time.sleep(0.3)
+        return None
+    async def two():
+        with patch.object(scripts, "match", slow):
+            await asyncio.gather(scripts.on_text("m-b", scam_line, Flags(money=True)), scripts.on_text("m-b", scam_line, Flags(money=True)))
+    asyncio.run(two())
+    assert len(seen) == 1, seen
+    ok("scam match: classifier must agree, no stand-in with FAKE off, harmless family line no scam, one at a time")
 _timer.cancel()
 print("ALL OK")

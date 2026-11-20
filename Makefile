@@ -6,3 +6,4 @@ dev:
 check:
 	FAKE=1 uv run python scripts/check.py
 	FAKE=1 uv run python scripts/check_redact.py
+	python3 scripts/check_js.py web/index.html web/app.html
