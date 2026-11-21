@@ -274,6 +274,7 @@ function describe(e) {
       const by = {tap: `${n} ${verb(d)} ${d.state === "confirmed" ? "Yes" : "No"}${onCh(d)}`, timeout: `no answer from ${n}`,
                   known_number: "known number, harmless request", lookup: "caller not in the circle",
                   repeat_attempt: "number already denied today", stepup: "identity check", code_word: "family code word",
+                  code_word_failed: "caller did not know the code word",
                   ping_cap: "too many attempts today", credential: "verified agent credential",
                   stepup_unavailable: "identity check unavailable", expected: "an expected call",
                   expected_but_money: "expected caller asked for money"}[d.by] || human(d.by);
@@ -374,7 +375,8 @@ function outcome() {
     if (d.state === "denied") return ["st-denied", "DENIED", {
       tap: `${n} ${verb(d)} No${onCh(d)}. The guard hung up.`,
       repeat_attempt: `This number was already denied as ${n} today. Hung up without asking again.`,
-      stepup: `Failed ${n}'s identity check. The guard hung up.`}[by] || `Denied by ${human(by)}. The guard hung up.`];
+      stepup: `Failed ${n}'s identity check. The guard hung up.`,
+      code_word_failed: "The caller did not know the code word. The guard hung up."}[by] || `Denied by ${human(by)}. The guard hung up.`];
     if (d.state === "confirmed") {
       if (by === "code_word") return ["st-ok", "Verified by code word", `${n} didn't answer, but the caller knew the family code word.`];
       if (S.expected || by === "context" || by === "expected") return ["st-expected", "Expected call", S.expected || "The owner was expecting this call."];

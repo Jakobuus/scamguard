@@ -491,16 +491,16 @@ async def on_code_word(call_id, spoken: str) -> str:
             "text": f"Someone reached {settings.OWNER_NAME} with your code word. Not you? Tap below.",
         })
         return "ok"
-    if _code_tries[call_id] < 2:
+    # A call already flagged for money or verification gets one try; others get two.
+    scam = bool(call.flags and (call.flags.money or call.flags.needs_verification))
+    if _code_tries[call_id] < (1 if scam else 2):
         return "retry"
-    # No await between eligibility and the decision; a winning tap cannot be overridden.
-    if call.state == "pending" and not await _resolve(call_id, "unverified", "code_word"):
-        return "failed"
     if unidentified:
         _exhausted.add(call_id)  # final: no later identification or code word may reopen it
-    state.emit(call_id, "action", {"kind": "code_word_failed"})
-    vapi.hangup(call_id)
-    await _notify(call_id, "Unverified caller failed the code word. Don't send money.")
+    # No await between eligibility and the decision; a winning tap cannot be overridden.
+    if not state.decide(call_id, "denied", "code_word_failed"):
+        return "failed"
+    await _decided(call_id, "denied", "code_word_failed")
     return "failed"
 
 
@@ -542,13 +542,17 @@ def _learn(call_id, call) -> None:
 async def _resolve(call_id, new_state, by, channel=None) -> bool:
     if not state.decide(call_id, new_state, by):
         return False  # someone already decided: do nothing
+    await _decided(call_id, new_state, by, channel)
+    return True
+
+
+async def _decided(call_id, new_state, by, channel=None) -> None:
     c = state.get_call(call_id)
     _learn(call_id, c)
     secs = round((c.decided_at - c.started_at).total_seconds(), 1)
     state.emit(call_id, "decision", {"state": new_state, "by": by, "seconds_to_decide": secs,
                                     **({"channel": channel} if by == "tap" else {})})
     await _act(call_id, new_state)
-    return True
 
 
 async def _act(call_id, new_state) -> None:
@@ -557,9 +561,12 @@ async def _act(call_id, new_state) -> None:
     contact = contacts.get(c.contact_id) if c.contact_id else None
     name = contact.name if contact else "the caller"
     if new_state == "denied":
-        vapi.say(call_id, "This call is not who it claims to be. Goodbye.")
+        failed = c.decided_by == "code_word_failed"
+        vapi.say(call_id, "That is not the code word. I cannot put this call through. Goodbye."
+                 if failed else "This call is not who it claims to be. Goodbye.")
         vapi.hangup(call_id)
-        text = (f"Repeat attempt as {name} today. Don't send money."
+        text = ("Blocked: the caller did not know the code word. Don't send money." if failed
+                else f"Repeat attempt as {name} today. Don't send money."
                 if c.decided_by == "repeat_attempt" else f"That wasn't {name}. Don't send money.")
         await _notify(call_id, text)
         state.emit(call_id, "call.ended", {})

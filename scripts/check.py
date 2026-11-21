@@ -932,9 +932,9 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         def events(cid):
             return [e for e in state.events_since(0) if e.call_id == cid]
 
-        async def matched():
+        async def matched(text="This is Jakob, please wire $2000"):
             cid = flow.start_call(None)
-            await flow.on_transcript(cid, "caller", "This is Jakob, please wire $2000")
+            await flow.on_transcript(cid, "caller", text)
             await flow.verify_caller(cid, "Jakob")
             return cid
 
@@ -954,20 +954,39 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert any(e.data.get("kind") == "late_denial" for e in events(cid))
         assert not await flow.on_tap(cid, "no")
 
-        cid = await matched()
+        harmless = "This is Jakob, are you free later?"
+        cid = await matched(harmless)
         assert await flow.on_code_word(cid, "Brunometer") == "retry"
         assert await flow.on_code_word(cid, "wrong") == "failed"
-        assert state.get_call(cid).state == "unverified"
-        assert any(e.data.get("kind") == "hangup" for e in events(cid))
-        assert any(e.type == "owner.notified" and "failed the code word" in e.data["text"] for e in events(cid))
+        call = state.get_call(cid)
+        assert call.state == "denied" and call.decided_by == "code_word_failed"
+        assert sum(e.data.get("kind") == "hangup" for e in events(cid)) == 1
+        assert sum(e.type == "owner.notified" and "did not know the code word" in e.data["text"]
+                   for e in events(cid)) == 1
         assert await flow.on_code_word(cid, "Bruno") == "failed"
+        assert not await flow.on_tap(cid, "no") and not await flow.on_tap(cid, "yes")
 
-        cid = await matched()
+        cid = await matched(harmless)
         await flow._resolve(cid, "unverified", "timeout")
         assert await flow.on_code_word(cid, "wrong") == "retry"
         assert await flow.on_code_word(cid, "still wrong") == "failed"
-        assert state.get_call(cid).state == "unverified"
-        assert any(e.data.get("kind") == "code_word_failed" for e in events(cid))
+        assert state.get_call(cid).state == "denied"
+        ev = events(cid)
+        assert [e.data for e in ev if e.type == "decision"][-1]["by"] == "code_word_failed"
+        assert sum(e.type == "call.ended" for e in ev) == 1 and ev[-1].type == "call.ended"
+        assert sum(e.data.get("kind") == "say" for e in ev) == 1
+
+        # A call already flagged for money: the first wrong word is final, pending or unverified.
+        flow._pings.clear()  # stay under the daily ping cap
+        cid = await matched()
+        assert state.get_call(cid).flags.money
+        assert await flow.on_code_word(cid, "wrong") == "failed"
+        assert state.get_call(cid).state == "denied" and state.get_call(cid).decided_by == "code_word_failed"
+        cid = await matched()
+        await flow._resolve(cid, "unverified", "timeout")
+        assert await flow.on_code_word(cid, "wrong") == "failed"
+        assert state.get_call(cid).state == "denied" and state.get_call(cid).decided_by == "code_word_failed"
+        flow._pings.clear()
 
         cid = await matched()
         await flow._resolve(cid, "unverified", "timeout")
@@ -1028,7 +1047,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         assert await flow.on_code_word(cid, "banana") == "retry"
         assert await flow.on_code_word(cid, "kiwi") == "failed"
         assert await flow.on_code_word(cid, "pineapple") == "failed"
-        assert state.get_call(cid).state == "unverified"
+        assert state.get_call(cid).state == "denied" and cid in flow._exhausted
         # (d) a word two contacts share is not accepted without identification
         cid = await garbled()
         twins = [c.model_copy(update={"challenge_answer": "Pineapple"}) for c in contacts._all()]
@@ -1072,7 +1091,7 @@ with TestClient(app) as c:  # keeps one event loop alive so timers fire
         await flow.on_transcript(cid, "caller", "It's Erick, your teammate from the hackathon")
         await flow.verify_caller(cid, "Erick")
         await asyncio.sleep(0.4)
-        assert state.get_call(cid).state == "unverified" and not any(e.type == "ping.sent" for e in events(cid))
+        assert state.get_call(cid).state == "denied" and not any(e.type == "ping.sent" for e in events(cid))
         assert await flow.on_code_word(cid, "pineapple") == "failed"
         # the attempt budget holds under concurrency
         cid = await garbled()

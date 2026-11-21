@@ -390,6 +390,8 @@ def agent_events(event: Event) -> list[dict]:
                          {"by": d.get("by")}, st["decision"]))
         if d.get("by") == "code_word" and d.get("state") == "confirmed":
             out.append(_tool(cid, st, ms, "check_code_word", True, 0, {}, {"result": "ok"}))
+        if d.get("by") == "code_word_failed":
+            out.append(_tool(cid, st, ms, "check_code_word", False, 0, {}, {"result": "failed"}))
     elif t == "action":
         k = d.get("kind")
         if k == "code_word_failed":
