@@ -1,5 +1,7 @@
 # KinCheck: is this you?
 
+![KinCheck: is this you? Voices can be cloned. KinCheck asks the real person.](docs/kincheck.png)
+
 A personal phone agent that beats voice-clone scams: when a caller claims to be someone you trust and asks for money, it holds the call and asks that real person on their own phone, "Is this you?", before anything happens. SingleStore makes one answer win, Superlinked catches the claim and risk signals, and Cognee resolves who the caller means.
 
 ## What happens on a call
