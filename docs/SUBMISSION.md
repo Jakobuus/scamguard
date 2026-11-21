@@ -34,7 +34,7 @@ A cloned voice can sound exactly like your son, your boss or your best friend. K
 
 ## How a decision is made
 
-Only a real person's answer, the 20-second timeout, a valid code word or a matching expected call decides a call. The model can talk, but it cannot hang up or forward; code applies the outcome. SingleStore runs `UPDATE calls ... WHERE state='pending'`, so competing answers on WhatsApp and Telegram have exactly one winner, and later answers are told "already decided". A No that arrives after the timeout still ends the call.
+Only a real person's answer, the 20-second timeout, a valid code word or a matching expected call decides a call. The model can talk, but it cannot hang up or forward; code applies the outcome. SingleStore runs `UPDATE calls ... WHERE state='pending'`, so competing answers on WhatsApp and Telegram have exactly one winner, and later answers are told "already decided". A No that arrives after the timeout still ends the call. A wrong code word ends the call as Blocked and warns the protected person: with money or verification flags the first wrong word is final, otherwise the caller gets two tries.
 
 ## Rules
 

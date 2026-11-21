@@ -8,7 +8,7 @@ A teammate calls and says, "It's your teammate from the hackathon." KinCheck nev
 
 Then the same voice, cloned, asks for gift cards. KinCheck holds the call and asks the real person, "Is this you?" He answers No. Code ends the call and sends you a warning. The familiar voice never decides the outcome.
 
-If nobody answers within 20 seconds, the call becomes unverified and the agent asks for the code word. A late No still ends it. Expected deliveries, callbacks and appointments can pass without a question when the caller matches and makes no sensitive request. A mailbox scan adds them from orders, shipping notices and appointments; the demo runs on a sample mailbox. A consented cloned-voice call started from the dashboard plays pre-recorded ElevenLabs clips into the guard agent as the caller.
+If nobody answers within 20 seconds, the agent asks for the code word. A late No still ends it. A wrong code word ends the call as Blocked and warns the protected person: with money or verification flags the first wrong word is final, otherwise the caller gets two tries. Expected deliveries, callbacks and appointments can pass without a question when the caller matches and makes no sensitive request. A mailbox scan adds them from orders, shipping notices and appointments; the demo runs on a sample mailbox. A consented cloned-voice call started from the dashboard plays pre-recorded ElevenLabs clips into the guard agent as the caller.
 
 ## Built with our partners
 
