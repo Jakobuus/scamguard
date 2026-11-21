@@ -1928,6 +1928,7 @@ function ovHow(r) {
     case "timeout": return `no answer${t}`;
     case "code_word": return r.outcome === "confirmed" ? "gave the code word" : "no answer, code word failed";
     case "repeat_attempt": return "same number tried again, ended at once";
+    case "code_word_failed": return "didn't know the code word";
     case "expected_but_money": return "expected call asked for money";
     case "expected": return "expected call, let through";
     case "known_number": return "known number, put through";
@@ -2593,7 +2594,7 @@ $("xform").addEventListener("submit", async e => {
     const n = name();
     return {tap: `${n} ${verb(d)} ${d.state === "confirmed" ? "Yes" : "No"}${onCh(d)}`, timeout: `no answer from ${n}`,
             known_number: "known number, harmless request", lookup: "caller not in the circle",
-            repeat_attempt: "number already denied today", stepup: "identity check", code_word: "code word",
+            repeat_attempt: "number already denied today", stepup: "identity check", code_word: "code word", code_word_failed: "caller did not know the code word",
             ping_cap: "too many attempts today", credential: "verified agent credential",
             stepup_unavailable: "identity check unavailable", expected: "an expected call",
             expected_but_money: "expected caller asked for money"}[d.by] || human(d.by);
@@ -2608,6 +2609,7 @@ $("xform").addEventListener("submit", async e => {
       if (d.state === "denied") return ["denied", "Blocked", {
         tap: `${n} ${verb(d)} No${onCh(d)}${after}. The guard hung up.`,
         repeat_attempt: `This number was already denied as ${n} today. Hung up without asking again.`,
+        code_word_failed: "No answer and the caller did not know the code word. The guard hung up.",
         stepup: `Failed ${n}'s identity check. The guard hung up.`}[by] || `Denied by ${human(by)}. The guard hung up.`];
       if (d.state === "confirmed") {
         if (by === "code_word") return ["ok", "Verified by code word", `${n} didn't answer, but the caller knew the code word.`];
