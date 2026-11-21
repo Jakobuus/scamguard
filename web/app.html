@@ -705,8 +705,8 @@
   body.lc-present #lc-listen{display:none}
   .lc-talk .lc-h-note{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .lc-controls .lc-pbtn{flex:none;white-space:nowrap}
-  /* HACK: stage shows one real and one cloned-voice call: hide the scripted scenes and the Present button (?present=1 still works). */
-  #lc-present,.lc-scenes button[data-scene]:not([data-scene="reset"]),.lc-scenes #lc-cast-hint{display:none!important}
+  /* HACK: stage shows one real and one cloned-voice call: hide scenes, Reset and Present (reset runs from the terminal) (?present=1 still works). */
+  #lc-present,.lc-scenes button[data-scene],.lc-scenes #lc-cast-hint,.lc-scenes #lc-clone-stop{display:none!important}
   .lc-scenes #lc-cast-hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 
   /* elsewhere in the app */
